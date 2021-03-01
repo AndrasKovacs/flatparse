@@ -18,7 +18,7 @@ longw     = $(string "thisisalongkeyword")
 longws    = some_ (longw >> ws) >> eof
 runLongws = runParser longws ()
 
-numeral   = some_ (satisfyASCII \c -> '0' <= c && c <= '9') >> ws
+numeral   = some_ (satisfyASCII isDigit) >> ws
 comma     = $(char ',') >> ws
 numcsv    = numeral >> many_ (comma >> numeral) >> eof
 runNumcsv = runParser numcsv ()
