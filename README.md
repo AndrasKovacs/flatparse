@@ -7,7 +7,25 @@ The primary goal of `flatparse` is to be as fast as possible for the primary int
 than some other libraries, but it is much faster, and still allows users to build their own custom solutions for fancier features such as indentation parsing
 and pretty error reporting.
 
-WIP, documentation and examples to be added.
+WIP, documentation and examples to be added. Preliminary benchmark results are below. `fpbasic` and `fpstateful` are the two versions exported from here.
+
+|      benchmark              |             runtime                     |
+|-----------------------------|-----------------------------------------|
+| sexp/fpbasic                |             mean 3.597 ms  (+- 13.61 μs)|
+| sexp/fpstateful             |             mean 3.630 ms  (+- 162.4 μs)|
+| sexp/attoparsec             |             mean 44.70 ms  (+- 1.120 ms)|
+| sexp/megaparsec             |             mean 58.47 ms  (+- 1.178 ms)|
+| sexp/parsec                 |             mean 193.3 ms  (+- 4.341 ms)|
+| long keyword/fpbasic        |             mean 327.4 μs  (+- 21.39 μs)|
+| long keyword/fpstateful     |             mean 325.5 μs  (+- 21.53 μs)|
+| long keyword/attoparsec     |             mean 6.009 ms  (+- 442.4 μs)|
+| long keyword/megaparsec     |             mean 3.574 ms  (+- 90.20 μs)|
+| long keyword/parsec         |             mean 49.21 ms  (+- 278.7 μs)|
+| numeral csv/fpbasic         |             mean 881.0 μs  (+- 23.87 μs)|
+| numeral csv/fpstateful      |             mean 854.7 μs  (+- 20.37 μs)|
+| numeral csv/attoparsec      |             mean 21.51 ms  (+- 926.9 μs)|
+| numeral csv/megaparsec      |             mean 10.36 ms  (+- 445.5 μs)|
+| numeral csv/parsec          |             mean 80.64 ms  (+- 4.104 ms)|
 
 Observations and principles behind the design.
 
