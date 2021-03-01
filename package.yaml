@@ -1,0 +1,60 @@
+
+name:        flatparse
+version:     0.1.0.0
+license:     MIT
+category:    Parsing
+description: "High-performance parsing from strict bytestrings"
+author:      "András Kovács"
+maintainer:  "puttamalac@gmail.com"
+copyright:   "2021 András Kovács"
+
+dependencies:
+- base >= 4.7 && < 5
+
+default-extensions:
+  - BangPatterns
+  - BlockArguments
+  - ExplicitNamespaces
+  - LambdaCase
+  - MagicHash
+  - PatternSynonyms
+  - TemplateHaskell
+  - UnboxedTuples
+  - OverloadedStrings
+
+ghc-options:
+  - -Wall
+  - -Wno-name-shadowing
+  - -Wno-unused-binds
+  - -Wno-unused-matches
+  - -Wno-missing-signatures
+
+library:
+  source-dirs:
+    - src
+  dependencies:
+    - containers
+    - bytestring
+    - template-haskell
+  ghc-options:
+    - -O2
+
+executables:
+
+  test:
+    source-dirs: test
+    main: Test.hs
+
+  bench:
+    source-dirs: bench
+    main: Main.hs
+    dependencies:
+      - flatparse
+      - bytestring
+      - gauge
+      - megaparsec
+      - attoparsec
+      - parsec
+    ghc-options:
+      - -fllvm
+      - -O2
