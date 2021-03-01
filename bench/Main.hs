@@ -4,11 +4,11 @@ module Main where
 import Gauge
 import qualified Data.ByteString.Char8 as B
 
-import qualified FP
 import qualified Attoparsec
 import qualified Megaparsec
 import qualified Parsec
 import qualified FPStateful
+import qualified FPBasic
 
 sexpInp :: B.ByteString
 sexpInp =
@@ -23,7 +23,7 @@ numcsvInp = B.concat ("0" : [B.pack (",  " ++ show n) | n <- [1..100000::Int]])
 main :: IO ()
 main = defaultMain [
   bgroup "sexp" [
-    bench "flatparse"   $ whnf FP.runSexp         sexpInp,
+    bench "flatparse"   $ whnf FPBasic.runSexp    sexpInp,
     bench "fpstateful"  $ whnf FPStateful.runSexp sexpInp,
     bench "attoparsec"  $ whnf Attoparsec.runSexp sexpInp,
     bench "megaparsec"  $ whnf Megaparsec.runSexp sexpInp,
@@ -31,7 +31,7 @@ main = defaultMain [
   ],
 
   bgroup "long keyword" [
-    bench "flatparse"  $ whnf FP.runLongws         longwsInp,
+    bench "flatparse"  $ whnf FPBasic.runLongws    longwsInp,
     bench "fpstateful" $ whnf FPStateful.runLongws longwsInp,
     bench "attoparsec" $ whnf Attoparsec.runLongws longwsInp,
     bench "megaparsec" $ whnf Megaparsec.runLongws longwsInp,
@@ -39,7 +39,7 @@ main = defaultMain [
   ],
 
   bgroup "numeral csv" [
-    bench "flatparse"  $ whnf FP.runNumcsv         numcsvInp,
+    bench "flatparse"  $ whnf FPBasic.runNumcsv    numcsvInp,
     bench "fpstateful" $ whnf FPStateful.runNumcsv numcsvInp,
     bench "attoparsec" $ whnf Attoparsec.runNumcsv numcsvInp,
     bench "megaparsec" $ whnf Megaparsec.runNumcsv numcsvInp,
