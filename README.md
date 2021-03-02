@@ -12,10 +12,10 @@ whenever possible.
 * __Only little-endian 64 bit systems are currently supported__. This may change in the future. Getting good performance requires architecture-specific optimizations; I've only considered the most common setting at this point. 
 * __Support for fast source location handling, indentation parsing and informative error messages__. `flatparse` provides a low-level interface to these. Batteries are _not included_, but it should be possible for users to build custom solutions, which are more sophisticated, but still as fast as possible. In my experience, the included batteries in other libraries often come with major unavoidable overheads, and often we still have to extend existing machinery in order to scale to production features.
 
-`flatparse` comes in two flavors: `FlatParse.Basic` and `FlatParse.Stateful`. Both support a custom error type and a custom reader environment. 
+`flatparse` comes in two flavors: [`FlatParse.Basic`](src/FlatParse/Basic.hs) and [`FlatParse.Stateful`](src/FlatParse/Stateful.hs). Both support a custom error type and a custom reader environment. 
 
-* `FlatParse.Basic` only supports the above features. If you don't need indentation parsing, this is sufficient.
-* `FlatParse.Stateful` additionally supports a built-in `Int` worth of internal state. This can support a wide range of indentation parsing features. There is a slight overhead in performance and code size compared to `Basic`. However, in small parsers and microbenchmarks the difference between `Basic` and `Stateful` is often reduced to near zero by GHC and LLVM optimization. The difference is more marked if we use native code backend instead of LLVM.
+* [`FlatParse.Basic`](src/FlatParse/Basic.hs) only supports the above features. If you don't need indentation parsing, this is sufficient.
+* [`FlatParse.Stateful`](src/FlatParse/Stateful.hs) additionally supports a built-in `Int` worth of internal state. This can support a wide range of indentation parsing features. There is a slight overhead in performance and code size compared to `Basic`. However, in small parsers and microbenchmarks the difference between `Basic` and `Stateful` is often reduced to near zero by GHC and LLVM optimization. The difference is more marked if we use native code backend instead of LLVM.
 
 ## Tutorial
 
