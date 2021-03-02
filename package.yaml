@@ -40,14 +40,13 @@ library:
     - -O2
 
 executables:
-
   test:
     source-dirs: test
     main: Test.hs
 
   bench:
     source-dirs: bench
-    main: Main.hs
+    main: Bench.hs
     dependencies:
       - flatparse
       - bytestring
