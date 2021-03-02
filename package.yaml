@@ -58,3 +58,8 @@ executables:
     ghc-options:
       - -fllvm
       - -O2
+      # - -ddump-simpl
+      # - -dsuppress-all
+      # - -dno-suppress-type-signatures
+      # - -ddump-stg
+      # - -ddump-to-file
