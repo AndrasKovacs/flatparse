@@ -1,36 +1,54 @@
 # flatparse
-Fast parsing from bytestrings.
 
-This is a monadic parser combinator library largely in the tradition of other Haskell parser libraries.
+`flatparse` is a high-performance parsing library, focusing on __programming languages__ and __human-readable data formats__. The "flat" in the name
+refers to the `ByteString` parsing input, which has pinned contiguous data, and also to the library internals, which avoids indirections and heap allocations
+whenever possible.
 
-The primary goal of `flatparse` is to be as fast as possible for the primary intended use case, which is parsing programming languages and human-readable data formats. This is achieved at the cost of some features, but which are barely relevant to the intended purpose in my experience. `flatparse` is more minimal
-than some other libraries, but it is much faster, and still allows users to build their own custom solutions for fancier features such as indentation parsing
-and pretty error reporting.
+## Features and non-features
 
-WIP, documentation and examples to be added. Preliminary benchmark results are below. `fpbasic` and `fpstateful` are the two versions exported from here.
+* __Excellent performance__. On microbenchmarks, `flatparse` is at least 10 times faster than `attoparsec` or `megaparsec`. On larger examples with heavier use of    source positions and spans and/or indentation parsing, the performance difference grows to 20-30 times. Pure validators (parsers returning `()`) in `flatparse` are not difficult to implement with zero heap allocation. Compile times and exectuable sizes are also significantly better with `flatparse` than with `megaparsec` or `attoparsec`. 
+* `flatparse` interals make liberal use of unboxed tuples and GHC primops. As a result, pure validators (parsers returning `()`) in `flatparse` are not difficult to implement with zero heap allocation. 
+* __No incremental parsing__, and __only strict `ByteString`__ is supported as input. However, it can be still useful to convert from `Text`, `String` or other types to `ByteString`, and then use `flatparse` for parsing, since `flatparse` performance usually more than makes up for the conversion costs.
+* __Only little-endian 64 bit systems are currently supported__. This may change in the future. Getting good performance requires architecture-specific optimizations; I've only considered the most common setting at this point. 
+* __Support for fast source location handling, indentation parsing and informative error messages__. `flatparse` provides a low-level interface to these. Batteries are _not included_, but it should be possible for users to build custom solutions, which are more sophisticated, but still as fast as possible. In my experience, the included batteries in other libraries often come with major unavoidable overheads, and often we still have to extend existing machinery in order to scale to production features.
 
-|      benchmark              |             runtime                     |
-|-----------------------------|-----------------------------------------|
-| sexp/fpbasic                |             mean 3.597 ms  (+- 13.61 μs)|
-| sexp/fpstateful             |             mean 3.630 ms  (+- 162.4 μs)|
-| sexp/attoparsec             |             mean 44.70 ms  (+- 1.120 ms)|
-| sexp/megaparsec             |             mean 58.47 ms  (+- 1.178 ms)|
-| sexp/parsec                 |             mean 193.3 ms  (+- 4.341 ms)|
-| long keyword/fpbasic        |             mean 327.4 μs  (+- 21.39 μs)|
-| long keyword/fpstateful     |             mean 325.5 μs  (+- 21.53 μs)|
-| long keyword/attoparsec     |             mean 6.009 ms  (+- 442.4 μs)|
-| long keyword/megaparsec     |             mean 3.574 ms  (+- 90.20 μs)|
-| long keyword/parsec         |             mean 49.21 ms  (+- 278.7 μs)|
-| numeral csv/fpbasic         |             mean 881.0 μs  (+- 23.87 μs)|
-| numeral csv/fpstateful      |             mean 854.7 μs  (+- 20.37 μs)|
-| numeral csv/attoparsec      |             mean 21.51 ms  (+- 926.9 μs)|
-| numeral csv/megaparsec      |             mean 10.36 ms  (+- 445.5 μs)|
-| numeral csv/parsec          |             mean 80.64 ms  (+- 4.104 ms)|
+`flatparse` comes in two flavors: `FlatParse.Basic` and `FlatParse.Stateful`. Both support a custom error type and a custom reader environment. 
 
-Observations and principles behind the design.
+* `FlatParse.Basic` only supports the above features. If you don't need indentation parsing, this is sufficient.
+* `FlatParse.Stateful` additionally supports a built-in `Int` worth of internal state. This can support a wide range of indentation parsing features. There is a slight overhead in performance and code size compared to `Basic`. However, in small parsers and microbenchmarks the difference between `Basic` and `Stateful` is often reduced to near zero by GHC and LLVM optimization. The difference is more marked if we use native code backend instead of LLVM.
 
-- Being generic over monads and input streams adds a large overhead on code size, compile times and runtime speed. In real-world usage, reading from strict bytestring covers pretty much all of the programming language parsing tasks, so that's our focus. We do not support streaming and resumption. For non-bytestring inputs, it is still a good idea to first convert/serialize to bytestring, then parse with `flatparse`, instead of trying to parse other representations directly, because of the large speed gains on `flatparse`.
-- Continuation-passing style (CPS) is clearly harmful to performance and compile times, at least on modern GHC, but even in the older days of Parsec, when CPS was
-first popularized, there was not much if any performance gain either. Instead, we use unboxed tuples in a monomorphic state monad, where the state is simply a machine address pointing inside a pinned bytestring.
-- We focus on UTF-8 inputs currently, with some optimizations for ASCII. More support for other encodings and raw byte input could be added in the future. However, UTF-8 and ASCII should already cover much of language parsing tasks.
-- Without more serious optimization, lexical analysis is very inefficient in naive monadic parsing. To address this, we use Template Haskell for literal parsing and for branching on statically known choices of keywords. For example, reading a concrete keyword in `flatparse` is UTF-8 decoded at compile time, and also vectorized to multi-byte reads. Multiple keyword matching is compiled to trie-shaped reads and comparisons.
+## Tutorial
+
+TODO
+  
+### Some benchmarks
+
+Execution times below. See source code in [bench](bench). Compiled with GHC 8.8.4 `-O2 -fllvm`. 
+
+|      benchmark              |  runtime   | 
+|-----------------------------|-------------
+| s-exp/fpbasic               |  3.597 ms  |
+| s-exp/fpstateful            |  3.630 ms  |
+| s-exp/attoparsec            |  44.70 ms  |
+| s-exp/megaparsec            |  58.47 ms  |
+| s-exp/parsec                |  193.3 ms  |
+| long keyword/fpbasic        |  327.4 μs  |
+| long keyword/fpstateful     |  325.5 μs  |
+| long keyword/attoparsec     |  6.009 ms  |
+| long keyword/megaparsec     |  3.574 ms  |
+| long keyword/parsec         |  49.21 ms  |
+| numeral csv/fpbasic         |  881.0 μs  |
+| numeral csv/fpstateful      |  854.7 μs  |
+| numeral csv/attoparsec      |  21.51 ms  |
+| numeral csv/megaparsec      |  10.36 ms  |
+| numeral csv/parsec          |  80.64 ms  |
+
+Object file sizes for each module containing the `s-exp`, `long keyword` and `numeral csv` benchmarks.
+
+| library    | object file size (bytes) |
+| -------    | ------------------------ |
+| fpbasic    |  25392                   |
+| fpstateful |  30056                   |
+| attoparsec |  83288                   |
+| megaparsec |  188696                  |
+| parsec     |  75880                   |
