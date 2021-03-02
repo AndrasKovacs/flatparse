@@ -33,6 +33,8 @@ module FlatParse.Stateful (
   -- * Basic lexing and parsing
   , eof
   , char
+  , byte
+  , bytes
   , string
   , switch
   , switchWithPost
@@ -40,6 +42,10 @@ module FlatParse.Stateful (
   , satisfyASCII
   , satisfyASCII_
   , fusedSatisfy
+  , anyWord8
+  , anyWord16
+  , anyWord32
+  , anyWord
   , anyChar
   , anyChar_
   , anyCharASCII
@@ -331,13 +337,22 @@ eof = Parser \r eob s n -> case eqAddr# eob s of
 char :: Char -> Q Exp
 char c = string [c]
 
--- | Parse a UTF-8 string literal. This is a template function, you can use it as @$(string "foo")@,
---   for example, and the splice in this case has type @Parser r e ()@.
-string :: String -> Q Exp
-string str = do
-  let !bytes = strToBytes str
-      !len   = length bytes
+-- | Read a `Word8`.
+byte :: Word8 -> Parser r e ()
+byte (W8# w) = ensureBytes# 1 >> scan8# (W# w)
+{-# inline byte #-}
+
+-- | Read a sequence of bytes. This is a template function, you can use it as @$(bytes [3, 4, 5])@,
+--   for example, and the splice has type @Parser r e ()@.
+bytes :: [Word8] -> Q Exp
+bytes bytes = do
+  let !len = length bytes
   [| ensureBytes# len >> $(scanBytes# bytes) |]
+
+-- | Parse a UTF-8 string literal. This is a template function, you can use it as @$(string "foo")@,
+--   for example, and the splice has type @Parser r e ()@.
+string :: String -> Q Exp
+string str = bytes (strToBytes str)
 
 {-|
 This is a template function which makes it possible to branch on a collection of string literals in
@@ -384,10 +399,10 @@ cases. For that case, we can define a "lexeme" version of `switch` as follows.
 
 @
   switch' :: Q Exp -> Q Exp
-  switch' = switch (Just [| ws |])
+  switch' = switchWithPost (Just [| ws |])
 @
 
-Note that this @switch'@ function cannot be used in the same module it's define in, because of the
+Note that this @switch'@ function cannot be used in the same module it's defined in, because of the
 stage restriction of Template Haskell.
 -}
 switchWithPost :: Maybe (Q Exp) -> Q Exp -> Q Exp
@@ -396,7 +411,7 @@ switchWithPost postAction exp = do
   (!cases, !fallback) <- parseSwitch exp
   genTrie $! genSwitchTrie' postAction cases fallback
 
--- | Parse an UTF-8 `Char` for which a predicate holds.
+-- | Parse a UTF-8 `Char` for which a predicate holds.
 satisfy :: (Char -> Bool) -> Parser r e Char
 satisfy f = Parser \r eob s n -> case runParser# anyChar r eob s n of
   OK# c s n | f c -> OK# c s n
@@ -465,6 +480,38 @@ fusedSatisfy f1 f2 f3 f4 = Parser \r eob buf n -> case eqAddr# eob buf of
                              True -> OK# resc (plusAddr# buf 4#) n
                              _    -> Fail#
 {-# inline fusedSatisfy #-}
+
+-- | Parse any `Word8`.
+anyWord8 :: Parser r e Word8
+anyWord8 = Parser \r eob buf n -> case eqAddr# eob buf of
+  1# -> Fail#
+  _  -> case indexWord8OffAddr# buf 0# of
+    w -> OK# (W8# w) (plusAddr# buf 1#) n
+{-# inline anyWord8 #-}
+
+-- | Parse any `Word16`.
+anyWord16 :: Parser r e Word16
+anyWord16 = Parser \r eob buf n -> case eqAddr# eob buf of
+  1# -> Fail#
+  _  -> case indexWord16OffAddr# buf 0# of
+    w -> OK# (W16# w) (plusAddr# buf 2#) n
+{-# inline anyWord16 #-}
+
+-- | Parse any `Word32`.
+anyWord32 :: Parser r e Word32
+anyWord32 = Parser \r eob buf n -> case eqAddr# eob buf of
+  1# -> Fail#
+  _  -> case indexWord32OffAddr# buf 0# of
+    w -> OK# (W32# w) (plusAddr# buf 4#) n
+{-# inline anyWord32 #-}
+
+-- | Parse any `Word`.
+anyWord :: Parser r e Word
+anyWord = Parser \r eob buf n -> case eqAddr# eob buf of
+  1# -> Fail#
+  _  -> case indexWordOffAddr# buf 0# of
+    w -> OK# (W# w) (plusAddr# buf 8#) n
+{-# inline anyWord #-}
 
 -- | Parse any UTF-8-encoded `Char`.
 anyChar :: Parser r e Char
