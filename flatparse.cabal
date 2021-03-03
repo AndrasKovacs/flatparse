@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c0b4798c138eee36da17f35a8b6728cc24b6fcefe4b3dc186bf7469181d0a5e4
+-- hash: 2d04a11d437a849997041f72096841cb4f41bda920cf2eb0d46605bea52b7c4e
 
 name:           flatparse
 version:        0.1.0.0
@@ -21,7 +21,10 @@ library
   exposed-modules:
       FlatParse.Basic
       FlatParse.Stateful
-      FlatParse.Tutorial.Tutorial1
+      FlatParse.Tutorial.BasicLambda
+      FlatParse.Tutorial.BasicLambda.Lexer
+      FlatParse.Tutorial.BasicLambda.Parser
+      FlatParse.Tutorial.T1
   other-modules:
       Paths_flatparse
   hs-source-dirs:
@@ -32,6 +35,7 @@ library
       base >=4.7 && <5
     , bytestring
     , containers
+    , reflection
     , template-haskell
   default-language: Haskell2010
 

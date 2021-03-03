@@ -36,6 +36,7 @@ library:
     - containers
     - bytestring
     - template-haskell
+    - reflection
   ghc-options:
     - -O2
 

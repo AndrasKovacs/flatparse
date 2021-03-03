@@ -71,9 +71,9 @@ module FlatParse.Basic (
   , spanned
   , inSpan
 
-  -- ** Conversion to line/column positions
+  -- ** Position and span conversions
   , validPos
-  , posLineCol
+  , posLineCols
   , spanToByteString
   , unsafeSpanToByteString
   , mkPos
@@ -102,7 +102,9 @@ import Control.Monad
 import Data.Bits
 import Data.Char (ord)
 import Data.Foldable
+import Data.List (sortBy)
 import Data.Map (Map)
+import Data.Ord (comparing)
 import Data.Word
 import GHC.Exts
 import GHC.Word
@@ -723,22 +725,29 @@ validPos str pos =
     _      -> error "impossible"
 {-# inline validPos #-}
 
--- | Get the corresponding line and column number for a `Pos`.
-posLineCol :: B.ByteString -> Pos -> (Int, Int)
-posLineCol str pos | validPos str pos =
-  let go !line !col = (do
-        c <- anyChar
-        if c == '\n' then go (line + 1) 0
-                     else go line (col + 1)) <|> pure (line, col)
-      wrap = do
-        start <- getPos
-        inSpan (Span start pos) (go 0 0)
+-- | Compute corresponding line and column numbers for each `Pos` in a list. Throw an error
+--   on invalid positions. Note: computing lines and columns may traverse the `B.ByteString`,
+--   but it traverses it only once regardless of the length of the position list.
+posLineCols :: B.ByteString -> [Pos] -> [(Int, Int)]
+posLineCols str poss =
+  let go !line !col [] = pure []
+      go line col ((i, pos):poss) = do
+        p <- getPos
+        if pos == p then
+          ((i, (line, col)):) <$> go line col poss
+        else do
+          c <- anyWord8
+          if ord '\n' == fromIntegral c then
+            go (line + 1) 0 ((i, pos):poss)
+          else
+            go line (col + 1) ((i, pos):poss)
 
-  in case runParser wrap () str of
-    OK res _ -> res
-    _        -> error "impossible"
-posLineCol _ _ = error "posInfo: invalid position"
+      sorted :: [(Int, Pos)]
+      sorted = sortBy (comparing snd) (zip [0..] poss)
 
+  in case runParser (go 0 0 sorted) () str of
+       OK res _ -> snd <$> sortBy (comparing fst) res
+       _        -> error "invalid position"
 
 -- | Create a `B.ByteString` from a `Span`. The first argument is the buffer the
 --   `Span` points into. Always returns an empty `B.ByteString` if the span is
