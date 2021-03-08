@@ -17,10 +17,11 @@ default-extensions:
   - ExplicitNamespaces
   - LambdaCase
   - MagicHash
+  - OverloadedStrings
   - PatternSynonyms
   - TemplateHaskell
+  - TupleSections
   - UnboxedTuples
-  - OverloadedStrings
 
 ghc-options:
   - -Wall

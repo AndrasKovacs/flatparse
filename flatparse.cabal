@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2d04a11d437a849997041f72096841cb4f41bda920cf2eb0d46605bea52b7c4e
+-- hash: 3ec81b3a3f0dea78ce855d839cfb64e3ea13b40463839f30608cde66e48cc8be
 
 name:           flatparse
 version:        0.1.0.0
@@ -20,16 +20,14 @@ build-type:     Simple
 library
   exposed-modules:
       FlatParse.Basic
+      FlatParse.Examples.BasicLambda.Lexer
+      FlatParse.Examples.BasicLambda.Parser
       FlatParse.Stateful
-      FlatParse.Tutorial.BasicLambda
-      FlatParse.Tutorial.BasicLambda.Lexer
-      FlatParse.Tutorial.BasicLambda.Parser
-      FlatParse.Tutorial.T1
   other-modules:
       Paths_flatparse
   hs-source-dirs:
       src
-  default-extensions: BangPatterns BlockArguments ExplicitNamespaces LambdaCase MagicHash PatternSynonyms TemplateHaskell UnboxedTuples OverloadedStrings
+  default-extensions: BangPatterns BlockArguments ExplicitNamespaces LambdaCase MagicHash OverloadedStrings PatternSynonyms TemplateHaskell TupleSections UnboxedTuples
   ghc-options: -Wall -Wno-name-shadowing -Wno-unused-binds -Wno-unused-matches -Wno-missing-signatures -O2
   build-depends:
       base >=4.7 && <5
@@ -50,7 +48,7 @@ executable bench
       Paths_flatparse
   hs-source-dirs:
       bench
-  default-extensions: BangPatterns BlockArguments ExplicitNamespaces LambdaCase MagicHash PatternSynonyms TemplateHaskell UnboxedTuples OverloadedStrings
+  default-extensions: BangPatterns BlockArguments ExplicitNamespaces LambdaCase MagicHash OverloadedStrings PatternSynonyms TemplateHaskell TupleSections UnboxedTuples
   ghc-options: -Wall -Wno-name-shadowing -Wno-unused-binds -Wno-unused-matches -Wno-missing-signatures -fllvm -O2
   build-depends:
       attoparsec
@@ -68,7 +66,7 @@ executable test
       Paths_flatparse
   hs-source-dirs:
       test
-  default-extensions: BangPatterns BlockArguments ExplicitNamespaces LambdaCase MagicHash PatternSynonyms TemplateHaskell UnboxedTuples OverloadedStrings
+  default-extensions: BangPatterns BlockArguments ExplicitNamespaces LambdaCase MagicHash OverloadedStrings PatternSynonyms TemplateHaskell TupleSections UnboxedTuples
   ghc-options: -Wall -Wno-name-shadowing -Wno-unused-binds -Wno-unused-matches -Wno-missing-signatures
   build-depends:
       base >=4.7 && <5
