@@ -17,6 +17,8 @@ whenever possible.
 * [`FlatParse.Basic`](src/FlatParse/Basic.hs) only supports the above features. If you don't need indentation parsing, this is sufficient.
 * [`FlatParse.Stateful`](src/FlatParse/Stateful.hs) additionally supports a built-in `Int` worth of internal state. This can support a wide range of indentation parsing features. There is a slight overhead in performance and code size compared to `Basic`. However, in small parsers and microbenchmarks the difference between `Basic` and `Stateful` is often reduced to near zero by GHC and LLVM optimization. The difference is more marked if we use native code backend instead of LLVM.
 
+The reason for baking a reader into the parsers, is that if we need it, it's convenient, and if we don't, then GHC very reliably optimizes unused environments away. In contrast, GHC optimizes much less reliably if we try to wrap the existing `Reader` from `transformers` around our parsers.
+
 ## Tutorial
 
 Work in progress. See [`src/FlatParse/Examples`](src/FlatParse/Examples).
