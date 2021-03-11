@@ -4,18 +4,30 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 439db14230a92da1de3e9410fc51480beb182ca3c738499b2998f0806216f914
+-- hash: 36d29071a6f2602eeb3bc491d3eb621e4fc26705f60599a98dcef45be4b11957
 
 name:           flatparse
 version:        0.1.0.0
-description:    High-performance parsing from strict bytestrings
+synopsis:       High-performance parsing from strict bytestrings
+description:    @Flatparse@ is a high-performance parsing library, focusing on programming languages and
+                human-readable data formats. See the README for more information:
+                <https://github.com/AndrasKovacs/flatparse>.
 category:       Parsing
+homepage:       https://github.com/AndrasKovacs/flatparse#readme
+bug-reports:    https://github.com/AndrasKovacs/flatparse/issues
 author:         András Kovács
 maintainer:     puttamalac@gmail.com
 copyright:      2021 András Kovács
 license:        MIT
 license-file:   LICENSE
+tested-with:    GHC == 8.8.4
 build-type:     Simple
+extra-source-files:
+    README.md
+
+source-repository head
+  type: git
+  location: https://github.com/AndrasKovacs/flatparse
 
 library
   exposed-modules:

@@ -3,13 +3,25 @@ name:        flatparse
 version:     0.1.0.0
 license:     MIT
 category:    Parsing
-description: "High-performance parsing from strict bytestrings"
-author:      "András Kovács"
-maintainer:  "puttamalac@gmail.com"
-copyright:   "2021 András Kovács"
+synopsis:    High-performance parsing from strict bytestrings
+author:      András Kovács
+maintainer:  puttamalac@gmail.com
+copyright:   2021 András Kovács
+bug-reports: https://github.com/AndrasKovacs/flatparse/issues
+github:      AndrasKovacs/flatparse
+
+description: |
+  @Flatparse@ is a high-performance parsing library, focusing on programming languages and
+  human-readable data formats. See the README for more information:
+  <https://github.com/AndrasKovacs/flatparse>.
+
+tested-with: GHC == 8.8.4
 
 dependencies:
-- base >= 4.7 && < 5
+  - base >= 4.7 && < 5
+
+extra-source-files:
+  - README.md
 
 default-extensions:
   - BangPatterns
