@@ -20,7 +20,7 @@ whenever possible.
 
 ## Tutorial
 
-WIP. See [`src/FlatParse/Tutorial`](src/FlatParse/Tutorial).
+Work in progress. See [`src/FlatParse/Examples`](src/FlatParse/Examples).
 
 ### Some benchmarks
 
@@ -28,28 +28,28 @@ Execution times below. See source code in [bench](bench). Compiled with GHC 8.8.
 
 |      benchmark              |  runtime   |
 |-----------------------------|-------------
-| s-exp/fpbasic               |  3.597 ms  |
-| s-exp/fpstateful            |  3.630 ms  |
-| s-exp/attoparsec            |  44.70 ms  |
-| s-exp/megaparsec            |  58.47 ms  |
-| s-exp/parsec                |  193.3 ms  |
-| long keyword/fpbasic        |  327.4 μs  |
-| long keyword/fpstateful     |  325.5 μs  |
-| long keyword/attoparsec     |  6.009 ms  |
-| long keyword/megaparsec     |  3.574 ms  |
-| long keyword/parsec         |  49.21 ms  |
-| numeral csv/fpbasic         |  881.0 μs  |
-| numeral csv/fpstateful      |  854.7 μs  |
-| numeral csv/attoparsec      |  21.51 ms  |
-| numeral csv/megaparsec      |  10.36 ms  |
-| numeral csv/parsec          |  80.64 ms  |
+| s-exp/fpbasic               |  3.365 ms  |
+| s-exp/fpstateful            |  3.421 ms  |
+| s-exp/attoparsec            |  42.84 ms  |
+| s-exp/megaparsec            |  57.54 ms  |
+| s-exp/parsec                |  179.7 ms  |
+| long keyword/fpbasic        |  216.4 μs  |
+| long keyword/fpstateful     |  299.0 μs  |
+| long keyword/attoparsec     |  5.297 ms  |
+| long keyword/megaparsec     |  3.646 ms  |
+| long keyword/parsec         |  49.18 ms  |
+| numeral csv/fpbasic         |  743.5 μs  |
+| numeral csv/fpstateful      |  848.5 μs  |
+| numeral csv/attoparsec      |  20.64 ms  |
+| numeral csv/megaparsec      |  10.12 ms  |
+| numeral csv/parsec          |  78.52 ms  |
 
 Object file sizes for each module containing the `s-exp`, `long keyword` and `numeral csv` benchmarks.
 
 | library    | object file size (bytes) |
 | -------    | ------------------------ |
-| fpbasic    |  25392                   |
-| fpstateful |  30056                   |
+| fpbasic    |  26456                   |
+| fpstateful |  30008                   |
 | attoparsec |  83288                   |
 | megaparsec |  188696                  |
 | parsec     |  75880                   |
