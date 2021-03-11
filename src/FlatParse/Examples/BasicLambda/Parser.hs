@@ -8,8 +8,6 @@ import qualified Data.ByteString as B
 import FlatParse.Basic hiding (Parser, runParser, string, char, err, cut)
 import FlatParse.Examples.BasicLambda.Lexer
 
--- import qualified FlatParse.Basic as FP
-
 --------------------------------------------------------------------------------
 
 type Name = B.ByteString
@@ -42,7 +40,7 @@ ident = token $ byteStringOf $
   spanned (identStartChar *> many_ identChar) (\_ -> fails . isKeyword)
 
 cutIdent :: Parser Name
-cutIdent = ident `cut` "expected an identifier"
+cutIdent = ident `cut'` (Msg "identifier")
 
 digit :: Parser Int
 digit = (\c -> ord c - ord '0') <$> satisfyASCII isDigit
@@ -64,7 +62,7 @@ expectedAtom =
   "expected an identifier, \"true\", \"false\", integer literal or parenthesized term"
 
 app :: Parser Tm
-app = chainl App (atom `cut` expectedAtom) atom
+app = chainl App (atom `cut` [Msg "identifier", Lit "true", Lit "false"]) atom
 
 mul :: Parser Tm
 mul = chainl Mul app ($(symbol "*") *> app)
@@ -110,13 +108,10 @@ pIf = do
 tm :: Parser Tm
 tm = pLet <|> lam <|> pIf <|> eqLt
 
-eofExpected :: String
-eofExpected =
-  "expected end of input, an identifier, \"true\", \"false\","++
-  "integer literal or parenthesized term"
-
 src :: Parser Tm
-src = ws *> tm <* eof `cut` eofExpected
+src = ws *> tm <* eof `cut`
+  [Msg "end of input", Msg "identifier", Lit "true", Lit "false",
+   Msg "integer literal", Msg "parenthesized expression"]
 
 
 -- Examples
@@ -124,7 +119,7 @@ src = ws *> tm <* eof `cut` eofExpected
 
 -- testParser src p1
 p1 = unlines [
-  "let f = lam x. lam y. x in",
+  "let f = lam x. lam y. x ???",
   "let g = if f true then false else true in",
-  "f g g ."
+  "f g g h"
   ]

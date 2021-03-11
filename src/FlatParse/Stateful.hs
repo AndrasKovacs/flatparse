@@ -319,14 +319,14 @@ cut (Parser f) e = Parser \fp r eob s n -> case f fp r eob s n of
   x     -> x
 {-# inline cut #-}
 
--- | Run the parser, if we get a failure, convert it to an error, but if we get an error, modify it
---   using the @e -> e@ function. This can be useful for implementing parsing errors which may
---   propagate hints or accummulate contextual information.
-cutting :: Parser r e a -> e -> (e -> e) -> Parser r e a
-cutting (Parser f) e g = Parser \fp r eob s n -> case f fp r eob s n of
-  Fail#  -> Err# e
-  Err# e -> let !e' = g e in Err# e'
-  x      -> x
+-- | Run the parser, if we get a failure, throw the given error, but if we get an error, merge the
+--   inner and the newly given errors using the @e -> e -> e@ function. This can be useful for
+--   implementing parsing errors which may propagate hints or accummulate contextual information.
+cutting :: Parser r e a -> e -> (e -> e -> e) -> Parser r e a
+cutting (Parser f) e merge = Parser \fp r eob s n -> case f fp r eob s n of
+  Fail#   -> Err# e
+  Err# e' -> let !e'' = merge e' e in Err# e''
+  x       -> x
 {-# inline cutting #-}
 
 --------------------------------------------------------------------------------
