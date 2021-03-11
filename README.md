@@ -21,7 +21,7 @@ The reason for baking a reader into the parsers, is that if we need it, it's con
 
 ## Tutorial
 
-Work in progress. See [`src/FlatParse/Examples`](src/FlatParse/Examples).
+Informative tutorials are work in progress. See [`src/FlatParse/Examples`](src/FlatParse/Examples) for a lexer/parser example with acceptably good error messages.
 
 ### Some benchmarks
 
