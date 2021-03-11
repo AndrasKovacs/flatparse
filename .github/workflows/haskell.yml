@@ -1,11 +1,19 @@
 on: [push]
-
 jobs:
   stack:
     name: stack build
     runs-on: ubuntu-latest # or macOS-latest, or windows-latest
     steps:
       - uses: actions/checkout@v2
+      - uses: actions/cache@v2
+        with:
+          path: ${{ runner.temp }}/llvm
+          key: llvm-7.1.0
+      - uses: KyleMayes/install-llvm-action@v1
+        with:
+          version: "7.1.0"
+          directory: ${{ runner.temp }}/llvm
+          cached: ${{ steps.cache-llvm.outputs.cache-hit }}
       - uses: haskell/actions/setup@v1
         with:
           ghc-version: '8.8.4' # Exact version of ghc to use
