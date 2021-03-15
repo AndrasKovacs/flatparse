@@ -13,7 +13,7 @@ jobs:
     strategy:
       matrix:
         cabal: ["3.4"]
-        ghc: ["8.8.4", "8.10.4", "9.0.1"]
+        ghc: ["8.8.4", "8.10.4"]
     steps:
       - uses: actions/checkout@v2.3.4
       - uses: actions/cache@v2
