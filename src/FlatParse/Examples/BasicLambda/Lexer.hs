@@ -1,4 +1,9 @@
 
+{-|
+This module contains lexer and error message primitives for a simple lambda calculus parser. It
+demonstrates a simple but decently informative implementation of error message propagation.
+-}
+
 module FlatParse.Examples.BasicLambda.Lexer where
 
 import FlatParse.Basic hiding (Parser, runParser, string, char, cut, err)
@@ -11,22 +16,29 @@ import qualified Data.Set as S
 
 --------------------------------------------------------------------------------
 
+-- | An expected item which is displayed in error messages.
 data Expected
   = Lit String  -- ^ An expected literal string.
   | Msg String  -- ^ A description of what's expected.
   deriving (Eq, Show, Ord)
 
+-- | A parsing error, without source position.
 data Error'
-  = Precise Expected     -- ^ A precisely known error, like leaving out "in" from "let"
+  = Precise Expected     -- ^ A precisely known error, like leaving out "in" from "let".
   | Imprecise [Expected] -- ^ An imprecise error, when we expect a number of different things,
                          --   but parse something else.
   deriving Show
 
+-- | A source-annotated error.
 data Error = Error !Pos !Error'
   deriving Show
 
--- | Merge two errors. It is generally more helpful to prioritize printing concrete errors, and
---   suppress a deluge of "expected X, Y, Z" messages.
+-- | Merge two errors. Imprecise errors are merged by appending lists of expected items.  If we have
+--   a precise and an imprecise error, we throw away the imprecise one. If we have two precise
+--   errors, we choose the left one, which is by convention the one throw by an inner parser.
+--
+--   The point of prioritizing inner and precise errors is to suppress the deluge of "expected"
+--   items, and instead try to point to a concrete issue to fix.
 merge :: Error -> Error -> Error
 merge err@(Error p e) err'@(Error p' e') = case (e, e') of
   (Precise _, _)                -> err   -- pick the inner concrete error
@@ -38,6 +50,8 @@ merge err@(Error p e) err'@(Error p' e') = case (e, e') of
 
 type Parser = FP.Parser () Error
 
+-- | Pretty print an error. The `B.ByteString` input is the source file. The offending line from the
+--   source is displayed in the output.
 prettyError :: B.ByteString -> Error -> String
 prettyError b (Error pos e) =
 
@@ -91,6 +105,7 @@ testParser p str = case packUTF8 str of
     OK a _ -> print a
     Fail   -> putStrLn "uncaught parse error"
 
+-- | Parse a line comment.
 lineComment :: Parser ()
 lineComment =
   optioned anyWord8
@@ -98,6 +113,7 @@ lineComment =
            _  -> lineComment)
     (pure ())
 
+-- | Parse a potentially nested multiline comment.
 multilineComment :: Parser ()
 multilineComment = go (1 :: Int) where
   go 0 = ws
@@ -106,6 +122,7 @@ multilineComment = go (1 :: Int) where
     "{-" -> go (n + 1)
     _    -> branch anyWord8 (go n) (pure ()) |])
 
+-- | Consume whitespace.
 ws :: Parser ()
 ws = $(switch [| case _ of
   " "  -> ws
@@ -116,14 +133,17 @@ ws = $(switch [| case _ of
   "{-" -> multilineComment
   _    -> pure () |])
 
+-- | Consume whitespace after running a parser.
 token :: Parser a -> Parser a
 token p = p <* ws
 {-# inline token #-}
 
+-- | Read a starting character of an identifier.
 identStartChar :: Parser Char
 identStartChar = satisfyASCII isLatinLetter
 {-# inline identStartChar #-}
 
+-- | Read a non-starting character of an identifier.
 identChar :: Parser Char
 identChar = satisfyASCII (\c -> isLatinLetter c || isDigit c)
 {-# inline identChar #-}

@@ -51,6 +51,7 @@ library:
     - template-haskell
   ghc-options:
     - -O2
+    # - -fllvm
     # - -ddump-simpl
     # - -dsuppress-all
     # - -dno-suppress-type-signatures
@@ -82,3 +83,4 @@ executables:
       # - -dno-suppress-type-signatures
       # - -ddump-stg
       # - -ddump-to-file
+      # - -ddump-llvm

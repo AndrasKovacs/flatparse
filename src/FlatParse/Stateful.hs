@@ -1,4 +1,9 @@
 
+{-|
+This module implements a `Parser` supporting a reader environment, custom error types, and an `Int`
+state.
+-}
+
 module FlatParse.Stateful (
   -- * Parser types and constructors
     type Parser(..)
