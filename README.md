@@ -1,5 +1,6 @@
 # flatparse
 
+[![Hackage](https://img.shields.io/hackage/v/flatparse.svg)](https://hackage.haskell.org/package/flatparse)
 ![CI](https://github.com/AndrasKovacs/flatparse/actions/workflows/haskell.yml/badge.svg)
 
 `flatparse` is a high-performance parsing library, focusing on __programming languages__ and __human-readable data formats__. The "flat" in the name
