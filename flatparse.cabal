@@ -4,10 +4,10 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 36d29071a6f2602eeb3bc491d3eb621e4fc26705f60599a98dcef45be4b11957
+-- hash: 109008cec585ef59a62c27304da5072f8b80dfb2f06c001b09d9a97a5c40ffc7
 
 name:           flatparse
-version:        0.1.0.0
+version:        0.1.0.1
 synopsis:       High-performance parsing from strict bytestrings
 description:    @Flatparse@ is a high-performance parsing library, focusing on programming languages and
                 human-readable data formats. See the README for more information:
@@ -48,7 +48,8 @@ library
     , template-haskell
   default-language: Haskell2010
 
-executable bench
+benchmark bench
+  type: exitcode-stdio-1.0
   main-is: Bench.hs
   other-modules:
       Attoparsec
@@ -60,7 +61,7 @@ executable bench
   hs-source-dirs:
       bench
   default-extensions: BangPatterns BlockArguments ExplicitNamespaces LambdaCase MagicHash OverloadedStrings PatternSynonyms TemplateHaskell TupleSections UnboxedTuples
-  ghc-options: -Wall -Wno-name-shadowing -Wno-unused-binds -Wno-unused-matches -Wno-missing-signatures -fllvm -O2
+  ghc-options: -Wall -Wno-name-shadowing -Wno-unused-binds -Wno-unused-matches -Wno-missing-signatures -O2
   build-depends:
       attoparsec
     , base >=4.7 && <5
@@ -69,16 +70,4 @@ executable bench
     , gauge
     , megaparsec
     , parsec
-  default-language: Haskell2010
-
-executable test
-  main-is: Test.hs
-  other-modules:
-      Paths_flatparse
-  hs-source-dirs:
-      test
-  default-extensions: BangPatterns BlockArguments ExplicitNamespaces LambdaCase MagicHash OverloadedStrings PatternSynonyms TemplateHaskell TupleSections UnboxedTuples
-  ghc-options: -Wall -Wno-name-shadowing -Wno-unused-binds -Wno-unused-matches -Wno-missing-signatures
-  build-depends:
-      base >=4.7 && <5
   default-language: Haskell2010

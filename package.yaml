@@ -1,6 +1,6 @@
 
 name:        flatparse
-version:     0.1.0.0
+version:     0.1.0.1
 license:     MIT
 category:    Parsing
 synopsis:    High-performance parsing from strict bytestrings
@@ -51,20 +51,8 @@ library:
     - template-haskell
   ghc-options:
     - -O2
-    # - -fllvm
-    # - -ddump-simpl
-    # - -dsuppress-all
-    # - -dno-suppress-type-signatures
-    # - -ddump-stg
-    # - -ddump-to-file
-    # - -ddump-asm
-    # - -ddump-llvm
 
-executables:
-  test:
-    source-dirs: test
-    main: Test.hs
-
+benchmarks:
   bench:
     source-dirs: bench
     main: Bench.hs
@@ -76,8 +64,8 @@ executables:
       - attoparsec
       - parsec
     ghc-options:
-      - -fllvm
       - -O2
+      # - -fllvm
       # - -ddump-simpl
       # - -dsuppress-all
       # - -dno-suppress-type-signatures
