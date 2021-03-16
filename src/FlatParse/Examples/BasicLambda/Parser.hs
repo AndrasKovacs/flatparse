@@ -62,7 +62,7 @@ int :: Parser Int
 int = token $
   snd <$> chainr (\n (!place, !acc) -> (place*10,acc+place*n)) digit ((10,) <$> digit)
 
--- | Parse a literal, identifier or parenthsized expression.
+-- | Parse a literal, identifier or parenthesized expression.
 atom :: Parser Tm
 atom =
        (Var           <$> ident)
@@ -71,9 +71,12 @@ atom =
    <|> (IntLit        <$> int)
    <|> ($(symbol "(") *> tm <* $(cutSymbol ")"))
 
+expectAtom :: [Expected]
+expectAtom = [Msg "identifier", Lit "true", Lit "false", Msg "parenthesized expression"]
+
 -- | Parse an `App`-level expression.
 app :: Parser Tm
-app = chainl App (atom `cut` [Msg "identifier", Lit "true", Lit "false"]) atom
+app = chainl App (atom `cut` expectAtom) atom
 
 -- | Parse a `Mul`-level expression.
 mul :: Parser Tm
@@ -128,17 +131,15 @@ tm = pLet <|> lam <|> pIf <|> eqLt
 
 -- | Parse a complete source file.
 src :: Parser Tm
-src = ws *> tm <* eof `cut`
-  [Msg "end of input", Msg "identifier", Lit "true", Lit "false",
-   Msg "integer literal", Msg "parenthesized expression"]
+src = ws *> tm <* eof `cut` (Msg "end of input" : expectAtom)
 
 
 -- Examples
 --------------------------------------------------------------------------------
 
 -- testParser src p1
--- p1 = unlines [
---   "let f = lam x. lam y. x (x (x y)) in",
---   "let g = if f true then false else true in",
---   "f g g h"
---   ]
+p1 = unlines [
+  "let f = lam x. lam y. x (x (x y)) in",
+  "let g = if f true then false else true in",
+  "f g g h"
+  ]
