@@ -26,7 +26,11 @@ The reason for baking a reader into the parsers, is that if we need it, it's con
 
 Informative tutorials are work in progress. See [`src/FlatParse/Examples`](src/FlatParse/Examples) for a lexer/parser example with acceptably good error messages.
 
-### Some benchmarks
+## Contribution
+
+Pull requests are welcome. I'm fairly quick to add PR authors as collaborators.
+
+## Some benchmarks
 
 Execution times below. See source code in [bench](bench). Compiled with GHC 8.8.4 `-O2 -fllvm`.
 
