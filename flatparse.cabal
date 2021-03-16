@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: df83ba622236fe722641b9c67f9617e027392e36c25387858a3beffc734f05be
+-- hash: 91cfc1738035d4ef9da2c4df9e9c657139ae0599d59cc8d723ad45b62abd667f
 
 name:           flatparse
 version:        0.1.0.2
@@ -53,6 +53,7 @@ benchmark bench
   main-is: Bench.hs
   other-modules:
       Attoparsec
+      Bytesmith
       FPBasic
       FPStateful
       Megaparsec
@@ -65,9 +66,11 @@ benchmark bench
   build-depends:
       attoparsec
     , base >=4.7 && <5
+    , bytesmith
     , bytestring
     , flatparse
     , gauge
     , megaparsec
     , parsec
+    , primitive
   default-language: Haskell2010

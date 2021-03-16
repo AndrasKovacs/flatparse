@@ -32,21 +32,24 @@ Execution times below. See source code in [bench](bench). Compiled with GHC 8.8.
 
 |      benchmark              |  runtime   |
 |-----------------------------|-------------
-| s-exp/fpbasic               |  3.365 ms  |
-| s-exp/fpstateful            |  3.421 ms  |
-| s-exp/attoparsec            |  42.84 ms  |
-| s-exp/megaparsec            |  57.54 ms  |
-| s-exp/parsec                |  179.7 ms  |
-| long keyword/fpbasic        |  216.4 μs  |
-| long keyword/fpstateful     |  299.0 μs  |
-| long keyword/attoparsec     |  5.297 ms  |
-| long keyword/megaparsec     |  3.646 ms  |
-| long keyword/parsec         |  49.18 ms  |
-| numeral csv/fpbasic         |  743.5 μs  |
-| numeral csv/fpstateful      |  848.5 μs  |
-| numeral csv/attoparsec      |  20.64 ms  |
-| numeral csv/megaparsec      |  10.12 ms  |
-| numeral csv/parsec          |  78.52 ms  |
+| sexp/fpbasic                | 3.345 ms   |
+| sexp/fpstateful             | 3.441 ms   |
+| sexp/bytesmith              | 5.646 ms   |
+| sexp/attoparsec             | 43.58 ms   |
+| sexp/megaparsec             | 57.76 ms   |
+| sexp/parsec                 | 182.4 ms   |
+| long keyword/fpbasic        | 306.1 μs   |
+| long keyword/fpstateful     | 220.3 μs   |
+| long keyword/bytesmith      | 1.707 ms   |
+| long keyword/attoparsec     | 5.420 ms   |
+| long keyword/megaparsec     | 3.605 ms   |
+| long keyword/parsec         | 50.10 ms   |
+| numeral csv/fpbasic         | 898.4 μs   |
+| numeral csv/fpstateful      | 868.3 μs   |
+| numeral csv/bytesmith       | 2.412 ms   |
+| numeral csv/attoparsec      | 21.30 ms   |
+| numeral csv/megaparsec      | 10.37 ms   |
+| numeral csv/parsec          | 78.16 ms   |
 
 Object file sizes for each module containing the `s-exp`, `long keyword` and `numeral csv` benchmarks.
 
@@ -54,6 +57,7 @@ Object file sizes for each module containing the `s-exp`, `long keyword` and `nu
 | -------    | ------------------------ |
 | fpbasic    |  26456                   |
 | fpstateful |  30008                   |
+| bytesmith  |  39240                   |
 | attoparsec |  83288                   |
 | megaparsec |  188696                  |
 | parsec     |  75880                   |

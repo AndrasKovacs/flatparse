@@ -227,7 +227,7 @@ runParser (Parser f) r (I# n) b@(B.PS (ForeignPtr _ fp) _ (I# len)) = unsafeDupa
         pure (OK a (I# n) (B.drop (I# offset) b))
       Fail# ->
         pure Fail
-{-# noinline runParser #-}
+{-# inlinable runParser #-}
 
 -- | Run a parser on a `String` input. Reminder: @OverloadedStrings@ for `B.ByteString` does not
 --   yield a valid UTF-8 encoding! For non-ASCII `B.ByteString` literal input, use `runParserS` or

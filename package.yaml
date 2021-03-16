@@ -53,16 +53,19 @@ library:
     - -O2
 
 benchmarks:
+# executables:
   bench:
     source-dirs: bench
     main: Bench.hs
     dependencies:
-      - flatparse
+      - attoparsec
+      - bytesmith
       - bytestring
+      - flatparse
       - gauge
       - megaparsec
-      - attoparsec
       - parsec
+      - primitive
     ghc-options:
       - -O2
       # - -fllvm
