@@ -31,6 +31,7 @@ module FlatParse.Stateful (
   , fails
   , try
   , optional
+  , optional_
   , optioned
   , cut
   , cutting
@@ -307,6 +308,11 @@ try (Parser f) = Parser \fp r eob s n -> case f fp r eob s n of
 optional :: Parser r e a -> Parser r e (Maybe a)
 optional p = (Just <$> p) <|> pure Nothing
 {-# inline optional #-}
+
+-- | Convert a parsing failure to a `()`.
+optional_ :: Parser r e a -> Parser r e ()
+optional_ p = (() <$ p) <|> pure ()
+{-# inline optional_ #-}
 
 -- | CPS'd version of `optional`. This is usually more efficient, since it gets rid of the
 --   extra `Maybe` allocation.

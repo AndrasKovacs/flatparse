@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 0fdbaaae977c8cd43b35ead4d885039c691094081a5f824e62969cef5505df78
+-- hash: 5d6ee65bfd2ccfcdef1db2b8a8fab9e3bd71bb20ace7d0690bc3fe1986aea3c7
 
 name:           flatparse
 version:        0.1.0.2
@@ -34,6 +34,9 @@ library
       FlatParse.Basic
       FlatParse.Examples.BasicLambda.Lexer
       FlatParse.Examples.BasicLambda.Parser
+      FlatParse.Examples.IndentLambda.Lexer
+      FlatParse.Examples.IndentLambda.Parser
+      FlatParse.Resumptive
       FlatParse.Stateful
   other-modules:
       Paths_flatparse
@@ -62,7 +65,7 @@ benchmark bench
   hs-source-dirs:
       bench
   default-extensions: BangPatterns BlockArguments ExplicitNamespaces LambdaCase MagicHash OverloadedStrings PatternSynonyms TemplateHaskell TupleSections UnboxedTuples
-  ghc-options: -Wall -Wno-name-shadowing -Wno-unused-binds -Wno-unused-matches -Wno-missing-signatures -O2 -fllvm -ddump-simpl -dsuppress-all -dno-suppress-type-signatures -ddump-stg -ddump-to-file -ddump-llvm
+  ghc-options: -Wall -Wno-name-shadowing -Wno-unused-binds -Wno-unused-matches -Wno-missing-signatures -O2
   build-depends:
       attoparsec
     , base >=4.7 && <5

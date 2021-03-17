@@ -4,9 +4,11 @@ This module contains lexer and error message primitives for a simple lambda calc
 demonstrates a simple but decently informative implementation of error message propagation.
 -}
 
+{-# language StrictData #-}
+
 module FlatParse.Examples.BasicLambda.Lexer where
 
-import FlatParse.Basic hiding (Parser, runParser, string, char, cut, err)
+import FlatParse.Basic hiding (Parser, runParser, string, char, cut)
 
 import qualified FlatParse.Basic as FP
 import qualified Data.ByteString as B
