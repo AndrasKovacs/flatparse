@@ -14,38 +14,38 @@ import qualified FlatParse.Basic as FP
 import qualified Data.ByteString as B
 import Language.Haskell.TH
 
+import Data.String
 import qualified Data.Set as S
 
 --------------------------------------------------------------------------------
 
 -- | An expected item which is displayed in error messages.
 data Expected
-  = Lit String  -- ^ An expected literal string.
-  | Msg String  -- ^ A description of what's expected.
+  = Msg String  -- ^ An error message.
+  | Lit String  -- ^ A literal expected thing.
   deriving (Eq, Show, Ord)
 
--- | A parsing error, without source position.
-data Error'
-  = Precise Expected     -- ^ A precisely known error, like leaving out "in" from "let".
-  | Imprecise [Expected] -- ^ An imprecise error, when we expect a number of different things,
-                         --   but parse something else.
+instance IsString Expected where fromString = Lit
+
+-- | A parsing error.
+data Error
+  = Precise Pos Expected     -- ^ A precisely known error, like leaving out "in" from "let".
+  | Imprecise Pos [Expected] -- ^ An imprecise error, when we expect a number of different things,
+                             --   but parse something else.
   deriving Show
 
--- | A source-annotated error.
-data Error = Error !Pos !Error'
-  deriving Show
 
 -- | Merge two errors. Imprecise errors are merged by appending lists of expected items.  If we have
 --   a precise and an imprecise error, we throw away the imprecise one. If we have two precise
---   errors, we choose the left one, which is by convention the one throw by an inner parser.
+--   errors, we choose the left one, which is by convention the one thrown by an inner parser.
 --
 --   The point of prioritizing inner and precise errors is to suppress the deluge of "expected"
 --   items, and instead try to point to a concrete issue to fix.
 merge :: Error -> Error -> Error
-merge err@(Error p e) err'@(Error p' e') = case (e, e') of
-  (Precise _, _)                -> err   -- pick the inner concrete error
-  (_, Precise _)                -> err'  -- pick the outer concrete error
-  (Imprecise ss, Imprecise ss') -> Error p (Imprecise (ss ++ ss'))
+merge e e' = case (e, e') of
+  (Precise{}, _) -> e   -- pick the inner concrete error
+  (_, Precise{}) -> e'  -- pick the outer concrete error
+  (Imprecise p ss, Imprecise _ ss') -> Imprecise p (ss ++ ss')
    -- note: we never recover from errors, so all merged errors will in fact have exactly the same
    -- Pos. So we can simply throw away one of the two here.
 {-# noinline merge #-} -- merge is "cold" code, so we shouldn't inline it.
@@ -55,27 +55,30 @@ type Parser = FP.Parser () Error
 -- | Pretty print an error. The `B.ByteString` input is the source file. The offending line from the
 --   source is displayed in the output.
 prettyError :: B.ByteString -> Error -> String
-prettyError b (Error pos e) =
+prettyError b e =
 
-  let ls       = FP.lines b
+  let pos :: Pos
+      pos      = case e of Imprecise pos e -> pos
+                           Precise pos e   -> pos
+      ls       = FP.lines b
       [(l, c)] = posLineCols b [pos]
-      line     = if null ls then "" else ls !! l
+      line     = if l < length ls then ls !! l else ""
       linum    = show l
       lpad     = map (const ' ') linum
 
       expected (Lit s) = show s
       expected (Msg s) = s
 
-      err (Precise exp)    = expected exp
-      err (Imprecise exps) = imprec $ S.toList $ S.fromList exps
+      err (Precise _ e)    = expected e
+      err (Imprecise _ es) = imprec $ S.toList $ S.fromList es
 
       imprec :: [Expected] -> String
       imprec []     = error "impossible"
-      imprec [s]    = expected s
-      imprec (s:ss) = expected s ++ go ss where
+      imprec [e]    = expected e
+      imprec (e:es) = expected e ++ go es where
         go []     = ""
-        go [s]    = " or " ++ expected s
-        go (s:ss) = ", " ++ expected s ++ go ss
+        go [e]    = " or " ++ expected e
+        go (e:es) = ", " ++ expected e ++ go es
 
   in show l ++ ":" ++ show c ++ ":\n" ++
      lpad   ++ "|\n" ++
@@ -84,17 +87,17 @@ prettyError b (Error pos e) =
      "parse error: expected " ++
      err e
 
--- | Imprecise cut: we slap a list of expected things on inner errors.
+-- | Imprecise cut: we slap a list of items on inner errors.
 cut :: Parser a -> [Expected] -> Parser a
-cut p exps = do
+cut p es = do
   pos <- getPos
-  FP.cutting p (Error pos (Imprecise exps)) merge
+  FP.cutting p (Imprecise pos es) merge
 
--- | Precise cut: we propagate at most a single expected thing.
+-- | Precise cut: we propagate at most a single error.
 cut' :: Parser a -> Expected -> Parser a
-cut' p exp = do
+cut' p e = do
   pos <- getPos
-  FP.cutting p (Error pos (Precise exp)) merge
+  FP.cutting p (Precise pos e) merge
 
 runParser :: Parser a -> B.ByteString -> Result Error a
 runParser p = FP.runParser p ()

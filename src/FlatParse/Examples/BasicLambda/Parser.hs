@@ -72,7 +72,13 @@ atom =
    <|> ($(symbol "(") *> tm <* $(cutSymbol ")"))
 
 expectAtom :: [Expected]
-expectAtom = [Msg "identifier", Lit "true", Lit "false", Msg "parenthesized expression"]
+expectAtom = [
+  Msg "identifier",
+  Lit "true",
+  Lit "false",
+  Msg "parenthesized expression",
+  Msg "integer literal"
+  ]
 
 -- | Parse an `App`-level expression.
 app :: Parser Tm
@@ -139,7 +145,7 @@ src = ws *> tm <* eof `cut` (Msg "end of input" : expectAtom)
 
 -- testParser src p1
 p1 = unlines [
-  "let f = lam x. lam y. x (x (x y)) in",
+  "let f == lam x. lam y. x (x (x y)) in",
   "let g = if f true then false else true in",
   "f g g h"
   ]
