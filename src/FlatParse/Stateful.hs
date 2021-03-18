@@ -809,8 +809,8 @@ posLineCols str poss =
         if pos == p then
           ((i, (line, col)):) <$> go line col poss
         else do
-          c <- anyWord8
-          if ord '\n' == fromIntegral c then
+          c <- anyChar
+          if '\n' == c then
             go (line + 1) 0 ((i, pos):poss)
           else
             go line (col + 1) ((i, pos):poss)
