@@ -34,20 +34,24 @@ data Error
                              --   but parse something else.
   deriving Show
 
+errorPos :: Error -> Pos
+errorPos (Precise p _)   = p
+errorPos (Imprecise p _) = p
 
--- | Merge two errors. Imprecise errors are merged by appending lists of expected items.  If we have
---   a precise and an imprecise error, we throw away the imprecise one. If we have two precise
---   errors, we choose the left one, which is by convention the one thrown by an inner parser.
+-- | Merge two errors. Inner errors (which were thrown at points with more consumed inputs)
+--   are preferred. If errors are thrown at identical input positions, we prefer precise errors
+--   to imprecise ones.
 --
 --   The point of prioritizing inner and precise errors is to suppress the deluge of "expected"
 --   items, and instead try to point to a concrete issue to fix.
 merge :: Error -> Error -> Error
-merge e e' = case (e, e') of
-  (Precise{}, _) -> e   -- pick the inner concrete error
-  (_, Precise{}) -> e'  -- pick the outer concrete error
-  (Imprecise p ss, Imprecise _ ss') -> Imprecise p (ss ++ ss')
-   -- note: we never recover from errors, so all merged errors will in fact have exactly the same
-   -- Pos. So we can simply throw away one of the two here.
+merge e e' = case (errorPos e, errorPos e') of
+  (p, p') | p < p' -> e'
+  (p, p') | p > p' -> e
+  (p, p')          -> case (e, e') of
+    (Precise{}      , _               ) -> e
+    (_              , Precise{}       ) -> e'
+    (Imprecise _ es , Imprecise _ es' ) -> Imprecise p (es ++ es')
 {-# noinline merge #-} -- merge is "cold" code, so we shouldn't inline it.
 
 type Parser = FP.Parser () Error
@@ -172,13 +176,13 @@ symbol :: String -> Q Exp
 symbol str = [| token $(FP.string str) |]
 
 -- | Parser a non-keyword string, throw precise error on failure.
-cutSymbol :: String -> Q Exp
-cutSymbol str = [| $(symbol str) `cut'` Lit str |]
+symbol' :: String -> Q Exp
+symbol' str = [| $(symbol str) `cut'` Lit str |]
 
 -- | Parse a keyword string.
 keyword :: String -> Q Exp
 keyword str = [| token ($(FP.string str) `notFollowedBy` identChar) |]
 
 -- | Parse a keyword string, throw precise error on failure.
-cutKeyword :: String -> Q Exp
-cutKeyword str = [| $(keyword str) `cut'` Lit str |]
+keyword' :: String -> Q Exp
+keyword' str = [| $(keyword str) `cut'` Lit str |]

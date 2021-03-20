@@ -49,11 +49,11 @@ data Tm
 --   keyword.
 ident :: Parser Name
 ident = token $ byteStringOf $
-  spanned (identStartChar *> many_ identChar) (\_ -> fails . isKeyword)
+  spanned (identStartChar *> many_ identChar) (\_ span -> fails (isKeyword span))
 
 -- | Parse an identifier, throw a precise error on failure.
-cutIdent :: Parser Name
-cutIdent = ident `cut'` (Msg "identifier")
+ident' :: Parser Name
+ident' = ident `cut'` (Msg "identifier")
 
 digit :: Parser Int
 digit = (\c -> ord c - ord '0') <$> satisfyASCII isDigit
@@ -69,83 +69,80 @@ atom =
    <|> (BoolLit True  <$  $(keyword "true"))
    <|> (BoolLit False <$  $(keyword "false"))
    <|> (IntLit        <$> int)
-   <|> ($(symbol "(") *> tm <* $(cutSymbol ")"))
+   <|> ($(symbol "(") *> tm' <* $(symbol' ")"))
 
-expectAtom :: [Expected]
-expectAtom = [
-  Msg "identifier",
-  Lit "true",
-  Lit "false",
-  Msg "parenthesized expression",
-  Msg "integer literal"
-  ]
+atom' :: Parser Tm
+atom' = atom
+  `cut` [Msg "identifier", "true", "false", Msg "parenthesized expression", Msg "integer literal"]
 
 -- | Parse an `App`-level expression.
-app :: Parser Tm
-app = chainl App (atom `cut` expectAtom) atom
+app' :: Parser Tm
+app' = chainl App atom' atom
 
 -- | Parse a `Mul`-level expression.
-mul :: Parser Tm
-mul = chainl Mul app ($(symbol "*") *> app)
+mul' :: Parser Tm
+mul' = chainl Mul app' ($(symbol "*") *> app')
 
 -- | Parse an `Add`-level expression.
-add :: Parser Tm
-add = chainl Add mul ($(symbol "+") *> mul)
+add' :: Parser Tm
+add' = chainl Add mul' ($(symbol "+") *> mul')
 
 -- | Parse an `Eq` or `Lt`-level expression.
-eqLt :: Parser Tm
-eqLt =
-  add >>= \e1 ->
-  branch $(symbol "==") (Eq e1 <$> add) $
-  branch $(symbol "<")  (Lt e1 <$> add) $
+eqLt' :: Parser Tm
+eqLt' =
+  add' >>= \e1 ->
+  branch $(symbol "==") (Eq e1 <$> add') $
+  branch $(symbol "<")  (Lt e1 <$> add') $
   pure e1
 
 -- | Parse a `Let`.
 pLet :: Parser Tm
 pLet = do
   $(keyword "let")
-  x <- cutIdent
-  $(cutSymbol "=")
-  t <- tm
-  $(cutKeyword "in")
-  u <- tm
+  x <- ident'
+  $(symbol' "=")
+  t <- tm'
+  $(keyword' "in")
+  u <- tm'
   pure $ Let x t u
 
 -- | Parse a `Lam`.
 lam :: Parser Tm
 lam = do
   $(keyword "lam")
-  x <- cutIdent
-  $(cutSymbol ".")
-  t <- tm
+  x <- ident'
+  $(symbol' ".")
+  t <- tm'
   pure $ Lam x t
 
 -- | Parse an `If`.
 pIf :: Parser Tm
 pIf = do
   $(keyword "if")
-  t <- tm
-  $(cutKeyword "then")
-  u <- tm
-  $(cutKeyword "else")
-  v <- tm
+  t <- tm'
+  $(keyword' "then")
+  u <- tm'
+  $(keyword' "else")
+  v <- tm'
   pure $ If t u v
 
 -- | Parse any `Tm`.
-tm :: Parser Tm
-tm = pLet <|> lam <|> pIf <|> eqLt
+tm' :: Parser Tm
+tm' = (pLet <|> lam <|> pIf <|> eqLt') `cut` ["let", "lam", "if"]
 
 -- | Parse a complete source file.
-src :: Parser Tm
-src = ws *> tm <* eof `cut` (Msg "end of input" : expectAtom)
+src' :: Parser Tm
+src' = ws *> tm' <* eof `cut` [Msg "end of input (lexical error)"]
+
 
 
 -- Examples
 --------------------------------------------------------------------------------
 
+
 -- testParser src p1
 p1 = unlines [
-  "let f == lam x. lam y. x (x (x y)) in",
+  "let f = lam x. lam y. x (x (x y)) in",
   "let g = if f true then false else true in",
   "f g g h"
   ]
