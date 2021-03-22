@@ -4,7 +4,10 @@ This module implements a `Parser` supporting a reader environment and custom err
 need efficient indentation parsing, use "FlatParse.Stateful" instead.
 -}
 
+{-# language Strict #-}
+
 module FlatParse.Basic (
+
   -- * Parser types and constructors
     type Parser(..)
   , type Res#
