@@ -1,10 +1,8 @@
 
 {-|
-This module implements a `Parser` supporting a reader environment, custom error types, and an `Int`
-state.
+This module implements a `Parser` supporting an `Int` reader environment, custom error types, and an
+`Int` state.
 -}
-
-{-# language Strict #-}
 
 module FlatParse.Stateful (
   -- * Parser types and constructors
@@ -156,48 +154,48 @@ pattern Fail# :: Res# e a
 pattern Fail# = (# | (# #) | #)
 {-# complete OK#, Err#, Fail# #-}
 
--- | @Parser r e a@ has a reader environment @r@, an error type @e@ and a return type @a@.
-newtype Parser r e a = Parser {runParser# :: ForeignPtrContents -> r -> Addr# -> Addr# -> Int# -> Res# e a}
+-- | @Parser e a@ has an error type @e@ and a return type @a@.
+newtype Parser e a = Parser {runParser# :: ForeignPtrContents -> Int# -> Addr# -> Addr# -> Int# -> Res# e a}
 
-instance Functor (Parser r e) where
-  fmap f (Parser g) = Parser \fp r eob s n -> case g fp r eob s n of
+instance Functor (Parser e) where
+  fmap f (Parser g) = Parser \fp !r eob s n -> case g fp r eob s n of
     OK# a s n -> let !b = f a in OK# b s n
     x         -> unsafeCoerce# x
   {-# inline fmap #-}
 
-  (<$) a' (Parser g) = Parser \fp r eob s n -> case g fp r eob s n of
+  (<$) a' (Parser g) = Parser \fp !r eob s n -> case g fp r eob s n of
     OK# a s n -> OK# a' s n
     x         -> unsafeCoerce# x
   {-# inline (<$) #-}
 
-instance Applicative (Parser r e) where
-  pure a = Parser \fp r eob s n -> OK# a s n
+instance Applicative (Parser e) where
+  pure a = Parser \fp !r eob s n -> OK# a s n
   {-# inline pure #-}
-  Parser ff <*> Parser fa = Parser \fp r eob s n -> case ff fp r eob s n of
+  Parser ff <*> Parser fa = Parser \fp !r eob s n -> case ff fp r eob s n of
     OK# f s n -> case fa fp r eob s n of
       OK# a s n  -> let !b = f a in OK# b s n
       x          -> unsafeCoerce# x
     x -> unsafeCoerce# x
   {-# inline (<*>) #-}
-  Parser fa <* Parser fb = Parser \fp r eob s n -> case fa fp r eob s n of
+  Parser fa <* Parser fb = Parser \fp !r eob s n -> case fa fp r eob s n of
     OK# a s n   -> case fb fp r eob s n of
       OK# b s n -> OK# a s n
       x -> unsafeCoerce# x
     x -> unsafeCoerce# x
   {-# inline (<*) #-}
-  Parser fa *> Parser fb = Parser \fp r eob s n -> case fa fp r eob s n of
+  Parser fa *> Parser fb = Parser \fp !r eob s n -> case fa fp r eob s n of
     OK# a s n -> fb fp r eob s n
     x         -> unsafeCoerce# x
   {-# inline (*>) #-}
 
-instance Monad (Parser r e) where
+instance Monad (Parser e) where
   return = pure
   {-# inline return #-}
-  Parser fa >>= f = Parser \fp r eob s n -> case fa fp r eob s n of
+  Parser fa >>= f = Parser \fp !r eob s n -> case fa fp r eob s n of
     OK# a s n -> runParser# (f a) fp r eob s n
     x         -> unsafeCoerce# x
   {-# inline (>>=) #-}
-  Parser fa >> Parser fb = Parser \fp r eob s n -> case fa fp r eob s n of
+  Parser fa >> Parser fb = Parser \fp !r eob s n -> case fa fp r eob s n of
     OK# a s n -> fb fp r eob s n
     x         -> unsafeCoerce# x
   {-# inline (>>) #-}
@@ -210,16 +208,19 @@ data Result e a =
   deriving Show
 
 instance Functor (Result e) where
-  fmap f (OK a n s) = let !b = f a in OK b n s
-  fmap f Fail = Fail
-  fmap f (Err e) = Err e
+  fmap f (OK a s n) = let !b = f a in OK b s n
+  fmap f r          = unsafeCoerce# r
   {-# inline fmap #-}
+  (<$) a (OK _ s n) = OK a s n
+  (<$) _ r          = unsafeCoerce# r
+  {-# inline (<$) #-}
 
 --------------------------------------------------------------------------------
 
--- | Run a parser.
-runParser :: Parser r e a -> r -> Int -> B.ByteString -> Result e a
-runParser (Parser f) r (I# n) b@(B.PS (ForeignPtr _ fp) _ (I# len)) = unsafeDupablePerformIO do
+-- | Run a parser. The first `Int` argument is the reader environment, while the second one is the
+--   state.
+runParser :: Parser e a -> Int -> Int -> B.ByteString -> Result e a
+runParser (Parser f) (I# r) (I# n) b@(B.PS (ForeignPtr _ fp) _ (I# len)) = unsafeDupablePerformIO do
   B.unsafeUseAsCString b \(Ptr buf) -> do
     let end = plusAddr# buf len
     case f fp r end buf n of
@@ -235,64 +236,63 @@ runParser (Parser f) r (I# n) b@(B.PS (ForeignPtr _ fp) _ (I# len)) = unsafeDupa
 -- | Run a parser on a `String` input. Reminder: @OverloadedStrings@ for `B.ByteString` does not
 --   yield a valid UTF-8 encoding! For non-ASCII `B.ByteString` literal input, use `runParserS` or
 --   `packUTF8` for testing.
-runParserS :: Parser r e a -> r -> Int -> String -> Result e a
-runParserS pa r n s = runParser pa r n (packUTF8 s)
+runParserS :: Parser e a -> Int -> Int -> String -> Result e a
+runParserS pa r !n s = runParser pa r n (packUTF8 s)
 
 --------------------------------------------------------------------------------
 
 -- | Query the `Int` state.
-get :: Parser r e Int
-get = Parser \fp r eob s n -> OK# (I# n) s n
+get :: Parser e Int
+get = Parser \fp !r eob s n -> OK# (I# n) s n
 {-# inline get #-}
 
 -- | Write the `Int` state.
-put :: Int -> Parser r e ()
-put (I# n) = Parser \fp r eob s _ -> OK# () s n
+put :: Int -> Parser e ()
+put (I# n) = Parser \fp !r eob s _ -> OK# () s n
 {-# inline put #-}
 
 -- | Modify the `Int` state.
-modify :: (Int -> Int) -> Parser r e ()
-modify f = Parser \fp r eob s n ->
+modify :: (Int -> Int) -> Parser e ()
+modify f = Parser \fp !r eob s n ->
   case f (I# n) of
     I# n -> OK# () s n
 {-# inline modify #-}
 
--- | Query the read-only environment.
-ask :: Parser r e r
-ask = Parser \fp r eob s n -> OK# r s n
+-- | Query the `Int` environment.
+ask :: Parser e Int
+ask = Parser \fp !r eob s n -> OK# (I# r) s n
 {-# inline ask #-}
 
 -- | Run a parser in a modified environment.
-local :: (r' -> r) -> Parser r e a -> Parser r' e a
-local f (Parser g) = Parser \fp r eob s n -> let!r' = f r in g fp r' eob s n
+local :: (Int -> Int) -> Parser e a -> Parser e a
+local f (Parser g) = Parser \fp !r eob s n -> let !(I# r') = f (I# r) in g fp r' eob s n
 {-# inline local #-}
-
 
 --------------------------------------------------------------------------------
 
 -- | The failing parser. By default, parser choice `(<|>)` arbitrarily backtracks
 --   on parser failure.
-empty :: Parser r e a
-empty = Parser \fp r eob s n -> Fail#
+empty :: Parser e a
+empty = Parser \fp !r eob s n -> Fail#
 {-# inline empty #-}
 
 -- | Throw a parsing error. By default, parser choice `(<|>)` can't backtrack
 --   on parser error. Use `try` to convert an error to a recoverable failure.
-err :: e -> Parser r e a
-err e = Parser \fp r eob s n -> Err# e
+err :: e -> Parser e a
+err e = Parser \fp !r eob s n -> Err# e
 {-# inline err #-}
 
 -- | Save the parsing state, then run a parser, then restore the state.
-lookahead :: Parser r e a -> Parser r e a
-lookahead (Parser f) = Parser \fp r eob s n ->
+lookahead :: Parser e a -> Parser e a
+lookahead (Parser f) = Parser \fp !r eob s n ->
   case f fp r eob s n of
     OK# a _ _ -> OK# a s n
     x         -> x
 {-# inline lookahead #-}
 
 -- | Convert a parsing failure to a success.
-fails :: Parser r e a -> Parser r e ()
-fails (Parser f) = Parser \fp r eob s n ->
+fails :: Parser e a -> Parser e ()
+fails (Parser f) = Parser \fp !r eob s n ->
   case f fp r eob s n of
     OK# _ _ _ -> Fail#
     Fail#     -> OK# () s n
@@ -300,34 +300,34 @@ fails (Parser f) = Parser \fp r eob s n ->
 {-# inline fails #-}
 
 -- | Convert a parsing error into failure.
-try :: Parser r e a -> Parser r e a
-try (Parser f) = Parser \fp r eob s n -> case f fp r eob s n of
+try :: Parser e a -> Parser e a
+try (Parser f) = Parser \fp !r eob s n -> case f fp r eob s n of
   Err# _ -> Fail#
   x      -> x
 {-# inline try #-}
 
 -- | Convert a parsing failure to a `Maybe`. If possible, use `optioned` instead.
-optional :: Parser r e a -> Parser r e (Maybe a)
+optional :: Parser e a -> Parser e (Maybe a)
 optional p = (Just <$> p) <|> pure Nothing
 {-# inline optional #-}
 
 -- | Convert a parsing failure to a `()`.
-optional_ :: Parser r e a -> Parser r e ()
+optional_ :: Parser e a -> Parser e ()
 optional_ p = (() <$ p) <|> pure ()
 {-# inline optional_ #-}
 
 -- | CPS'd version of `optional`. This is usually more efficient, since it gets rid of the
 --   extra `Maybe` allocation.
-optioned :: Parser r e a -> (a -> Parser r e b) -> Parser r e b -> Parser r e b
-optioned (Parser f) just (Parser nothing) = Parser \fp r eob s n -> case f fp r eob s n of
+optioned :: Parser e a -> (a -> Parser e b) -> Parser e b -> Parser e b
+optioned (Parser f) just (Parser nothing) = Parser \fp !r eob s n -> case f fp r eob s n of
   OK# a s n -> runParser# (just a) fp r eob s n
   Fail#     -> nothing fp r eob s n
   Err# e    -> Err# e
 {-# inline optioned #-}
 
 -- | Convert a parsing failure to an error.
-cut :: Parser r e a -> e -> Parser r e a
-cut (Parser f) e = Parser \fp r eob s n -> case f fp r eob s n of
+cut :: Parser e a -> e -> Parser e a
+cut (Parser f) e = Parser \fp !r eob s n -> case f fp r eob s n of
   Fail# -> Err# e
   x     -> x
 {-# inline cut #-}
@@ -335,8 +335,8 @@ cut (Parser f) e = Parser \fp r eob s n -> case f fp r eob s n of
 -- | Run the parser, if we get a failure, throw the given error, but if we get an error, merge the
 --   inner and the newly given errors using the @e -> e -> e@ function. This can be useful for
 --   implementing parsing errors which may propagate hints or accummulate contextual information.
-cutting :: Parser r e a -> e -> (e -> e -> e) -> Parser r e a
-cutting (Parser f) e merge = Parser \fp r eob s n -> case f fp r eob s n of
+cutting :: Parser e a -> e -> (e -> e -> e) -> Parser e a
+cutting (Parser f) e merge = Parser \fp !r eob s n -> case f fp r eob s n of
   Fail#   -> Err# e
   Err# e' -> let !e'' = merge e' e in Err# e''
   x       -> x
@@ -346,31 +346,31 @@ cutting (Parser f) e merge = Parser \fp r eob s n -> case f fp r eob s n of
 
 
 -- | Succeed if the input is empty.
-eof :: Parser r e ()
-eof = Parser \fp r eob s n -> case eqAddr# eob s of
+eof :: Parser e ()
+eof = Parser \fp !r eob s n -> case eqAddr# eob s of
   1# -> OK# () s n
   _  -> Fail#
 {-# inline eof #-}
 
 -- | Parse a UTF-8 character literal. This is a template function, you can use it as
---   @$(char \'x\')@, for example, and the splice in this case has type @Parser r e ()@.
+--   @$(char \'x\')@, for example, and the splice in this case has type @Parser e ()@.
 char :: Char -> Q Exp
 char c = string [c]
 
 -- | Read a `Word8`.
-byte :: Word8 -> Parser r e ()
+byte :: Word8 -> Parser e ()
 byte (W8# w) = ensureBytes# 1 >> scan8# (W# w)
 {-# inline byte #-}
 
 -- | Read a sequence of bytes. This is a template function, you can use it as @$(bytes [3, 4, 5])@,
---   for example, and the splice has type @Parser r e ()@.
+--   for example, and the splice has type @Parser e ()@.
 bytes :: [Word8] -> Q Exp
 bytes bytes = do
   let !len = length bytes
   [| ensureBytes# len >> $(scanBytes# bytes) |]
 
 -- | Parse a UTF-8 string literal. This is a template function, you can use it as @$(string "foo")@,
---   for example, and the splice has type @Parser r e ()@.
+--   for example, and the splice has type @Parser e ()@.
 string :: String -> Q Exp
 string str = bytes (strToBytes str)
 
@@ -413,7 +413,7 @@ switch = switchWithPost Nothing
 
 {-|
 Switch expression with an optional first argument for performing a post-processing action after
-every successful branch matching. For example, if we have @ws :: Parser r e ()@ for a
+every successful branch matching. For example, if we have @ws :: Parser e ()@ for a
 whitespace parser, we might want to consume whitespace after matching on any of the switch
 cases. For that case, we can define a "lexeme" version of `switch` as follows.
 
@@ -441,8 +441,8 @@ rawSwitchWithPost postAction cases fallback = do
   genTrie $! genSwitchTrie' postAction cases fallback
 
 -- | Parse a UTF-8 `Char` for which a predicate holds.
-satisfy :: (Char -> Bool) -> Parser r e Char
-satisfy f = Parser \fp r eob s n -> case runParser# anyChar fp r eob s n of
+satisfy :: (Char -> Bool) -> Parser e Char
+satisfy f = Parser \fp !r eob s n -> case runParser# anyChar fp r eob s n of
   OK# c s n | f c -> OK# c s n
   _               -> Fail#
 {-#  inline satisfy #-}
@@ -450,8 +450,8 @@ satisfy f = Parser \fp r eob s n -> case runParser# anyChar fp r eob s n of
 -- | Parse an ASCII `Char` for which a predicate holds. Assumption: the predicate must only return
 --   `True` for ASCII-range characters. Otherwise this function might read a 128-255 range byte,
 --   thereby breaking UTF-8 decoding.
-satisfyASCII :: (Char -> Bool) -> Parser r e Char
-satisfyASCII f = Parser \fp r eob s n -> case eqAddr# eob s of
+satisfyASCII :: (Char -> Bool) -> Parser e Char
+satisfyASCII f = Parser \fp !r eob s n -> case eqAddr# eob s of
   1# -> Fail#
   _  -> case derefChar8# s of
     c1 | f (C# c1) -> OK# (C# c1) (plusAddr# s 1#) n
@@ -459,7 +459,7 @@ satisfyASCII f = Parser \fp r eob s n -> case eqAddr# eob s of
 {-#  inline satisfyASCII #-}
 
 -- | Parse an ASCII `Char` for which a predicate holds.
-satisfyASCII_ :: (Char -> Bool) -> Parser r e ()
+satisfyASCII_ :: (Char -> Bool) -> Parser e ()
 satisfyASCII_ f = () <$ satisfyASCII f
 {-# inline satisfyASCII_ #-}
 
@@ -473,8 +473,8 @@ satisfyASCII_ f = () <$ satisfyASCII f
 --   can do better with @fusedSatisfy isLatinLetter isLetter isLetter isLetter@, since here the
 --   `isLatinLetter` is inlined into the UTF-8 decoding, and it probably handles a great majority of
 --   all cases without accessing the character table.
-fusedSatisfy :: (Char -> Bool) -> (Char -> Bool) -> (Char -> Bool) -> (Char -> Bool) -> Parser r e Char
-fusedSatisfy f1 f2 f3 f4 = Parser \fp r eob buf n -> case eqAddr# eob buf of
+fusedSatisfy :: (Char -> Bool) -> (Char -> Bool) -> (Char -> Bool) -> (Char -> Bool) -> Parser e Char
+fusedSatisfy f1 f2 f3 f4 = Parser \fp !r eob buf n -> case eqAddr# eob buf of
   1# -> Fail#
   _  -> case derefChar8# buf of
     c1 -> case c1 `leChar#` '\x7F'# of
@@ -515,40 +515,40 @@ fusedSatisfy f1 f2 f3 f4 = Parser \fp r eob buf n -> case eqAddr# eob buf of
 {-# inline fusedSatisfy #-}
 
 -- | Parse any `Word8`.
-anyWord8 :: Parser r e Word8
-anyWord8 = Parser \fp r eob buf n -> case eqAddr# eob buf of
+anyWord8 :: Parser e Word8
+anyWord8 = Parser \fp !r eob buf n -> case eqAddr# eob buf of
   1# -> Fail#
   _  -> case indexWord8OffAddr# buf 0# of
     w -> OK# (W8# w) (plusAddr# buf 1#) n
 {-# inline anyWord8 #-}
 
 -- | Parse any `Word16`.
-anyWord16 :: Parser r e Word16
-anyWord16 = Parser \fp r eob buf n -> case eqAddr# eob buf of
+anyWord16 :: Parser e Word16
+anyWord16 = Parser \fp !r eob buf n -> case eqAddr# eob buf of
   1# -> Fail#
   _  -> case indexWord16OffAddr# buf 0# of
     w -> OK# (W16# w) (plusAddr# buf 2#) n
 {-# inline anyWord16 #-}
 
 -- | Parse any `Word32`.
-anyWord32 :: Parser r e Word32
-anyWord32 = Parser \fp r eob buf n -> case eqAddr# eob buf of
+anyWord32 :: Parser e Word32
+anyWord32 = Parser \fp !r eob buf n -> case eqAddr# eob buf of
   1# -> Fail#
   _  -> case indexWord32OffAddr# buf 0# of
     w -> OK# (W32# w) (plusAddr# buf 4#) n
 {-# inline anyWord32 #-}
 
 -- | Parse any `Word`.
-anyWord :: Parser r e Word
-anyWord = Parser \fp r eob buf n -> case eqAddr# eob buf of
+anyWord :: Parser e Word
+anyWord = Parser \fp !r eob buf n -> case eqAddr# eob buf of
   1# -> Fail#
   _  -> case indexWordOffAddr# buf 0# of
     w -> OK# (W# w) (plusAddr# buf 8#) n
 {-# inline anyWord #-}
 
 -- | Parse any UTF-8-encoded `Char`.
-anyChar :: Parser r e Char
-anyChar = Parser \fp r eob buf n -> case eqAddr# eob buf of
+anyChar :: Parser e Char
+anyChar = Parser \fp !r eob buf n -> case eqAddr# eob buf of
   1# -> Fail#
   _  -> case derefChar8# buf of
     c1 -> case c1 `leChar#` '\x7F'# of
@@ -582,8 +582,8 @@ anyChar = Parser \fp r eob buf n -> case eqAddr# eob buf of
 {-# inline anyChar #-}
 
 -- | Skip any UTF-8-encoded `Char`.
-anyChar_ :: Parser r e ()
-anyChar_ = Parser \fp r eob buf n -> case eqAddr# eob buf of
+anyChar_ :: Parser e ()
+anyChar_ = Parser \fp !r eob buf n -> case eqAddr# eob buf of
   1# -> Fail#
   _  -> case derefChar8# buf of
     c1 -> case c1 `leChar#` '\x7F'# of
@@ -603,8 +603,8 @@ anyChar_ = Parser \fp r eob buf n -> case eqAddr# eob buf of
 
 -- | Parse any `Char` in the ASCII range, fail if the next input character is not in the range.
 --   This is more efficient than `anyChar` if we are only working with ASCII.
-anyCharASCII :: Parser r e Char
-anyCharASCII = Parser \fp r eob buf n -> case eqAddr# eob buf of
+anyCharASCII :: Parser e Char
+anyCharASCII = Parser \fp !r eob buf n -> case eqAddr# eob buf of
   1# -> Fail#
   _  -> case derefChar8# buf of
     c1 -> case c1 `leChar#` '\x7F'# of
@@ -614,7 +614,7 @@ anyCharASCII = Parser \fp r eob buf n -> case eqAddr# eob buf of
 
 -- | Skip any `Char` in the ASCII range. More efficient than `anyChar_` if we're working only with
 --   ASCII.
-anyCharASCII_ :: Parser r e ()
+anyCharASCII_ :: Parser e ()
 anyCharASCII_ = () <$ anyCharASCII
 {-# inline anyCharASCII_ #-}
 
@@ -639,8 +639,8 @@ isGreekLetter c = ('Α' <= c && c <= 'Ω') || ('α' <= c && c <= 'ω')
 -- | Choose between two parsers. If the first parser fails, try the second one, but if the first one
 --   throws an error, propagate the error.
 infixr 6 <|>
-(<|>) :: Parser r e a -> Parser r e a -> Parser r e a
-(<|>) (Parser f) (Parser g) = Parser \fp r eob s n ->
+(<|>) :: Parser e a -> Parser e a -> Parser e a
+(<|>) (Parser f) (Parser g) = Parser \fp !r eob s n ->
   case f fp r eob s n of
     Fail# -> g fp r eob s n
     x     -> x
@@ -649,8 +649,8 @@ infixr 6 <|>
 -- | Branch on a parser: if the first argument fails, continue with the second, else with the third.
 --   This can produce slightly more efficient code than `(<|>)`. Moreover, `ḃranch` does not
 --   backtrack from the true/false cases.
-branch :: Parser r e a -> Parser r e b -> Parser r e b -> Parser r e b
-branch pa pt pf = Parser \fp r eob s n -> case runParser# pa fp r eob s n of
+branch :: Parser e a -> Parser e b -> Parser e b -> Parser e b
+branch pa pt pf = Parser \fp !r eob s n -> case runParser# pa fp r eob s n of
   OK# _ s n -> runParser# pt fp r eob s n
   Fail#     -> runParser# pf fp r eob s n
   Err# e    -> Err# e
@@ -659,7 +659,7 @@ branch pa pt pf = Parser \fp r eob s n -> case runParser# pa fp r eob s n of
 -- | An analogue of the list `foldl` function: first parse a @b@, then parse zero or more @a@-s,
 --   and combine the results in a left-nested way by the @b -> a -> b@ function. Note: this is not
 --   the usual `chainl` function from the parsec libraries!
-chainl :: (b -> a -> b) -> Parser r e b -> Parser r e a -> Parser r e b
+chainl :: (b -> a -> b) -> Parser e b -> Parser e a -> Parser e b
 chainl f start elem = start >>= go where
   go b = do {!a <- elem; go $! f b a} <|> pure b
 {-# inline chainl #-}
@@ -667,23 +667,33 @@ chainl f start elem = start >>= go where
 -- | An analogue of the list `foldr` function: parse zero or more @a@-s, terminated by a @b@, and
 --   combine the results in a right-nested way using the @a -> b -> b@ function. Note: this is not
 --   the usual `chainr` function from the parsec libraries!
-chainr :: (a -> b -> b) -> Parser r e a -> Parser r e b -> Parser r e b
-chainr f elem end = go where
-  go = (f <$> elem <*> go) <|> end
+chainr :: (a -> b -> b) -> Parser e a -> Parser e b -> Parser e b
+chainr f (Parser elem) (Parser end) = go where
+  go = Parser \fp !r eob s n -> case elem fp r eob s n of
+    OK# a s n -> case runParser# go fp r eob s n of
+      OK# b s n -> let !b' = f a b in OK# b' s n
+      x         -> x
+    Fail# -> end fp r eob s n
+    Err# e -> Err# e
 {-# inline chainr #-}
 
 -- | Run a parser zero or more times, collect the results in a list. Note: for optimal performance,
 --   try to avoid this. Often it is possible to get rid of the intermediate list by using a
 --   combinator or a custom parser.
-many :: Parser r e a -> Parser r e [a]
-many p = go where
-  go = ((:) <$> p <*> go) <|> pure []
+many :: Parser e a -> Parser e [a]
+many (Parser f) = go where
+  go = Parser \fp !r eob s n -> case f fp r eob s n of
+    OK# a s n -> case runParser# go fp r eob s n of
+                   OK# as s n -> OK# (a:as) s n
+                   x          -> x
+    Fail#  -> OK# [] s n
+    Err# e -> Err# e
 {-# inline many #-}
 
 -- | Skip a parser zero or more times.
-many_ :: Parser r e a -> Parser r e ()
+many_ :: Parser e a -> Parser e ()
 many_ (Parser f) = go where
-  go = Parser \fp r eob s n -> case f fp r eob s n of
+  go = Parser \fp !r eob s n -> case f fp r eob s n of
     OK# a s n -> runParser# go fp r eob s n
     Fail#     -> OK# () s n
     Err# e    -> Err# e
@@ -692,18 +702,18 @@ many_ (Parser f) = go where
 -- | Run a parser one or more times, collect the results in a list. Note: for optimal performance,
 --   try to avoid this. Often it is possible to get rid of the intermediate list by using a
 --   combinator or a custom parser.
-some :: Parser r e a -> Parser r e [a]
+some :: Parser e a -> Parser e [a]
 some p = (:) <$> p <*> many p
 {-# inline some #-}
 
 -- | Skip a parser one or more times.
-some_ :: Parser r e a -> Parser r e ()
+some_ :: Parser e a -> Parser e ()
 some_ pa = pa >> many_ pa
 {-# inline some_ #-}
 
 -- | Succeed if the first parser succeeds and the second one fails. The parsing
 --   state is restored to the point of the first argument's success.
-notFollowedBy :: Parser r e a -> Parser r e b -> Parser r e a
+notFollowedBy :: Parser e a -> Parser e b -> Parser e a
 notFollowedBy p1 p2 = p1 <* lookahead (fails p2)
 {-# inline notFollowedBy #-}
 
@@ -727,15 +737,15 @@ instance Ord Pos where
   {-# inline (>=) #-}
 
 -- | Get the current position in the input.
-getPos :: Parser r e Pos
-getPos = Parser \fp r eob s n -> OK# (addrToPos# eob s) s n
+getPos :: Parser e Pos
+getPos = Parser \fp !r eob s n -> OK# (addrToPos# eob s) s n
 {-# inline getPos #-}
 
 -- | Set the input position. Warning: this can result in crashes if the position points outside the
 --   current buffer. It is always safe to `setPos` values which came from `getPos` with the current
 --   input.
-setPos :: Pos -> Parser r e ()
-setPos s = Parser \fp r eob _ n -> OK# () (posToAddr# eob s) n
+setPos :: Pos -> Parser e ()
+setPos s = Parser \fp !r eob _ n -> OK# () (posToAddr# eob s) n
 {-# inline setPos #-}
 
 -- | The end of the input.
@@ -745,32 +755,32 @@ endPos = Pos 0
 
 
 -- | Return the consumed span of a parser. Use `spanned` if possible for better efficiency.
-spanOf :: Parser r e a -> Parser r e Span
-spanOf (Parser f) = Parser \fp r eob s n -> case f fp r eob s n of
+spanOf :: Parser e a -> Parser e Span
+spanOf (Parser f) = Parser \fp !r eob s n -> case f fp r eob s n of
   OK# a s' n -> OK# (Span (addrToPos# eob s) (addrToPos# eob s')) s' n
   x          -> unsafeCoerce# x
 {-# inline spanOf #-}
 
 -- | Bind the result together with the span of the result. CPS'd version of `spanOf`
 --   for better unboxing.
-spanned :: Parser r e a -> (a -> Span -> Parser r e b) -> Parser r e b
-spanned (Parser f) g = Parser \fp r eob s n -> case f fp r eob s n of
+spanned :: Parser e a -> (a -> Span -> Parser e b) -> Parser e b
+spanned (Parser f) g = Parser \fp !r eob s n -> case f fp r eob s n of
   OK# a s' n -> runParser# (g a (Span (addrToPos# eob s) (addrToPos# eob s'))) fp r eob s' n
   x          -> unsafeCoerce# x
 {-# inline spanned #-}
 
 -- | Return the `B.ByteString` consumed by a parser. Note: it's more efficient to use `spanOf` and
 --   `spanned` instead.
-byteStringOf :: Parser r e a -> Parser r e B.ByteString
-byteStringOf (Parser f) = Parser \fp r eob s n -> case f fp r eob s n of
+byteStringOf :: Parser e a -> Parser e B.ByteString
+byteStringOf (Parser f) = Parser \fp !r eob s n -> case f fp r eob s n of
   OK# a s' n -> OK# (B.PS (ForeignPtr s fp) 0 (I# (minusAddr# s' s))) s' n
   x          -> unsafeCoerce# x
 {-# inline byteStringOf #-}
 
 -- | CPS'd version of `byteStringOf`. Can be more efficient, because the result is more eagerly unboxed
 --   by GHC. It's more efficient to use `spanOf` or `spanned` instead.
-byteStringed :: Parser r e a -> (a -> B.ByteString -> Parser r e b) -> Parser r e b
-byteStringed (Parser f) g = Parser \fp r eob s n -> case f fp r eob s n of
+byteStringed :: Parser e a -> (a -> B.ByteString -> Parser e b) -> Parser e b
+byteStringed (Parser f) g = Parser \fp !r eob s n -> case f fp r eob s n of
   OK# a s' n -> runParser# (g a (B.PS (ForeignPtr s fp) 0 (I# (minusAddr# s' s)))) fp r eob s' n
   x          -> unsafeCoerce# x
 {-# inline byteStringed #-}
@@ -780,8 +790,8 @@ byteStringed (Parser f) g = Parser \fp r eob s n -> case f fp r eob s n of
 --   this operation may crash if the given span points outside the current parsing buffer. It's
 --   always safe to use `inSpan` if the span comes from a previous `spanned` or `spanOf` call on
 --   the current input.
-inSpan :: Span -> Parser r e a -> Parser r e a
-inSpan (Span s eob) (Parser f) = Parser \fp r eob' s' n' ->
+inSpan :: Span -> Parser e a -> Parser e a
+inSpan (Span s eob) (Parser f) = Parser \fp !r eob' s' n' ->
   case f fp r (posToAddr# eob' eob) (posToAddr# eob' s) n' of
     OK# a _ _ -> OK# a s' n'
     x         -> unsafeCoerce# x
@@ -795,7 +805,7 @@ validPos str pos =
   let go = do
         start <- getPos
         pure (start <= pos && pos <= endPos)
-  in case runParser go () 0 str of
+  in case runParser go 0 0 str of
     OK b _ _ -> b
     _        -> error "impossible"
 {-# inline validPos #-}
@@ -820,14 +830,14 @@ posLineCols str poss =
       sorted :: [(Int, Pos)]
       sorted = sortBy (comparing snd) (zip [0..] poss)
 
-  in case runParser (go 0 0 sorted) () 0 str of
+  in case runParser (go 0 0 sorted) 0 0 str of
        OK res _ _ -> snd <$> sortBy (comparing fst) res
        _          -> error "invalid position"
 
 
 -- | Create a `B.ByteString` from a `Span`. The result is invalid is the `Span` points
 --   outside the current buffer, or if the `Span` start is greater than the end position.
-unsafeSpanToByteString :: Span -> Parser r e B.ByteString
+unsafeSpanToByteString :: Span -> Parser e B.ByteString
 unsafeSpanToByteString (Span l r) =
   lookahead (setPos l >> byteStringOf (setPos r))
 {-# inline unsafeSpanToByteString #-}
@@ -842,7 +852,7 @@ mkPos str (line', col') =
         c <- anyChar
         if c == '\n' then go (line + 1) 0
                      else go line (col + 1)) <|> error "mkPos: invalid position"
-  in case runParser (go 0 0) () 0 str of
+  in case runParser (go 0 0) 0 0 str of
     OK res _ _ -> res
     _          -> error "impossible"
 
@@ -853,7 +863,7 @@ mkPos str (line', col') =
 lines :: B.ByteString -> [String]
 lines str =
   let go = ([] <$ eof) <|> ((:) <$> takeLine <*> go)
-  in case runParser go () 0 str of
+  in case runParser go 0 0 str of
     OK ls _ _ -> ls
     _         -> error "linesUTF8: invalid input"
 
@@ -863,7 +873,7 @@ lines str =
 
 -- | Parse the rest of the current line as a `String`. Assumes UTF-8 encoding,
 --   throws an error if the encoding is invalid.
-takeLine :: Parser r e String
+takeLine :: Parser e String
 takeLine =
   branch eof (pure "") do
   c <- anyChar
@@ -873,16 +883,16 @@ takeLine =
 
 -- | Parse the rest of the current line as a `String`, but restore the parsing state.
 --   Assumes UTF-8 encoding. This can be used for debugging.
-traceLine :: Parser r e String
+traceLine :: Parser e String
 traceLine = lookahead takeLine
 
 -- | Take the rest of the input as a `String`. Assumes UTF-8 encoding.
-takeRest :: Parser r e String
+takeRest :: Parser e String
 takeRest = ((:) <$> anyChar <*> takeRest) <|> pure []
 
 -- | Get the rest of the input as a `String`, but restore the parsing state. Assumes UTF-8 encoding.
 --   This can be used for debugging.
-traceRest :: Parser r e String
+traceRest :: Parser e String
 traceRest = lookahead traceRest
 
 --------------------------------------------------------------------------------
@@ -936,8 +946,8 @@ derefChar8# addr = indexCharOffAddr# addr 0#
 {-# inline derefChar8# #-}
 
 -- | Check that the input has at least the given number of bytes.
-ensureBytes# :: Int -> Parser r e ()
-ensureBytes# (I# len) = Parser \fp r eob s n ->
+ensureBytes# :: Int -> Parser e ()
+ensureBytes# (I# len) = Parser \fp !r eob s n ->
   case len  <=# minusAddr# eob s of
     1# -> OK# () s n
     _  -> Fail#
@@ -945,8 +955,8 @@ ensureBytes# (I# len) = Parser \fp r eob s n ->
 
 -- | Unsafely read a concrete byte from the input. It's not checked that the input has
 --   enough bytes.
-scan8# :: Word -> Parser r e ()
-scan8# (W# c) = Parser \fp r eob s n ->
+scan8# :: Word -> Parser e ()
+scan8# (W# c) = Parser \fp !r eob s n ->
   case indexWord8OffAddr# s 0# of
     c' -> case eqWord# c c' of
       1# -> OK# () (plusAddr# s 1#) n
@@ -955,8 +965,8 @@ scan8# (W# c) = Parser \fp r eob s n ->
 
 -- | Unsafely read two concrete bytes from the input. It's not checked that the input has
 --   enough bytes.
-scan16# :: Word -> Parser r e ()
-scan16# (W# c) = Parser \fp r eob s n ->
+scan16# :: Word -> Parser e ()
+scan16# (W# c) = Parser \fp !r eob s n ->
   case indexWord16OffAddr# s 0# of
     c' -> case eqWord# c c' of
       1# -> OK# () (plusAddr# s 2#) n
@@ -965,8 +975,8 @@ scan16# (W# c) = Parser \fp r eob s n ->
 
 -- | Unsafely read four concrete bytes from the input. It's not checked that the input has
 --   enough bytes.
-scan32# :: Word -> Parser r e ()
-scan32# (W# c) = Parser \fp r eob s n ->
+scan32# :: Word -> Parser e ()
+scan32# (W# c) = Parser \fp !r eob s n ->
   case indexWord32OffAddr# s 0# of
     c' -> case eqWord# c c' of
       1# -> OK# () (plusAddr# s 4#) n
@@ -975,8 +985,8 @@ scan32# (W# c) = Parser \fp r eob s n ->
 
 -- | Unsafely read eight concrete bytes from the input. It's not checked that the input has
 --   enough bytes.
-scan64# :: Word -> Parser r e ()
-scan64# (W# c) = Parser \fp r eob s n ->
+scan64# :: Word -> Parser e ()
+scan64# (W# c) = Parser \fp !r eob s n ->
   case indexWord64OffAddr# s 0# of
     c' -> case eqWord# c c' of
       1# -> OK# () (plusAddr# s 8#) n
@@ -984,12 +994,12 @@ scan64# (W# c) = Parser \fp r eob s n ->
 {-# inline scan64# #-}
 
 -- | Unsafely read and return a byte from the input. It's not checked that the input is non-empty.
-scanAny8# :: Parser r e Word8
-scanAny8# = Parser \fp r eob s n -> OK# (W8# (indexWord8OffAddr# s 0#)) (plusAddr# s 1#) n
+scanAny8# :: Parser e Word8
+scanAny8# = Parser \fp !r eob s n -> OK# (W8# (indexWord8OffAddr# s 0#)) (plusAddr# s 1#) n
 {-# inline scanAny8# #-}
 
-scanPartial64# :: Int -> Word -> Parser r e ()
-scanPartial64# (I# len) (W# w) = Parser \fp r eob s n ->
+scanPartial64# :: Int -> Word -> Parser e ()
+scanPartial64# (I# len) (W# w) = Parser \fp !r eob s n ->
   case indexWordOffAddr# s 0# of
     w' -> case uncheckedIShiftL# (8# -# len) 3# of
       sh -> case uncheckedShiftL# w' sh of
@@ -1000,12 +1010,12 @@ scanPartial64# (I# len) (W# w) = Parser \fp r eob s n ->
 {-# inline scanPartial64# #-}
 
 -- | Decrease the current input position by the given number of bytes.
-setBack# :: Int -> Parser r e ()
-setBack# (I# i) = Parser \fp r eob s n ->
+setBack# :: Int -> Parser e ()
+setBack# (I# i) = Parser \fp !r eob s n ->
   OK# () (plusAddr# s (negateInt# i)) n
 {-# inline setBack# #-}
 
--- | Template function, creates a @Parser r e ()@ which unsafely scans a given
+-- | Template function, creates a @Parser e ()@ which unsafely scans a given
 --   sequence of bytes.
 scanBytes# :: [Word8] -> Q Exp
 scanBytes# bytes = do
@@ -1055,7 +1065,7 @@ insert rule = go where
     Branch rule' (M.alter (Just . maybe (go cs nilTrie) (go cs)) c ts)
 
 fromList :: [(Int, String)] -> Trie Rule
-fromList = foldl' (\t (!r, !s) -> insert r (charToBytes =<< s) t) nilTrie
+fromList = foldl' (\t (r, !s) -> insert r (charToBytes =<< s) t) nilTrie
 
 -- | Decorate a trie with the minimum lengths of non-empty paths. This
 --   is used later to place `ensureBytes#`.
@@ -1086,7 +1096,7 @@ pathify (Branch a ts) = case M.toList ts of
 fallbacks :: Trie' (Rule, Int) -> Trie' (Rule, Int, Int)
 fallbacks = go Nothing 0  where
   go :: Rule -> Int -> Trie' (Rule, Int) -> Trie' (Rule, Int, Int)
-  go !rule !n (Branch' (rule', d) ts)
+  go rule !n (Branch' (rule', d) ts)
     | M.null ts        = Branch' (rule', 0, d) mempty
     | Nothing <- rule' = Branch' (rule, n, d) (go rule (n + 1) <$> ts)
     | otherwise        = Branch' (rule, n, d) (go rule' 1      <$> ts)
@@ -1099,7 +1109,7 @@ fallbacks = go Nothing 0  where
 ensureBytes :: Trie' (Rule, Int, Int) -> Trie' (Rule, Int, Maybe Int)
 ensureBytes = go 0 where
   go :: Int -> Trie' (Rule, Int, Int) -> Trie' (Rule, Int, Maybe Int)
-  go !res = \case
+  go res = \case
     Branch' (r, n, d) ts
       | M.null ts -> Branch' (r, n, Nothing) mempty
       |  res < 1  -> Branch' (r, n, Just d ) (go (d   - 1) <$> ts)

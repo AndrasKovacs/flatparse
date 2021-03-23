@@ -12,13 +12,13 @@ close   = $(char ')') >> ws
 ident   = some_ (satisfyASCII isLatinLetter) >> ws
 sexp    = branch open (some_ sexp >> close) ident
 src     = sexp >> eof
-runSexp = runParser src ()
+runSexp = runParser src
 
 longw     = $(string "thisisalongkeyword")
 longws    = some_ (longw >> ws) >> eof
-runLongws = runParser longws ()
+runLongws = runParser longws
 
 numeral   = some_ (satisfyASCII isDigit) >> ws
 comma     = $(char ',') >> ws
 numcsv    = numeral >> many_ (comma >> numeral) >> eof
-runNumcsv = runParser numcsv ()
+runNumcsv = runParser numcsv

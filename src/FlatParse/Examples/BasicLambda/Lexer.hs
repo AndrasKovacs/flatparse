@@ -54,7 +54,7 @@ merge e e' = case (errorPos e, errorPos e') of
     (Imprecise _ es , Imprecise _ es' ) -> Imprecise p (es ++ es')
 {-# noinline merge #-} -- merge is "cold" code, so we shouldn't inline it.
 
-type Parser = FP.Parser () Error
+type Parser = FP.Parser Error
 
 -- | Pretty print an error. The `B.ByteString` input is the source file. The offending line from the
 --   source is displayed in the output.
@@ -104,7 +104,7 @@ cut' p e = do
   FP.cutting p (Precise pos e) merge
 
 runParser :: Parser a -> B.ByteString -> Result Error a
-runParser p = FP.runParser p ()
+runParser = FP.runParser
 
 -- | Run parser, print pretty error on failure.
 testParser :: Show a => Parser a -> String -> IO ()
