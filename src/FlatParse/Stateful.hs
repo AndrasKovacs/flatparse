@@ -88,6 +88,7 @@ module FlatParse.Stateful (
   , validPos
   , posLineCols
   , unsafeSpanToByteString
+  , unsafeSlice
   , mkPos
   , FlatParse.Stateful.lines
 
@@ -841,6 +842,15 @@ unsafeSpanToByteString :: Span -> Parser e B.ByteString
 unsafeSpanToByteString (Span l r) =
   lookahead (setPos l >> byteStringOf (setPos r))
 {-# inline unsafeSpanToByteString #-}
+
+-- | Slice into a `B.ByteString` using a `Span`. The result is invalid if the `Span`
+--   is not a valid slice of the first argument.
+unsafeSlice :: B.ByteString -> Span -> B.ByteString
+unsafeSlice (B.PS (ForeignPtr addr fp) (I# start) (I# len))
+            (Span (Pos (I# o1)) (Pos (I# o2))) =
+  let end = addr `plusAddr#` start `plusAddr#` len
+  in B.PS (ForeignPtr (plusAddr# end (negateInt# o1)) fp) (I# 0#) (I# (o1 -# o2))
+{-# inline unsafeSlice #-}
 
 
 -- | Create a `Pos` from a line and column number. Throws an error on out-of-bounds

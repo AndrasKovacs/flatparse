@@ -82,6 +82,7 @@ module FlatParse.Basic (
   , validPos
   , posLineCols
   , unsafeSpanToByteString
+  , unsafeSlice
   , mkPos
   , FlatParse.Basic.lines
 
@@ -591,7 +592,7 @@ isDigit c = '0' <= c && c <= '9'
 
 -- | @isLatinLetter c = (\'A\' <= c && c <= \'Z\') || (\'a\' <= c && c <= \'z\')@
 isLatinLetter :: Char -> Bool
-isLatinLetter c = ('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z')
+isLatinLetter c = ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z')
 {-# inline isLatinLetter #-}
 
 -- | @isGreekLetter c = (\'Α\' <= c && c <= \'Ω\') || (\'α\' <= c && c <= \'ω\')@
@@ -634,9 +635,9 @@ chainl f start elem = start >>= go where
 --   combine the results in a right-nested way using the @a -> b -> b@ function. Note: this is not
 --   the usual `chainr` function from the parsec libraries!
 chainr :: (a -> b -> b) -> Parser e a -> Parser e b -> Parser e b
-chainr f (Parser elem) (Parser end) = go where
-  go = Parser \fp eob s -> case elem fp eob s of
-    OK# a s -> case runParser# go fp eob s of
+chainr f (Parser elem) (Parser end) = Parser go where
+  go fp eob s = case elem fp eob s of
+    OK# a s -> case go fp eob s of
       OK# b s -> let !b' = f a b in OK# b' s
       x       -> x
     Fail# -> end fp eob s
@@ -647,9 +648,9 @@ chainr f (Parser elem) (Parser end) = go where
 --   try to avoid this. Often it is possible to get rid of the intermediate list by using a
 --   combinator or a custom parser.
 many :: Parser e a -> Parser e [a]
-many (Parser f) = go where
-  go = Parser \fp eob s -> case f fp eob s of
-    OK# a s -> case runParser# go fp eob s of
+many (Parser f) = Parser go where
+  go fp eob s = case f fp eob s of
+    OK# a s -> case go fp eob s of
                  OK# as s -> OK# (a:as) s
                  x        -> x
     Fail#  -> OK# [] s
@@ -658,9 +659,9 @@ many (Parser f) = go where
 
 -- | Skip a parser zero or more times.
 many_ :: Parser e a -> Parser e ()
-many_ (Parser f) = go where
-  go = Parser \fp eob s -> case f fp eob s of
-    OK# a s -> runParser# go fp eob s
+many_ (Parser f) = Parser go where
+  go fp eob s = case f fp eob s of
+    OK# a s -> go fp eob s
     Fail#   -> OK# () s
     Err# e  -> Err# e
 {-# inline many_ #-}
@@ -799,12 +800,21 @@ posLineCols str poss =
        OK res _ -> snd <$> sortBy (comparing fst) res
        _        -> error "invalid position"
 
--- | Create a `B.ByteString` from a `Span`. The result is invalid is the `Span` points
+-- | Create a `B.ByteString` from a `Span`. The result is invalid if the `Span` points
 --   outside the current buffer, or if the `Span` start is greater than the end position.
 unsafeSpanToByteString :: Span -> Parser e B.ByteString
 unsafeSpanToByteString (Span l r) =
   lookahead (setPos l >> byteStringOf (setPos r))
 {-# inline unsafeSpanToByteString #-}
+
+-- | Slice into a `B.ByteString` using a `Span`. The result is invalid if the `Span`
+--   is not a valid slice of the first argument.
+unsafeSlice :: B.ByteString -> Span -> B.ByteString
+unsafeSlice (B.PS (ForeignPtr addr fp) (I# start) (I# len))
+            (Span (Pos (I# o1)) (Pos (I# o2))) =
+  let end = addr `plusAddr#` start `plusAddr#` len
+  in B.PS (ForeignPtr (plusAddr# end (negateInt# o1)) fp) (I# 0#) (I# (o1 -# o2))
+{-# inline unsafeSlice #-}
 
 -- | Create a `Pos` from a line and column number. Throws an error on out-of-bounds
 --   line and column numbers.

@@ -4,10 +4,10 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 67bf41feed5b8954a06f5af856c75f3d5934df5ecb1d45a8038f35463c34a21b
+-- hash: dd4124fa98babb251701a98ec5a31a5016b54b6af73c2732c85c9e13fdb07478
 
 name:           flatparse
-version:        0.1.1.2
+version:        0.2.0.0
 synopsis:       High-performance parsing from strict bytestrings
 description:    @Flatparse@ is a high-performance parsing library, focusing on programming languages and
                 human-readable data formats. See the README for more information:
@@ -62,7 +62,7 @@ benchmark bench
   hs-source-dirs:
       bench
   default-extensions: BangPatterns BlockArguments ExplicitNamespaces LambdaCase MagicHash OverloadedStrings PatternSynonyms TemplateHaskell TupleSections UnboxedTuples
-  ghc-options: -Wall -Wno-name-shadowing -Wno-unused-binds -Wno-unused-matches -Wno-missing-signatures -O2 -ddump-simpl -dsuppress-all -dno-suppress-type-signatures -ddump-stg -ddump-to-file -ddump-llvm
+  ghc-options: -Wall -Wno-name-shadowing -Wno-unused-binds -Wno-unused-matches -Wno-missing-signatures -O2
   build-depends:
       attoparsec
     , base >=4.7 && <5

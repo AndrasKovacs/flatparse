@@ -53,7 +53,7 @@ sexp    = (open >> some_ sexp >> close) <|> ident
 src     = sexp >> P.endOfInput U
 runSexp = parseByteArray src
 
-longw     = P.cstring U (Ptr "thisisalongkeyword"#)
+longw     = P.cstring U (Ptr "thisisalongkeyword\NUL"#)
 longws    = some_ (longw >> ws) >> P.endOfInput U
 runLongws = parseByteArray longws
 
