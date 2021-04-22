@@ -98,6 +98,10 @@ module FlatParse.Stateful (
   , takeRest
   , traceRest
 
+  -- * `String` conversions
+  , packUTF8
+  , unpackUTF8
+
   -- * Internal functions
   , ensureBytes#
   , scan8#
@@ -107,7 +111,7 @@ module FlatParse.Stateful (
   , scanAny8#
   , scanBytes#
   , setBack#
-  , packUTF8
+
 
   ) where
 
@@ -918,6 +922,12 @@ posToAddr# eob (Pos (I# s)) = unsafeCoerce# (minusAddr# eob (unsafeCoerce# s))
 -- | Convert a `String` to an UTF-8-coded `B.ByteString`.
 packUTF8 :: String -> B.ByteString
 packUTF8 = B.pack . concatMap charToBytes
+
+-- | Convert an UTF-8-coded `B.ByteString` to a `String`.
+unpackUTF8 :: B.ByteString -> String
+unpackUTF8 str = case runParser takeRest 0 0 str of
+  OK a _ _ -> a
+  _        -> error "unpackUTF8: invalid encoding"
 
 charToBytes :: Char -> [Word8]
 charToBytes c'

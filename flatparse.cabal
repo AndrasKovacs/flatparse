@@ -4,10 +4,10 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: dd4124fa98babb251701a98ec5a31a5016b54b6af73c2732c85c9e13fdb07478
+-- hash: ee12a2e7f835e8d69d9e642f6a2f731e3aea9334402ff7f1564de99cbe1c5422
 
 name:           flatparse
-version:        0.2.0.0
+version:        0.2.0.1
 synopsis:       High-performance parsing from strict bytestrings
 description:    @Flatparse@ is a high-performance parsing library, focusing on programming languages and
                 human-readable data formats. See the README for more information:
