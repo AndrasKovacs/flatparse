@@ -59,8 +59,12 @@ digit :: Parser Int
 digit = (\c -> ord c - ord '0') <$> satisfyASCII isDigit
 
 int :: Parser Int
-int = token $
-  snd <$> chainr (\n (!place, !acc) -> (place*10,acc+place*n)) digit ((10,) <$> digit)
+
+int = token do
+  (place, n) <- chainr (\n (!place, !acc) -> (place*10,acc+place*n)) digit (pure (1, 0))
+  case place of
+    1 -> empty
+    _ -> pure n
 
 -- | Parse a literal, identifier or parenthesized expression.
 atom :: Parser Tm
@@ -135,7 +139,6 @@ src' :: Parser Tm
 src' = ws *> tm' <* eof `cut` [Msg "end of input (lexical error)"]
 
 
-
 -- Examples
 --------------------------------------------------------------------------------
 
@@ -144,5 +147,6 @@ src' = ws *> tm' <* eof `cut` [Msg "end of input (lexical error)"]
 p1 = unlines [
   "let f = lam x. lam y. x (x (x y)) in",
   "let g = if f true then false else true in",
+  "let h = f x y + 200 in",
   "f g g h"
   ]
