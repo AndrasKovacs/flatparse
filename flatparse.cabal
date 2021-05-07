@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.33.0.
+-- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: eaa2f89b44fdc29353846c7b48a8da90b0f8fa13d2544c0e9421c3418e201773
+-- hash: 2ba3a084128297d0d1b6136ac0a6aff88c0a67a3998844684ae951a9e56aa339
 
 name:           flatparse
 version:        0.2.1.0
@@ -20,7 +20,8 @@ maintainer:     puttamalac@gmail.com
 copyright:      2021 András Kovács
 license:        MIT
 license-file:   LICENSE
-tested-with:    GHC == 8.8.4
+tested-with:
+    GHC == 8.8.4
 build-type:     Simple
 extra-source-files:
     README.md
@@ -32,7 +33,6 @@ source-repository head
 library
   exposed-modules:
       FlatParse.Basic
-      FlatParse.BasicPoly
       FlatParse.Examples.BasicLambda.Lexer
       FlatParse.Examples.BasicLambda.Parser
       FlatParse.Stateful
@@ -40,7 +40,17 @@ library
       Paths_flatparse
   hs-source-dirs:
       src
-  default-extensions: BangPatterns BlockArguments ExplicitNamespaces LambdaCase MagicHash OverloadedStrings PatternSynonyms TemplateHaskell TupleSections UnboxedTuples
+  default-extensions:
+      BangPatterns
+      BlockArguments
+      ExplicitNamespaces
+      LambdaCase
+      MagicHash
+      OverloadedStrings
+      PatternSynonyms
+      TemplateHaskell
+      TupleSections
+      UnboxedTuples
   ghc-options: -Wall -Wno-name-shadowing -Wno-unused-binds -Wno-unused-matches -Wno-missing-signatures -O2
   build-depends:
       base >=4.7 && <5
@@ -62,7 +72,17 @@ benchmark bench
       Paths_flatparse
   hs-source-dirs:
       bench
-  default-extensions: BangPatterns BlockArguments ExplicitNamespaces LambdaCase MagicHash OverloadedStrings PatternSynonyms TemplateHaskell TupleSections UnboxedTuples
+  default-extensions:
+      BangPatterns
+      BlockArguments
+      ExplicitNamespaces
+      LambdaCase
+      MagicHash
+      OverloadedStrings
+      PatternSynonyms
+      TemplateHaskell
+      TupleSections
+      UnboxedTuples
   ghc-options: -Wall -Wno-name-shadowing -Wno-unused-binds -Wno-unused-matches -Wno-missing-signatures -O2
   build-depends:
       attoparsec
