@@ -1,6 +1,6 @@
 
 name:        flatparse
-version:     0.2.1.0
+version:     0.2.2.0
 license:     MIT
 category:    Parsing
 synopsis:    High-performance parsing from strict bytestrings
@@ -49,14 +49,15 @@ library:
     - containers
     - bytestring
     - template-haskell
+    - integer-gmp
   ghc-options:
     - -O2
     # - -fllvm
     # - -ddump-simpl
     # - -dsuppress-all
     # - -dno-suppress-type-signatures
-    # - -ddump-stg
     # - -ddump-to-file
+    # - -ddump-stg
     # - -ddump-llvm
 
 benchmarks:
@@ -73,12 +74,13 @@ benchmarks:
       - megaparsec
       - parsec
       - primitive
+      - integer-gmp
     ghc-options:
       - -O2
       # - -fllvm
       # - -ddump-simpl
       # - -dsuppress-all
       # - -dno-suppress-type-signatures
-      # - -ddump-stg
       # - -ddump-to-file
+      # - -ddump-stg
       # - -ddump-llvm

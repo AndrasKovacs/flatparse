@@ -60,6 +60,8 @@ module FlatParse.Stateful (
   , isDigit
   , isGreekLetter
   , isLatinLetter
+  , readInt
+  , readInteger
 
   -- * Combinators
   , (<|>)
@@ -133,6 +135,8 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Internal as B
 import qualified Data.ByteString.Unsafe as B
 import qualified Data.Map.Strict as M
+
+import qualified FlatParse.Internal as Internal
 
 --------------------------------------------------------------------------------
 
@@ -637,6 +641,21 @@ isLatinLetter c = ('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z')
 isGreekLetter :: Char -> Bool
 isGreekLetter c = ('Α' <= c && c <= 'Ω') || ('α' <= c && c <= 'ω')
 {-# inline isGreekLetter #-}
+
+-- | Read an `Int` from the input, as a non-empty digit sequence. The `Int` may
+--   overflow in the result.
+readInt :: Parser e Int
+readInt = Parser \fp r eob s n -> case Internal.readInt eob s of
+  (# (##) | #)        -> Fail#
+  (# | (# i, s' #) #) -> OK# (I# i) s' n
+{-# inline readInt #-}
+
+-- | Read an `Integer` from the input, as a non-empty digit sequence.
+readInteger :: Parser e Integer
+readInteger = Parser \fp r eob s n -> case Internal.readInteger fp eob s of
+  (# (##) | #)        -> Fail#
+  (# | (# i, s' #) #) -> OK# i s' n
+{-# inline readInteger #-}
 
 
 --------------------------------------------------------------------------------

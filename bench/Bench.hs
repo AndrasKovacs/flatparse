@@ -1,8 +1,10 @@
+{-# options_ghc -Wno-unused-imports #-}
 
 module Main where
 
 import Data.Primitive.ByteArray
 import Gauge
+
 import qualified Data.ByteString.Char8 as B
 
 import qualified Attoparsec
@@ -11,6 +13,7 @@ import qualified Parsec
 import qualified FPStateful
 import qualified FPBasic
 import qualified Bytesmith
+import qualified ReadInteger
 
 sexpInp :: B.ByteString
 sexpInp =
@@ -30,6 +33,9 @@ longwsInp' = Bytesmith.strToByteArray $ B.unpack longwsInp
 
 numcsvInp' :: ByteArray
 numcsvInp' = Bytesmith.strToByteArray $ B.unpack numcsvInp
+
+readIntInp :: B.ByteString
+readIntInp = "12345678910"
 
 main :: IO ()
 main = defaultMain [
@@ -58,5 +64,10 @@ main = defaultMain [
     bench "attoparsec" $ whnf Attoparsec.runNumcsv numcsvInp,
     bench "megaparsec" $ whnf Megaparsec.runNumcsv numcsvInp,
     bench "parsec"     $ whnf Parsec.runNumcsv     numcsvInp
-  ]
+  ],
+
+  bgroup "readInt/readInteger" [
+    bench "readInt"      $ whnf ReadInteger.readInt     readIntInp,
+    bench "readInteger"  $ whnf ReadInteger.readInteger readIntInp
+    ]
  ]

@@ -59,7 +59,6 @@ digit :: Parser Int
 digit = (\c -> ord c - ord '0') <$> satisfyASCII isDigit
 
 int :: Parser Int
-
 int = token do
   (place, n) <- chainr (\n (!place, !acc) -> (place*10,acc+place*n)) digit (pure (1, 0))
   case place of
@@ -91,7 +90,7 @@ mul' = chainl Mul app' ($(symbol "*") *> app')
 add' :: Parser Tm
 add' = chainl Add mul' ($(symbol "+") *> mul')
 
--- | Parse an `Eq` or `Lt`-level expression.
+-- | Parse an `FlatParse.Examples.BasicLambda.Parser.Eq` or `Lt`-level expression.
 eqLt' :: Parser Tm
 eqLt' =
   add' >>= \e1 ->
