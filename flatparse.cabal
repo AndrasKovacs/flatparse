@@ -1,11 +1,13 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
+--
+-- hash: c36eef37ab34c78359a966f0df5fefc8771803644d55263ca0173ff95d04381a
 
 name:           flatparse
-version:        0.2.1.0
+version:        0.2.2.0
 synopsis:       High-performance parsing from strict bytestrings
 description:    @Flatparse@ is a high-performance parsing library, focusing on programming languages and
                 human-readable data formats. See the README for more information:
@@ -18,9 +20,8 @@ maintainer:     puttamalac@gmail.com
 copyright:      2021 András Kovács
 license:        MIT
 license-file:   LICENSE
+tested-with:    GHC == 8.8.4
 build-type:     Simple
-tested-with:
-    GHC == 8.8.4
 extra-source-files:
     README.md
 
@@ -39,24 +40,16 @@ library
       Paths_flatparse
   hs-source-dirs:
       src
-  default-extensions:
-      BangPatterns
-      BlockArguments
-      ExplicitNamespaces
-      LambdaCase
-      MagicHash
-      OverloadedStrings
-      PatternSynonyms
-      TemplateHaskell
-      TupleSections
-      UnboxedTuples
+  default-extensions: BangPatterns BlockArguments ExplicitNamespaces LambdaCase MagicHash OverloadedStrings PatternSynonyms TemplateHaskell TupleSections UnboxedTuples
   ghc-options: -Wall -Wno-name-shadowing -Wno-unused-binds -Wno-unused-matches -Wno-missing-signatures -O2
   build-depends:
       base >=4.7 && <5
     , bytestring
     , containers
+    , hspec
     , integer-gmp
     , template-haskell
+    , vector
   default-language: Haskell2010
 
 benchmark bench
@@ -73,17 +66,7 @@ benchmark bench
       Paths_flatparse
   hs-source-dirs:
       bench
-  default-extensions:
-      BangPatterns
-      BlockArguments
-      ExplicitNamespaces
-      LambdaCase
-      MagicHash
-      OverloadedStrings
-      PatternSynonyms
-      TemplateHaskell
-      TupleSections
-      UnboxedTuples
+  default-extensions: BangPatterns BlockArguments ExplicitNamespaces LambdaCase MagicHash OverloadedStrings PatternSynonyms TemplateHaskell TupleSections UnboxedTuples
   ghc-options: -Wall -Wno-name-shadowing -Wno-unused-binds -Wno-unused-matches -Wno-missing-signatures -O2
   build-depends:
       attoparsec
@@ -92,8 +75,10 @@ benchmark bench
     , bytestring
     , flatparse
     , gauge
+    , hspec
     , integer-gmp
     , megaparsec
     , parsec
     , primitive
+    , vector
   default-language: Haskell2010

@@ -206,7 +206,7 @@ data Result e a =
     OK a !(B.ByteString)  -- ^ Contains return value and unconsumed input.
   | Fail                  -- ^ Recoverable-by-default failure.
   | Err !e                -- ^ Unrecoverble-by-default error.
-  deriving Show
+  deriving (Show, Eq)
 
 instance Functor (Result e) where
   fmap f (OK a s) = let !b = f a in OK b s

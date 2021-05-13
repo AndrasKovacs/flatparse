@@ -2,8 +2,14 @@
 
 module Main where
 
-import Data.Primitive.ByteArray
-import Gauge
+import           Data.ByteString (ByteString)
+import qualified Data.ByteString as S
+import           Data.Primitive.ByteArray
+import qualified Data.Vector.Unboxed as UV
+import qualified FlatParse.Basic as F
+import           Gauge
+import           System.Environment
+import           Test.Hspec
 
 import qualified Data.ByteString.Char8 as B
 
@@ -38,36 +44,78 @@ readIntInp :: B.ByteString
 readIntInp = "12345678910"
 
 main :: IO ()
-main = defaultMain [
-  bgroup "sexp" [
-    bench "fpbasic"     $ whnf FPBasic.runSexp    sexpInp,
-    bench "fpstateful"  $ whnf FPStateful.runSexp sexpInp,
-    bench "bytesmith"   $ whnf Bytesmith.runSexp  sexpInp',
-    bench "attoparsec"  $ whnf Attoparsec.runSexp sexpInp,
-    bench "megaparsec"  $ whnf Megaparsec.runSexp sexpInp,
-    bench "parsec"      $ whnf Parsec.runSexp     sexpInp
-  ],
-
-  bgroup "long keyword" [
-    bench "fpbasic"    $ whnf FPBasic.runLongws    longwsInp,
-    bench "fpstateful" $ whnf FPStateful.runLongws longwsInp,
-    bench "bytesmith"  $ whnf Bytesmith.runLongws  longwsInp',
-    bench "attoparsec" $ whnf Attoparsec.runLongws longwsInp,
-    bench "megaparsec" $ whnf Megaparsec.runLongws longwsInp,
-    bench "parsec"     $ whnf Parsec.runLongws     longwsInp
-  ],
-
-  bgroup "numeral csv" [
-    bench "fpbasic"    $ whnf FPBasic.runNumcsv    numcsvInp,
-    bench "fpstateful" $ whnf FPStateful.runNumcsv numcsvInp,
-    bench "bytesmith"  $ whnf Bytesmith.runNumcsv  numcsvInp',
-    bench "attoparsec" $ whnf Attoparsec.runNumcsv numcsvInp,
-    bench "megaparsec" $ whnf Megaparsec.runNumcsv numcsvInp,
-    bench "parsec"     $ whnf Parsec.runNumcsv     numcsvInp
-  ],
-
-  bgroup "readInt/readInteger" [
-    bench "readInt"      $ whnf ReadInteger.readInt     readIntInp,
-    bench "readInteger"  $ whnf ReadInteger.readInteger readIntInp
+main = do
+  withArgs
+    mempty
+    (hspec
+       (do it "empty ok"
+              (shouldBe
+                 (ReadInteger.readInts " [  ] ")
+                 (F.OK (UV.fromList []) "" :: F.Result () (UV.Vector Int)))
+           it
+             "trailing comma fail"
+             (do shouldBe
+                   (ReadInteger.readInts "[1,2,3,4,]")
+                   (F.Fail :: F.Result () (UV.Vector Int))
+                 shouldBe
+                   (ReadInteger.checkInts "[1,2,3,4,]")
+                   (F.Fail :: F.Result () ()))
+           it
+             "whitespace ok"
+             (do shouldBe
+                   (ReadInteger.checkInts " [1, 2,  3,4  ] ")
+                   (F.OK () "" :: F.Result () ())
+                 shouldBe
+                   (ReadInteger.readInts " [1, 2,  3,4  ] ")
+                   (F.OK (UV.fromList [1, 2, 3, 4]) "" :: F.Result () (UV.Vector Int)))
+           it
+             "no whitespace"
+             (do shouldBe
+                   (ReadInteger.readInts "[ 1,2,3,4]")
+                   (F.OK (UV.fromList [1, 2, 3, 4]) "" :: F.Result () (UV.Vector Int))
+                 shouldBe
+                   (ReadInteger.checkInts "[ 1,2,3,4]")
+                   (F.OK () "" :: F.Result () ()))))
+  defaultMain
+    [ bgroup
+        "sexp"
+        [ bench "fpbasic" $ whnf FPBasic.runSexp sexpInp
+        , bench "fpstateful" $ whnf FPStateful.runSexp sexpInp
+        , bench "bytesmith" $ whnf Bytesmith.runSexp sexpInp'
+        , bench "attoparsec" $ whnf Attoparsec.runSexp sexpInp
+        , bench "megaparsec" $ whnf Megaparsec.runSexp sexpInp
+        , bench "parsec" $ whnf Parsec.runSexp sexpInp
+        ]
+    , bgroup
+        "long keyword"
+        [ bench "fpbasic" $ whnf FPBasic.runLongws longwsInp
+        , bench "fpstateful" $ whnf FPStateful.runLongws longwsInp
+        , bench "bytesmith" $ whnf Bytesmith.runLongws longwsInp'
+        , bench "attoparsec" $ whnf Attoparsec.runLongws longwsInp
+        , bench "megaparsec" $ whnf Megaparsec.runLongws longwsInp
+        , bench "parsec" $ whnf Parsec.runLongws longwsInp
+        ]
+    , bgroup
+        "numeral csv"
+        [ bench "fpbasic" $ whnf FPBasic.runNumcsv numcsvInp
+        , bench "fpstateful" $ whnf FPStateful.runNumcsv numcsvInp
+        , bench "bytesmith" $ whnf Bytesmith.runNumcsv numcsvInp'
+        , bench "attoparsec" $ whnf Attoparsec.runNumcsv numcsvInp
+        , bench "megaparsec" $ whnf Megaparsec.runNumcsv numcsvInp
+        , bench "parsec" $ whnf Parsec.runNumcsv numcsvInp
+        ]
+    , bgroup
+        "integer_array"
+        [ env
+          (pure
+             (S.concat
+                ["[", S.intercalate "," (replicate size "12345678910"), "]"]))
+          (\bs ->
+             bgroup
+               (show size)
+               [ bench "check" (whnf ReadInteger.checkInts bs)
+               , bench "parse" (whnf ReadInteger.readInts bs)
+               ])
+        | size <- [1000, 2000, 4000]
+        ]
     ]
- ]
