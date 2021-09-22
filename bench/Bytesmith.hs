@@ -1,63 +1,65 @@
 {-# language RankNTypes #-}
 
-module Bytesmith (runSexp, runLongws, runNumcsv, strToByteArray) where
+module Bytesmith where
 
-import Control.Applicative
+-- module Bytesmith (runSexp, runLongws, runNumcsv, strToByteArray) where
 
-import GHC.Exts
+-- import Control.Applicative
 
-import qualified Data.Bytes.Parser       as P
-import qualified Data.Bytes.Parser.Ascii as A
+-- import GHC.Exts
 
-import Data.Primitive.ByteArray
-import Data.Char
+-- import qualified Data.Bytes.Parser       as P
+-- import qualified Data.Bytes.Parser.Ascii as A
 
-strToByteArray :: String -> ByteArray
-strToByteArray = fromList . map (fromIntegral . ord)
+-- import Data.Primitive.ByteArray
+-- import Data.Char
 
-byteArrayToStr :: ByteArray -> String
-byteArrayToStr = map (chr . fromIntegral) . toList
+-- strToByteArray :: String -> ByteArray
+-- strToByteArray = fromList . map (fromIntegral . ord)
 
-parseByteArray :: (forall s. Parser s) -> ByteArray -> Bool
-parseByteArray p b = case P.parseByteArray p b of
-  P.Failure{} -> False
-  _           -> True
-{-# inline parseByteArray #-}
+-- byteArrayToStr :: ByteArray -> String
+-- byteArrayToStr = map (chr . fromIntegral) . toList
 
-data U = U
-instance Semigroup U where (<>) _ _ = U
-instance Monoid U    where mempty   = U
+-- parseByteArray :: (forall s. Parser s) -> ByteArray -> Bool
+-- parseByteArray p b = case P.parseByteArray p b of
+--   P.Failure{} -> False
+--   _           -> True
+-- {-# inline parseByteArray #-}
 
-type Parser s = P.Parser U s ()
+-- data U = U
+-- instance Semigroup U where (<>) _ _ = U
+-- instance Monoid U    where mempty   = U
 
-many_ :: Parser s -> Parser s
-many_ p = go where
-  go = (p >> go) <|> pure ()
-{-# inline many_ #-}
+-- type Parser s = P.Parser U s ()
 
-some_ :: Parser s -> Parser s
-some_ p = p >> many_ p
-{-# inline some_ #-}
+-- many_ :: Parser s -> Parser s
+-- many_ p = go where
+--   go = (p >> go) <|> pure ()
+-- {-# inline many_ #-}
 
-ws :: Parser s
-ws = many_ do
-  P.any U >>= \case
-    32 -> pure ()      -- ' '
-    10 -> pure ()      -- '\n'
-    _  -> P.fail U
+-- some_ :: Parser s -> Parser s
+-- some_ p = p >> many_ p
+-- {-# inline some_ #-}
 
-open    = A.char U '(' >> ws
-close   = A.char U ')' >> ws
-ident   = A.skipAlpha1 U >> ws
-sexp    = (open >> some_ sexp >> close) <|> ident
-src     = sexp >> P.endOfInput U
-runSexp = parseByteArray src
+-- ws :: Parser s
+-- ws = many_ do
+--   P.any U >>= \case
+--     32 -> pure ()      -- ' '
+--     10 -> pure ()      -- '\n'
+--     _  -> P.fail U
 
-longw     = P.cstring U (Ptr "thisisalongkeyword\NUL"#)
-longws    = some_ (longw >> ws) >> P.endOfInput U
-runLongws = parseByteArray longws
+-- open    = A.char U '(' >> ws
+-- close   = A.char U ')' >> ws
+-- ident   = A.skipAlpha1 U >> ws
+-- sexp    = (open >> some_ sexp >> close) <|> ident
+-- src     = sexp >> P.endOfInput U
+-- runSexp = parseByteArray src
 
-numeral   = A.skipDigits1 U >> ws
-comma     = A.char U ',' >> ws
-numcsv    = numeral >> many_ (comma >> numeral) >> P.endOfInput U
-runNumcsv = parseByteArray numcsv
+-- longw     = P.cstring U (Ptr "thisisalongkeyword\NUL"#)
+-- longws    = some_ (longw >> ws) >> P.endOfInput U
+-- runLongws = parseByteArray longws
+
+-- numeral   = A.skipDigits1 U >> ws
+-- comma     = A.char U ',' >> ws
+-- numcsv    = numeral >> many_ (comma >> numeral) >> P.endOfInput U
+-- runNumcsv = parseByteArray numcsv

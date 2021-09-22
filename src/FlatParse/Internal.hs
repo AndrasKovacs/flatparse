@@ -1,5 +1,4 @@
 
-
 module FlatParse.Internal (readInt, readInteger) where
 
 import qualified Data.ByteString.Char8 as B
@@ -7,7 +6,7 @@ import qualified Data.ByteString.Internal as B
 
 import GHC.Exts
 import GHC.ForeignPtr
-import GHC.Integer.GMP.Internals (Integer(..))
+import GHC.Num.Integer (Integer(..))
 
 mul10 :: Int# -> Int#
 mul10 n = uncheckedIShiftL# n 3# +# uncheckedIShiftL# n 1#
@@ -35,7 +34,7 @@ readInteger :: ForeignPtrContents -> Addr# -> Addr# -> (# (##) | (# Integer, Add
 readInteger fp eob s = case readInt' 0# s eob of
   (# n, s' #)
     | 1# <- eqAddr# s s'            -> (# (##) | #)
-    | 1# <- minusAddr# s' s <=# 18# -> (# | (# S# n, s' #) #)
+    | 1# <- minusAddr# s' s <=# 18# -> (# | (# IS n, s' #) #)
     | otherwise -> case B.readInteger (B.PS (ForeignPtr s fp) 0 (I# (minusAddr# s' s))) of
         Nothing     -> (# (##) | #)
         Just (i, _) -> (# | (# i, s' #) #)

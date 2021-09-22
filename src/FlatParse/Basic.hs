@@ -1141,7 +1141,7 @@ genTrie (rules, t) = do
               !next         <- (traverse . traverse) go (M.toList ts)
               !defaultCase  <- fallback r (n + 1)
 
-              let cases = DoE $
+              let cases = DoE Nothing $
                     [BindS (VarP (mkName "c")) (VarE 'scanAny8#),
                       NoBindS (CaseE (VarE (mkName "c"))
                          (map (\(w, t) ->
