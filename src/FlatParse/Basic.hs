@@ -633,7 +633,7 @@ infixr 6 <|>
     x     -> x
 {-# inline (<|>) #-}
 
--- | Branch on a parser: if the first argument fails, continue with the second, else with the third.
+-- | Branch on a parser: if the first argument succeeds, continue with the second, else with the third.
 --   This can produce slightly more efficient code than `(<|>)`. Moreover, `ḃranch` does not
 --   backtrack from the true/false cases.
 branch :: Parser e a -> Parser e b -> Parser e b -> Parser e b
