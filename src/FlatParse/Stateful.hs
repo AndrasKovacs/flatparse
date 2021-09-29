@@ -1,3 +1,4 @@
+{-# language UnboxedTuples #-}
 
 {-|
 This module implements a `Parser` supporting an `Int` reader environment, custom error types, and an
@@ -60,8 +61,8 @@ module FlatParse.Stateful (
   , isDigit
   , isGreekLetter
   , isLatinLetter
-  , readInt
-  , readInteger
+  , FlatParse.Stateful.readInt
+  , FlatParse.Stateful.readInteger
 
   -- * Combinators
   , (<|>)
@@ -87,12 +88,11 @@ module FlatParse.Stateful (
   , inSpan
 
   -- ** Position and span conversions
-  , validPos
-  , posLineCols
-  , unsafeSpanToByteString
-  , unsafeSlice
-  , mkPos
-  , FlatParse.Stateful.lines
+  , Basic.validPos
+  , Basic.posLineCols
+  , Basic.unsafeSpanToByteString
+  , Basic.mkPos
+  , Basic.lines
 
   -- * Getting the rest of the input
   , takeLine
@@ -114,16 +114,11 @@ module FlatParse.Stateful (
   , scanBytes#
   , setBack#
 
-
   ) where
 
 import Control.Monad
-import Data.Bits
-import Data.Char (ord)
 import Data.Foldable
-import Data.List (sortBy)
 import Data.Map (Map)
-import Data.Ord (comparing)
 import Data.Word
 import GHC.Exts
 import GHC.Word
@@ -136,7 +131,9 @@ import qualified Data.ByteString.Internal as B
 import qualified Data.ByteString.Unsafe as B
 import qualified Data.Map.Strict as M
 
-import qualified FlatParse.Internal as Internal
+import FlatParse.Internal
+
+import qualified FlatParse.Basic as Basic
 
 --------------------------------------------------------------------------------
 
@@ -627,32 +624,17 @@ anyCharASCII_ :: Parser e ()
 anyCharASCII_ = () <$ anyCharASCII
 {-# inline anyCharASCII_ #-}
 
--- | @isDigit c = \'0\' <= c && c <= \'9\'@
-isDigit :: Char -> Bool
-isDigit c = '0' <= c && c <= '9'
-{-# inline isDigit #-}
-
--- | @isLatinLetter c = (\'A\' <= c && c <= \'Z\') || (\'a\' <= c && c <= \'z\')@
-isLatinLetter :: Char -> Bool
-isLatinLetter c = ('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z')
-{-# inline isLatinLetter #-}
-
--- | @isGreekLetter c = (\'Α\' <= c && c <= \'Ω\') || (\'α\' <= c && c <= \'ω\')@
-isGreekLetter :: Char -> Bool
-isGreekLetter c = ('Α' <= c && c <= 'Ω') || ('α' <= c && c <= 'ω')
-{-# inline isGreekLetter #-}
-
 -- | Read an `Int` from the input, as a non-empty digit sequence. The `Int` may
 --   overflow in the result.
 readInt :: Parser e Int
-readInt = Parser \fp r eob s n -> case Internal.readInt eob s of
+readInt = Parser \fp r eob s n -> case FlatParse.Internal.readInt eob s of
   (# (##) | #)        -> Fail#
   (# | (# i, s' #) #) -> OK# (I# i) s' n
 {-# inline readInt #-}
 
 -- | Read an `Integer` from the input, as a non-empty digit sequence.
 readInteger :: Parser e Integer
-readInteger = Parser \fp r eob s n -> case Internal.readInteger fp eob s of
+readInteger = Parser \fp r eob s n -> case FlatParse.Internal.readInteger fp eob s of
   (# (##) | #)        -> Fail#
   (# | (# i, s' #) #) -> OK# i s' n
 {-# inline readInteger #-}
@@ -744,22 +726,6 @@ notFollowedBy p1 p2 = p1 <* lookahead (fails p2)
 
 --------------------------------------------------------------------------------
 
--- | Byte offset counted backwards from the end of the buffer.
-newtype Pos = Pos Int deriving (Eq, Show)
-
--- | A pair of positions.
-data Span = Span !Pos !Pos deriving (Eq, Show)
-
-instance Ord Pos where
-  Pos p <= Pos p' = p' <= p
-  Pos p <  Pos p' = p' <  p
-  Pos p >  Pos p' = p' >  p
-  Pos p >= Pos p' = p' >= p
-  {-# inline (<=) #-}
-  {-# inline (<) #-}
-  {-# inline (>) #-}
-  {-# inline (>=) #-}
-
 -- | Get the current position in the input.
 getPos :: Parser e Pos
 getPos = Parser \fp !r eob s n -> OK# (addrToPos# eob s) s n
@@ -823,84 +789,12 @@ inSpan (Span s eob) (Parser f) = Parser \fp !r eob' s' n' ->
 
 --------------------------------------------------------------------------------
 
--- | Check whether a `Pos` points into a `B.ByteString`.
-validPos :: B.ByteString -> Pos -> Bool
-validPos str pos =
-  let go = do
-        start <- getPos
-        pure (start <= pos && pos <= endPos)
-  in case runParser go 0 0 str of
-    OK b _ _ -> b
-    _        -> error "impossible"
-{-# inline validPos #-}
-
--- | Compute corresponding line and column numbers for each `Pos` in a list. Throw an error
---   on invalid positions. Note: computing lines and columns may traverse the `B.ByteString`,
---   but it traverses it only once regardless of the length of the position list.
-posLineCols :: B.ByteString -> [Pos] -> [(Int, Int)]
-posLineCols str poss =
-  let go !line !col [] = pure []
-      go line col ((i, pos):poss) = do
-        p <- getPos
-        if pos == p then
-          ((i, (line, col)):) <$> go line col poss
-        else do
-          c <- anyChar
-          if '\n' == c then
-            go (line + 1) 0 ((i, pos):poss)
-          else
-            go line (col + 1) ((i, pos):poss)
-
-      sorted :: [(Int, Pos)]
-      sorted = sortBy (comparing snd) (zip [0..] poss)
-
-  in case runParser (go 0 0 sorted) 0 0 str of
-       OK res _ _ -> snd <$> sortBy (comparing fst) res
-       _          -> error "invalid position"
-
-
 -- | Create a `B.ByteString` from a `Span`. The result is invalid is the `Span` points
 --   outside the current buffer, or if the `Span` start is greater than the end position.
 unsafeSpanToByteString :: Span -> Parser e B.ByteString
 unsafeSpanToByteString (Span l r) =
   lookahead (setPos l >> byteStringOf (setPos r))
 {-# inline unsafeSpanToByteString #-}
-
--- | Slice into a `B.ByteString` using a `Span`. The result is invalid if the `Span`
---   is not a valid slice of the first argument.
-unsafeSlice :: B.ByteString -> Span -> B.ByteString
-unsafeSlice (B.PS (ForeignPtr addr fp) (I# start) (I# len))
-            (Span (Pos (I# o1)) (Pos (I# o2))) =
-  let end = addr `plusAddr#` start `plusAddr#` len
-  in B.PS (ForeignPtr (plusAddr# end (negateInt# o1)) fp) (I# 0#) (I# (o1 -# o2))
-{-# inline unsafeSlice #-}
-
-
--- | Create a `Pos` from a line and column number. Throws an error on out-of-bounds
---   line and column numbers.
-mkPos :: B.ByteString -> (Int, Int) -> Pos
-mkPos str (line', col') =
-  let go line col | line == line' && col == col' = getPos
-      go line col = (do
-        c <- anyChar
-        if c == '\n' then go (line + 1) 0
-                     else go line (col + 1)) <|> error "mkPos: invalid position"
-  in case runParser (go 0 0) 0 0 str of
-    OK res _ _ -> res
-    _          -> error "impossible"
-
-
--- | Break an UTF-8-coded `B.ByteString` to lines. Throws an error on invalid input.
---   This is mostly useful for grabbing specific source lines for displaying error
---   messages.
-lines :: B.ByteString -> [String]
-lines str =
-  let go = ([] <$ eof) <|> ((:) <$> takeLine <*> go)
-  in case runParser go 0 0 str of
-    OK ls _ _ -> ls
-    _         -> error "linesUTF8: invalid input"
-
-
 
 --------------------------------------------------------------------------------
 
@@ -930,59 +824,11 @@ traceRest = lookahead traceRest
 
 --------------------------------------------------------------------------------
 
-addrToPos# :: Addr# -> Addr# -> Pos
-addrToPos# eob s = Pos (I# (minusAddr# eob s))
-{-# inline addrToPos# #-}
-
-posToAddr# :: Addr# -> Pos -> Addr#
-posToAddr# eob (Pos (I# s)) = unsafeCoerce# (minusAddr# eob (unsafeCoerce# s))
-{-# inline posToAddr# #-}
-
--- | Convert a `String` to an UTF-8-coded `B.ByteString`.
-packUTF8 :: String -> B.ByteString
-packUTF8 = B.pack . concatMap charToBytes
-
 -- | Convert an UTF-8-coded `B.ByteString` to a `String`.
 unpackUTF8 :: B.ByteString -> String
 unpackUTF8 str = case runParser takeRest 0 0 str of
   OK a _ _ -> a
   _        -> error "unpackUTF8: invalid encoding"
-
-charToBytes :: Char -> [Word8]
-charToBytes c'
-    | c <= 0x7f     = [fromIntegral c]
-    | c <= 0x7ff    = [0xc0 .|. y, 0x80 .|. z]
-    | c <= 0xffff   = [0xe0 .|. x, 0x80 .|. y, 0x80 .|. z]
-    | c <= 0x10ffff = [0xf0 .|. w, 0x80 .|. x, 0x80 .|. y, 0x80 .|. z]
-    | otherwise = error "Not a valid Unicode code point"
-  where
-    c = ord c'
-    z = fromIntegral (c                 .&. 0x3f)
-    y = fromIntegral (unsafeShiftR c 6  .&. 0x3f)
-    x = fromIntegral (unsafeShiftR c 12 .&. 0x3f)
-    w = fromIntegral (unsafeShiftR c 18 .&. 0x7)
-
-strToBytes :: String -> [Word8]
-strToBytes = concatMap charToBytes
-{-# inline strToBytes #-}
-
-packBytes :: [Word8] -> Word
-packBytes = fst . foldl' go (0, 0) where
-  go (acc, shift) w | shift == 64 = error "packWords: too many bytes"
-  go (acc, shift) w = (unsafeShiftL (fromIntegral w) shift .|. acc, shift+8)
-
-splitBytes :: [Word8] -> ([Word8], [Word])
-splitBytes ws = case quotRem (length ws) 8 of
-  (0, _) -> (ws, [])
-  (_, r) -> (as, chunk8s bs) where
-              (as, bs) = splitAt r ws
-              chunk8s [] = []
-              chunk8s ws = let (as, bs) = splitAt 8 ws in
-                           packBytes as : chunk8s bs
-
-derefChar8# :: Addr# -> Char#
-derefChar8# addr = indexCharOffAddr# addr 0#
-{-# inline derefChar8# #-}
 
 -- | Check that the input has at least the given number of bytes.
 ensureBytes# :: Int -> Parser e ()
@@ -1083,82 +929,8 @@ scanBytes# bytes = do
                          in [| scanPartial64# l w >> $scanw8s |]
 
 
--- Trie switching
+-- Switching code generation
 --------------------------------------------------------------------------------
-
-data Trie a = Branch !a !(Map Word8 (Trie a))
-
-type Rule = Maybe Int
-
-nilTrie :: Trie Rule
-nilTrie = Branch Nothing mempty
-
-updRule :: Int -> Maybe Int -> Maybe Int
-updRule rule = Just . maybe rule (min rule)
-
-insert :: Int -> [Word8] -> Trie Rule -> Trie Rule
-insert rule = go where
-  go [] (Branch rule' ts) =
-    Branch (updRule rule rule') ts
-  go (c:cs) (Branch rule' ts) =
-    Branch rule' (M.alter (Just . maybe (go cs nilTrie) (go cs)) c ts)
-
-fromList :: [(Int, String)] -> Trie Rule
-fromList = foldl' (\t (r, !s) -> insert r (charToBytes =<< s) t) nilTrie
-
--- | Decorate a trie with the minimum lengths of non-empty paths. This
---   is used later to place `ensureBytes#`.
-mindepths :: Trie Rule -> Trie (Rule, Int)
-mindepths (Branch rule ts) =
-  if M.null ts then
-    Branch (rule, 0) mempty
-  else
-    let !ts' = M.map mindepths ts in
-    Branch (
-      rule,
-      minimum (M.map (\(Branch (rule,d) _) -> maybe (d + 1) (\_ -> 1) rule) ts'))
-      ts'
-
-data Trie' a
-  = Branch' !a !(Map Word8 (Trie' a))
-  | Path !a ![Word8] !(Trie' a)
-
--- | Compress linear paths.
-pathify :: Trie (Rule, Int) -> Trie' (Rule, Int)
-pathify (Branch a ts) = case M.toList ts of
-  [] -> Branch' a mempty
-  [(w, t)] -> case pathify t of
-           Path (Nothing, _) ws t -> Path a (w:ws) t
-           t                      -> Path a [w] t
-  _   -> Branch' a (M.map pathify ts)
-
-fallbacks :: Trie' (Rule, Int) -> Trie' (Rule, Int, Int)
-fallbacks = go Nothing 0  where
-  go :: Rule -> Int -> Trie' (Rule, Int) -> Trie' (Rule, Int, Int)
-  go rule !n (Branch' (rule', d) ts)
-    | M.null ts        = Branch' (rule', 0, d) mempty
-    | Nothing <- rule' = Branch' (rule, n, d) (go rule (n + 1) <$> ts)
-    | otherwise        = Branch' (rule, n, d) (go rule' 1      <$> ts)
-  go rule n (Path (rule', d) ws t)
-    | Nothing <- rule' = Path (rule, n, d)  ws (go rule (n + 1) t)
-    | otherwise        = Path (rule', 0, d) ws (go rule' (length ws) t)
-
--- | Decorate with `ensureBytes#` invocations, represented as
---   `Maybe Int`.
-ensureBytes :: Trie' (Rule, Int, Int) -> Trie' (Rule, Int, Maybe Int)
-ensureBytes = go 0 where
-  go :: Int -> Trie' (Rule, Int, Int) -> Trie' (Rule, Int, Maybe Int)
-  go res = \case
-    Branch' (r, n, d) ts
-      | M.null ts -> Branch' (r, n, Nothing) mempty
-      |  res < 1  -> Branch' (r, n, Just d ) (go (d   - 1) <$> ts)
-      | otherwise -> Branch' (r, n, Nothing) (go (res - 1) <$> ts)
-    Path (r, n, d) ws t -> case length ws of
-      l | res < l   -> Path (r, n, Just $! d - res) ws (go (d - l)   t)
-        | otherwise -> Path (r, n, Nothing        ) ws (go (res - l) t)
-
-compileTrie :: [(Int, String)] -> Trie' (Rule, Int, Maybe Int)
-compileTrie = ensureBytes . fallbacks . pathify . mindepths . FlatParse.Stateful.fromList
 
 genTrie :: (Map (Maybe Int) Exp, Trie' (Rule, Int, Maybe Int)) -> Q Exp
 genTrie (rules, t) = do

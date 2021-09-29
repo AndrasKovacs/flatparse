@@ -49,7 +49,6 @@ library
       PatternSynonyms
       TemplateHaskell
       TupleSections
-      UnboxedTuples
   ghc-options: -Wall -Wno-name-shadowing -Wno-unused-binds -Wno-unused-matches -Wno-missing-signatures -O2 -fllvm
   build-depends:
       base >=4.7 && <5
@@ -83,7 +82,6 @@ benchmark bench
       PatternSynonyms
       TemplateHaskell
       TupleSections
-      UnboxedTuples
   ghc-options: -Wall -Wno-name-shadowing -Wno-unused-binds -Wno-unused-matches -Wno-missing-signatures -O2 -fllvm
   build-depends:
       attoparsec

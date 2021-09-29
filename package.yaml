@@ -33,7 +33,6 @@ default-extensions:
   - PatternSynonyms
   - TemplateHaskell
   - TupleSections
-  - UnboxedTuples
 
 ghc-options:
   - -Wall

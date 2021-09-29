@@ -141,8 +141,7 @@ src' = ws *> tm' <* eof `cut` [Msg "end of input (lexical error)"]
 -- Examples
 --------------------------------------------------------------------------------
 
-
--- testParser src p1
+-- testParser src' p1
 p1 = unlines [
   "let f = lam x. lam y. x (x (x y)) in",
   "let g = if f true then false else true in",
