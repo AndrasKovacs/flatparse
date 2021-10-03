@@ -237,6 +237,15 @@ basicSpec = describe "FlatParse.Basic" $ do
       pure ()
 
   describe "Combinators" $ do
+    describe "Functor instance" $ do
+      pure ()
+
+    describe "Applicative instance" $ do
+      pure ()
+
+    describe "Monad instance" $ do
+      pure ()
+
     describe "(<|>)" $ do
       pure ()
 
