@@ -530,24 +530,24 @@ anyWord8 = Parser \fp !r eob buf n -> case eqAddr# eob buf of
 
 -- | Parse any `Word16`.
 anyWord16 :: Parser e Word16
-anyWord16 = Parser \fp !r eob buf n -> case eqAddr# eob buf of
-  1# -> Fail#
+anyWord16 = Parser \fp !r eob buf n -> case 2# <=# minusAddr# eob buf of
+  0# -> Fail#
   _  -> case indexWord16OffAddr# buf 0# of
     w -> OK# (W16# w) (plusAddr# buf 2#) n
 {-# inline anyWord16 #-}
 
 -- | Parse any `Word32`.
 anyWord32 :: Parser e Word32
-anyWord32 = Parser \fp !r eob buf n -> case eqAddr# eob buf of
-  1# -> Fail#
+anyWord32 = Parser \fp !r eob buf n -> case 4# <=# minusAddr# eob buf of
+  0# -> Fail#
   _  -> case indexWord32OffAddr# buf 0# of
     w -> OK# (W32# w) (plusAddr# buf 4#) n
 {-# inline anyWord32 #-}
 
 -- | Parse any `Word`.
 anyWord :: Parser e Word
-anyWord = Parser \fp !r eob buf n -> case eqAddr# eob buf of
-  1# -> Fail#
+anyWord = Parser \fp !r eob buf n -> case 8# <=# minusAddr# eob buf of
+  0# -> Fail#
   _  -> case indexWordOffAddr# buf 0# of
     w -> OK# (W# w) (plusAddr# buf 8#) n
 {-# inline anyWord #-}
