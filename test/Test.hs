@@ -20,6 +20,13 @@ p `shouldParse` s = case runParser p s of
   Fail -> assertFailure "Parse failed unexpectedly"
   Err e -> assertFailure $ "Parse threw unexpected error: " ++ show e
 
+-- | The parser should parse this string, possibly with leftovers, and succeed.
+shouldParsePartial :: Show e => Parser e a -> ByteString -> Expectation
+p `shouldParsePartial` s = case runParser p s of
+  OK _ lo -> pure ()
+  Fail -> assertFailure "Parse failed unexpectedly"
+  Err e -> assertFailure $ "Parse threw unexpected error: " ++ show e
+
 -- | The parser should parse this string, consuming it entirely, and succeed
 -- yielding the matching value.
 shouldParseWith ::
@@ -27,6 +34,15 @@ shouldParseWith ::
 p `shouldParseWith` (s, r) = case runParser p s of
   OK r' "" -> r' `shouldBe` r
   OK _ lo -> assertFailure $ "Unexpected leftover: " ++ show lo
+  Fail -> assertFailure "Parse failed unexpectedly"
+  Err e -> assertFailure $ "Parse threw unexpected error: " ++ show e
+
+-- | The parser should parse this string, possibly with leftovers, and succeed
+-- yielding the matching value.
+shouldParsePartialWith ::
+  (Show a, Eq a, Show e) => Parser e a -> (ByteString, a) -> Expectation
+p `shouldParsePartialWith` (s, r) = case runParser p s of
+  OK r' lo -> r' `shouldBe` r
   Fail -> assertFailure "Parse failed unexpectedly"
   Err e -> assertFailure $ "Parse threw unexpected error: " ++ show e
 
@@ -142,7 +158,57 @@ basicSpec = describe "FlatParse.Basic" $ do
       it "fails when out of space" $ $(string "foo") `shouldParseFail` "fo"
 
     describe "switch" $ do
-      pure ()
+      it "parses simple words" $
+        $( switch
+             [|
+               case _ of
+                 "foo" -> pure 1
+                 "bar" -> pure 2
+               |]
+         )
+          `shouldParseWith` ("foo", 1)
+
+      it "matches the default" $
+        $( switch
+             [|
+               case _ of
+                 "foo" -> pure 1
+                 "bar" -> pure 2
+                 _ -> pure 0
+               |]
+         )
+          `shouldParsePartialWith` ("fez", 0)
+
+      it "fails with no default" $
+        $( switch
+             [|
+               case _ of
+                 "foo" -> pure 1
+                 "bar" -> pure 2
+               |]
+         )
+          `shouldParseFail` "fez"
+
+      it "prefers longest match" $
+        $( switch
+             [|
+               case _ of
+                 "foo" -> pure 1
+                 "foobar" -> pure 2
+               |]
+         )
+          `shouldParseWith` ("foobar", 2)
+
+      it "doesn't reproduce bug #12" $
+        $( switch
+             [|
+               case _ of
+                 "Eac" -> pure ()
+                 "EAc" -> pure ()
+                 "E" -> pure ()
+               |]
+         )
+          `shouldParse` "E"
 
     describe "switchWithPost" $ do
       pure ()
