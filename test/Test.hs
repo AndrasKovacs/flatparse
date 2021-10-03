@@ -325,7 +325,7 @@ basicSpec = describe "FlatParse.Basic" $ do
 
       it "fails on empty input" $ anyWord32 `shouldParseFail` ""
       it "fails on insufficient input" $
-        anyWord16 `shouldParseFail` "\xff\xff\xff"
+        anyWord32 `shouldParseFail` "\xff\xff\xff"
 
     describe "anyWord" $ do
       -- This combinator is inherently non-portable, but we know a Word is at
