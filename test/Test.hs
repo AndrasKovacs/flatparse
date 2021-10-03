@@ -151,7 +151,36 @@ basicSpec = describe "FlatParse.Basic" $ do
           `shouldParse` "E"
 
     describe "switchWithPost" $ do
-      pure ()
+      it "applies post after match" $
+        $( switchWithPost
+             (Just [|$(string "bar")|])
+             [|
+               case _ of
+                 "foo" -> pure ()
+               |]
+         )
+          `shouldParse` "foobar"
+
+      it "doesn't apply after default" $
+        $( switchWithPost
+             (Just [|$(string "bar")|])
+             [|
+               case _ of
+                 "foo" -> pure ()
+                 _ -> pure ()
+               |]
+         )
+          `shouldParse` ""
+
+      it "requires the post must match" $
+        $( switchWithPost
+             (Just [|$(string "bar")|])
+             [|
+               case _ of
+                 "foo" -> pure ()
+               |]
+         )
+          `shouldParseFail` "foo"
 
     describe "rawSwitchWithPost" $ do
       pure ()
