@@ -59,6 +59,29 @@ library:
     # - -ddump-stg
     # - -ddump-llvm
 
+tests:
+  spec:
+    main: Test.hs
+    source-dirs:
+      - test
+    dependencies:
+      - bytestring
+      - flatparse
+      - HUnit
+      - hspec
+    default-extensions:
+      - ExtendedDefaultRules
+    ghc-options:
+      - -O2
+      - -fllvm
+      - -Wno-type-defaults
+      # - -ddump-simpl
+      # - -dsuppress-all
+      # - -dno-suppress-type-signatures
+      # - -ddump-to-file
+      # - -ddump-stg
+      # - -ddump-llvm
+
 benchmarks:
 # executables:
   bench:
