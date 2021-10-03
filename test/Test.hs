@@ -9,66 +9,6 @@ main :: IO ()
 main = hspec $ do
   basicSpec
 
---------------------------------------------------------------------------------
--- Some combinators that make it easier to assert the results of a parser.
-
--- | The parser should parse this string, consuming it entirely, and succeed.
-shouldParse :: Show e => Parser e a -> ByteString -> Expectation
-p `shouldParse` s = case runParser p s of
-  OK _ "" -> pure ()
-  OK _ lo -> assertFailure $ "Unexpected leftover: " ++ show lo
-  Fail -> assertFailure "Parse failed unexpectedly"
-  Err e -> assertFailure $ "Parse threw unexpected error: " ++ show e
-
--- | The parser should parse this string, possibly with leftovers, and succeed.
-shouldParsePartial :: Show e => Parser e a -> ByteString -> Expectation
-p `shouldParsePartial` s = case runParser p s of
-  OK _ lo -> pure ()
-  Fail -> assertFailure "Parse failed unexpectedly"
-  Err e -> assertFailure $ "Parse threw unexpected error: " ++ show e
-
--- | The parser should parse this string, consuming it entirely, and succeed
--- yielding the matching value.
-shouldParseWith ::
-  (Show a, Eq a, Show e) => Parser e a -> (ByteString, a) -> Expectation
-p `shouldParseWith` (s, r) = case runParser p s of
-  OK r' "" -> r' `shouldBe` r
-  OK _ lo -> assertFailure $ "Unexpected leftover: " ++ show lo
-  Fail -> assertFailure "Parse failed unexpectedly"
-  Err e -> assertFailure $ "Parse threw unexpected error: " ++ show e
-
--- | The parser should parse this string, possibly with leftovers, and succeed
--- yielding the matching value.
-shouldParsePartialWith ::
-  (Show a, Eq a, Show e) => Parser e a -> (ByteString, a) -> Expectation
-p `shouldParsePartialWith` (s, r) = case runParser p s of
-  OK r' lo -> r' `shouldBe` r
-  Fail -> assertFailure "Parse failed unexpectedly"
-  Err e -> assertFailure $ "Parse threw unexpected error: " ++ show e
-
--- | The parser should fail when given this string.
-shouldParseFail :: Show e => Parser e a -> ByteString -> Expectation
-p `shouldParseFail` s = case runParser p s of
-  Fail -> pure ()
-  OK _ _ -> assertFailure "Parse succeeded unexpectedly"
-  Err e -> assertFailure $ "Parse threw unexpected error: " ++ show e
-
--- | The parser should throw an error when given this string.
-shouldParseErr :: Parser e a -> ByteString -> Expectation
-p `shouldParseErr` s = case runParser p s of
-  Err e -> pure ()
-  Fail -> assertFailure "Parse failed unexpectedly"
-  OK _ _ -> assertFailure "Parse succeeded unexpectedly"
-
--- | The parser should throw an error when given this string, and the error
--- should be the one given.
-shouldParseErrWith ::
-  (Show e, Eq e) => Parser e a -> (ByteString, e) -> Expectation
-p `shouldParseErrWith` (s, e) = case runParser p s of
-  Err e' -> e' `shouldBe` e
-  Fail -> assertFailure "Parse failed unexpectedly"
-  OK _ _ -> assertFailure "Parse succeeded unexpectedly"
-
 -- | The spec for FlatParse.Basic.
 basicSpec :: SpecWith ()
 basicSpec = describe "FlatParse.Basic" $ do
@@ -361,3 +301,63 @@ basicSpec = describe "FlatParse.Basic" $ do
 
     describe "unpackUTF8" $ do
       pure ()
+
+--------------------------------------------------------------------------------
+-- Some combinators that make it easier to assert the results of a parser.
+
+-- | The parser should parse this string, consuming it entirely, and succeed.
+shouldParse :: Show e => Parser e a -> ByteString -> Expectation
+p `shouldParse` s = case runParser p s of
+  OK _ "" -> pure ()
+  OK _ lo -> assertFailure $ "Unexpected leftover: " ++ show lo
+  Fail -> assertFailure "Parse failed unexpectedly"
+  Err e -> assertFailure $ "Parse threw unexpected error: " ++ show e
+
+-- | The parser should parse this string, possibly with leftovers, and succeed.
+shouldParsePartial :: Show e => Parser e a -> ByteString -> Expectation
+p `shouldParsePartial` s = case runParser p s of
+  OK _ lo -> pure ()
+  Fail -> assertFailure "Parse failed unexpectedly"
+  Err e -> assertFailure $ "Parse threw unexpected error: " ++ show e
+
+-- | The parser should parse this string, consuming it entirely, and succeed
+-- yielding the matching value.
+shouldParseWith ::
+  (Show a, Eq a, Show e) => Parser e a -> (ByteString, a) -> Expectation
+p `shouldParseWith` (s, r) = case runParser p s of
+  OK r' "" -> r' `shouldBe` r
+  OK _ lo -> assertFailure $ "Unexpected leftover: " ++ show lo
+  Fail -> assertFailure "Parse failed unexpectedly"
+  Err e -> assertFailure $ "Parse threw unexpected error: " ++ show e
+
+-- | The parser should parse this string, possibly with leftovers, and succeed
+-- yielding the matching value.
+shouldParsePartialWith ::
+  (Show a, Eq a, Show e) => Parser e a -> (ByteString, a) -> Expectation
+p `shouldParsePartialWith` (s, r) = case runParser p s of
+  OK r' lo -> r' `shouldBe` r
+  Fail -> assertFailure "Parse failed unexpectedly"
+  Err e -> assertFailure $ "Parse threw unexpected error: " ++ show e
+
+-- | The parser should fail when given this string.
+shouldParseFail :: Show e => Parser e a -> ByteString -> Expectation
+p `shouldParseFail` s = case runParser p s of
+  Fail -> pure ()
+  OK _ _ -> assertFailure "Parse succeeded unexpectedly"
+  Err e -> assertFailure $ "Parse threw unexpected error: " ++ show e
+
+-- | The parser should throw an error when given this string.
+shouldParseErr :: Parser e a -> ByteString -> Expectation
+p `shouldParseErr` s = case runParser p s of
+  Err e -> pure ()
+  Fail -> assertFailure "Parse failed unexpectedly"
+  OK _ _ -> assertFailure "Parse succeeded unexpectedly"
+
+-- | The parser should throw an error when given this string, and the error
+-- should be the one given.
+shouldParseErrWith ::
+  (Show e, Eq e) => Parser e a -> (ByteString, e) -> Expectation
+p `shouldParseErrWith` (s, e) = case runParser p s of
+  Err e' -> e' `shouldBe` e
+  Fail -> assertFailure "Parse failed unexpectedly"
+  OK _ _ -> assertFailure "Parse succeeded unexpectedly"
