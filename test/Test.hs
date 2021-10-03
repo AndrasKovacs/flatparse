@@ -390,13 +390,22 @@ basicSpec = describe "FlatParse.Basic" $ do
 
   describe "Combinators" $ do
     describe "Functor instance" $ do
-      pure ()
+      it "fmaps over the result" $
+        ((+ 2) <$> readInt) `shouldParseWith` ("2", 4)
 
     describe "Applicative instance" $ do
-      pure ()
+      it "combines using <*>" $
+        ((+) <$> readInt <* $(string "+") <*> readInt)
+          `shouldParseWith` ("2+3", 5)
 
     describe "Monad instance" $ do
-      pure ()
+      it "combines with a do block" $ do
+        let parser = do
+              i <- readInt
+              $(string "+")
+              j <- readInt
+              pure (i + j)
+        parser `shouldParseWith` ("2+3", 5)
 
     describe "(<|>)" $ do
       pure ()
