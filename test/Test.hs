@@ -248,40 +248,113 @@ basicSpec = describe "FlatParse.Basic" $ do
           `shouldParseFail` "foo"
 
     describe "satisfy" $ do
-      pure ()
+      it "succeeds on the right char" $
+        satisfy (== 'a') `shouldParseWith` ("a", 'a')
+
+      it "succeeds on multi-byte chars" $ do
+        let chars = "$¢€𐍈" :: [Char]
+        sequence_
+          [ if a == b
+              then satisfy (== a) `shouldParseWith` (packUTF8 (pure b), b)
+              else satisfy (== a) `shouldParseFail` packUTF8 (pure b)
+            | a <- chars,
+              b <- chars
+          ]
+
+      it "fails on the wrong char" $
+        satisfy (== 'a') `shouldParseFail` "b"
+      it "fails at end of file" $
+        satisfy (== 'a') `shouldParseFail` ""
 
     describe "satisfyASCII" $ do
-      pure ()
+      it "succeeds on the right char" $
+        satisfyASCII (== 'a') `shouldParseWith` ("a", 'a')
+      it "fails on the wrong char" $
+        satisfyASCII (== 'a') `shouldParseFail` "b"
+
+      it "fails on the wrong multi-byte char" $
+        -- The specification for satisfyASCII requires that the predicate
+        -- return False for non-ASCII characters, but multi-byte chars are
+        -- still allowed in the input.
+        satisfyASCII (== 'a') `shouldParseFail` packUTF8 "ȩ"
+
+      it "fails at end of file" $
+        satisfyASCII (== 'a') `shouldParseFail` ""
 
     describe "satisfyASCII_" $ do
-      pure ()
+      it "succeeds on the right char" $
+        satisfyASCII_ (== 'a') `shouldParseWith` ("a", ())
+      it "fails on the wrong char" $
+        satisfyASCII_ (== 'a') `shouldParseFail` "b"
+      it "fails on the wrong multi-byte char" $
+        satisfyASCII_ (== 'a') `shouldParseFail` packUTF8 "ȩ"
+      it "fails at end of file" $
+        satisfyASCII_ (== 'a') `shouldParseFail` ""
 
     describe "fusedSatisfy" $ do
-      pure ()
+      it "correctly routes chars based on length" $ do
+        fusedSatisfy (== '$') (const False) (const False) (const False)
+          `shouldParse` packUTF8 "$"
+        fusedSatisfy (const False) (== '¢') (const False) (const False)
+          `shouldParse` packUTF8 "¢"
+        fusedSatisfy (const False) (const False) (== '€') (const False)
+          `shouldParse` packUTF8 "€"
+        fusedSatisfy (const False) (const False) (const False) (== '𐍈')
+          `shouldParse` packUTF8 "𐍈"
+
+      it "fails on empty input" $
+        fusedSatisfy (const True) (const True) (const True) (const True)
+          `shouldParseFail` ""
 
     describe "anyWord8" $ do
-      pure ()
+      it "reads a byte" $ anyWord8 `shouldParseWith` ("\xef", 0xef)
+      it "fails on empty input" $ anyWord8 `shouldParseFail` ""
 
     describe "anyWord16" $ do
-      pure ()
+      -- Byte order is unspecified, so just assert that it succeeds.
+      it "succeeds" $ anyWord16 `shouldParse` "\xef\xbe"
+
+      it "fails on empty input" $ anyWord16 `shouldParseFail` ""
+      it "fails on insufficient input" $ anyWord16 `shouldParseFail` "\xff"
 
     describe "anyWord32" $ do
-      pure ()
+      -- Byte order is unspecified, so just assert that it succeeds.
+      it "succeeds" $ anyWord32 `shouldParse` "\xef\xbe\xae\x7e"
+
+      it "fails on empty input" $ anyWord32 `shouldParseFail` ""
+      it "fails on insufficient input" $
+        anyWord16
+          `shouldParseFail` "\xff\xff\xff"
 
     describe "anyWord" $ do
-      pure ()
+      -- This combinator is inherently non-portable, but we know a Word is at
+      -- least some bytes.
+      it "fails on empty input" $ anyWord `shouldParseFail` ""
 
     describe "anyChar" $ do
-      pure ()
+      it "reads 1-byte char" $ anyChar `shouldParseWith` (packUTF8 "$", '$')
+      it "reads 2-byte char" $ anyChar `shouldParseWith` (packUTF8 "¢", '¢')
+      it "reads 3-byte char" $ anyChar `shouldParseWith` (packUTF8 "€", '€')
+      it "reads 4-byte char" $ anyChar `shouldParseWith` (packUTF8 "𐍈", '𐍈')
+      it "fails on empty input" $ anyChar `shouldParseFail` ""
 
     describe "anyChar_" $ do
-      pure ()
+      it "reads 1-byte char" $ anyChar_ `shouldParseWith` (packUTF8 "$", ())
+      it "reads 2-byte char" $ anyChar_ `shouldParseWith` (packUTF8 "¢", ())
+      it "reads 3-byte char" $ anyChar_ `shouldParseWith` (packUTF8 "€", ())
+      it "reads 4-byte char" $ anyChar_ `shouldParseWith` (packUTF8 "𐍈", ())
+      it "fails on empty input" $ anyChar_ `shouldParseFail` ""
 
     describe "anyCharASCII" $ do
-      pure ()
+      it "reads ASCII char" $ anyCharASCII `shouldParseWith` (packUTF8 "$", '$')
+      it "fails on non-ASCII char" $ anyCharASCII `shouldParseFail` packUTF8 "¢"
+      it "fails on empty input" $ anyCharASCII `shouldParseFail` ""
 
     describe "anyCharASCII_" $ do
-      pure ()
+      it "reads ASCII char" $ anyCharASCII_ `shouldParseWith` (packUTF8 "$", ())
+      it "fails on non-ASCII char" $
+        anyCharASCII_ `shouldParseFail` packUTF8 "¢"
+      it "fails on empty input" $ anyCharASCII_ `shouldParseFail` ""
 
     describe "isDigit" $ do
       pure ()
