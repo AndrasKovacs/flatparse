@@ -161,7 +161,7 @@ basicSpec = describe "FlatParse.Basic" $ do
          )
           `shouldParse` "foobar"
 
-      it "doesn't apply after default" $
+      it "doesn't apply post after default" $
         $( switchWithPost
              (Just [|$(string "bar")|])
              [|
@@ -183,7 +183,69 @@ basicSpec = describe "FlatParse.Basic" $ do
           `shouldParseFail` "foo"
 
     describe "rawSwitchWithPost" $ do
-      pure ()
+      it "parses simple words" $
+        $( rawSwitchWithPost
+             Nothing
+             [ ("foo", [|pure 1|]),
+               ("bar", [|pure 2|])
+             ]
+             Nothing
+         )
+          `shouldParseWith` ("foo", 1)
+
+      it "matches the default" $
+        $( rawSwitchWithPost
+             Nothing
+             [ ("foo", [|pure 1|]),
+               ("bar", [|pure 2|])
+             ]
+             (Just [|pure 0|])
+         )
+          `shouldParsePartialWith` ("fez", 0)
+
+      it "fails with no default" $
+        $( rawSwitchWithPost
+             Nothing
+             [ ("foo", [|pure 1|]),
+               ("bar", [|pure 2|])
+             ]
+             Nothing
+         )
+          `shouldParseFail` "fez"
+
+      it "prefers longest match" $
+        $( rawSwitchWithPost
+             Nothing
+             [ ("foo", [|pure 1|]),
+               ("foobar", [|pure 2|])
+             ]
+             Nothing
+         )
+          `shouldParseWith` ("foobar", 2)
+
+      it "applies post after match" $
+        $( rawSwitchWithPost
+             (Just [|$(string "bar")|])
+             [("foo", [|pure ()|])]
+             Nothing
+         )
+          `shouldParse` "foobar"
+
+      it "doesn't apply post after default" $
+        $( rawSwitchWithPost
+             (Just [|$(string "bar")|])
+             [("foo", [|pure ()|])]
+             (Just [|pure ()|])
+         )
+          `shouldParse` ""
+
+      it "requires the post must match" $
+        $( rawSwitchWithPost
+             (Just [|$(string "bar")|])
+             [("foo", [|pure ()|])]
+             Nothing
+         )
+          `shouldParseFail` "foo"
 
     describe "satisfy" $ do
       pure ()
