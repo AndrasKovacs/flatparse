@@ -69,6 +69,7 @@ tests:
       - flatparse
       - HUnit
       - hspec
+      - QuickCheck
     default-extensions:
       - ExtendedDefaultRules
     ghc-options:

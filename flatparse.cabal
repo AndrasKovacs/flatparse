@@ -79,6 +79,7 @@ test-suite spec
   ghc-options: -Wall -Wno-name-shadowing -Wno-unused-binds -Wno-unused-matches -Wno-missing-signatures -O2 -fllvm -Wno-type-defaults
   build-depends:
       HUnit
+    , QuickCheck
     , base >=4.7 && <5
     , bytestring
     , flatparse

@@ -1,9 +1,11 @@
 module Main where
 
 import Data.ByteString (ByteString)
+import qualified Data.Char
 import FlatParse.Basic
 import Test.HUnit
 import Test.Hspec
+import Test.QuickCheck
 
 main :: IO ()
 main = hspec $ do
@@ -323,8 +325,7 @@ basicSpec = describe "FlatParse.Basic" $ do
 
       it "fails on empty input" $ anyWord32 `shouldParseFail` ""
       it "fails on insufficient input" $
-        anyWord16
-          `shouldParseFail` "\xff\xff\xff"
+        anyWord16 `shouldParseFail` "\xff\xff\xff"
 
     describe "anyWord" $ do
       -- This combinator is inherently non-portable, but we know a Word is at
@@ -357,19 +358,35 @@ basicSpec = describe "FlatParse.Basic" $ do
       it "fails on empty input" $ anyCharASCII_ `shouldParseFail` ""
 
     describe "isDigit" $ do
-      pure ()
-
-    describe "isGreekLetter" $ do
-      pure ()
+      it "agrees with Data.Char" $
+        property $
+          \c -> isDigit c === Data.Char.isDigit c
 
     describe "isLatinLetter" $ do
-      pure ()
+      it "agrees with Data.Char" $
+        property $
+          \c ->
+            isLatinLetter c
+              === (Data.Char.isAsciiUpper c || Data.Char.isAsciiLower c)
 
     describe "readInt" $ do
-      pure ()
+      it "round-trips on non-negative Ints" $
+        property $
+          \(NonNegative i) -> readInt `shouldParseWith` (packUTF8 (show i), i)
+
+      it "fails on non-integers" $ readInt `shouldParseFail` "foo"
+      it "fails on negative integers" $ readInt `shouldParseFail` "-5"
+      it "fails on empty input" $ readInt `shouldParseFail` ""
 
     describe "readInteger" $ do
-      pure ()
+      it "round-trips on non-negative Integers" $
+        property $
+          \(NonNegative i) ->
+            readInteger `shouldParseWith` (packUTF8 (show i), i)
+
+      it "fails on non-integers" $ readInteger `shouldParseFail` "foo"
+      it "fails on negative integers" $ readInteger `shouldParseFail` "-5"
+      it "fails on empty input" $ readInteger `shouldParseFail` ""
 
   describe "Combinators" $ do
     describe "Functor instance" $ do

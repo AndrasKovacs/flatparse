@@ -591,15 +591,16 @@ anyCharASCII_ :: Parser e ()
 anyCharASCII_ = () <$ anyCharASCII
 {-# inline anyCharASCII_ #-}
 
--- | Read an `Int` from the input, as a non-empty digit sequence. The `Int` may
---   overflow in the result.
+-- | Read a non-negative `Int` from the input, as a non-empty digit sequence.
+-- The `Int` may overflow in the result.
 readInt :: Parser e Int
 readInt = Parser \fp eob s -> case FlatParse.Internal.readInt eob s of
   (# (##) | #)        -> Fail#
   (# | (# n, s' #) #) -> OK# (I# n) s'
 {-# inline readInt #-}
 
--- | Read an `Integer` from the input, as a non-empty digit sequence.
+-- | Read a non-negative `Integer` from the input, as a non-empty digit
+-- sequence.
 readInteger :: Parser e Integer
 readInteger = Parser \fp eob s -> case FlatParse.Internal.readInteger fp eob s of
   (# (##) | #)        -> Fail#
