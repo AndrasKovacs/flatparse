@@ -421,9 +421,10 @@ switch = switchWithPost Nothing
 
 {-|
 Switch expression with an optional first argument for performing a post-processing action after
-every successful branch matching. For example, if we have @ws :: Parser e ()@ for a
-whitespace parser, we might want to consume whitespace after matching on any of the switch
-cases. For that case, we can define a "lexeme" version of `switch` as follows.
+every successful branch matching, not including the default branch. For example, if we have
+@ws :: Parser e ()@ for a whitespace parser, we might want to consume whitespace after matching
+on any of the switch cases. For that case, we can define a "lexeme" version of `switch` as
+follows.
 
 @
   switch' :: Q Exp -> Q Exp

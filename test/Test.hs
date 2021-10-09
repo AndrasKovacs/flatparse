@@ -4,10 +4,12 @@ module Main where
 
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
+import qualified Data.Char
 import FlatParse.Basic
 import Test.HUnit
 import Test.Hspec
 import Test.Hspec.QuickCheck
+import Test.QuickCheck hiding ( (.&.) )
 import Data.Word
 import Data.Int
 import Data.Bits
@@ -15,50 +17,6 @@ import Data.Bits
 main :: IO ()
 main = hspec $ do
   basicSpec
-
---------------------------------------------------------------------------------
--- Some combinators that make it easier to assert the results of a parser.
-
--- | The parser should parse this string, consuming it entirely, and succeed.
-shouldParse :: Show e => Parser e a -> ByteString -> Expectation
-p `shouldParse` s = case runParser p s of
-  OK _ "" -> pure ()
-  OK _ lo -> assertFailure $ "Unexpected leftover: " ++ show lo
-  Fail -> assertFailure "Parse failed unexpectedly"
-  Err e -> assertFailure $ "Parse threw unexpected error: " ++ show e
-
--- | The parser should parse this string, consuming it entirely, and succeed
--- yielding the matching value.
-shouldParseWith ::
-  (Show a, Eq a, Show e) => Parser e a -> (ByteString, a) -> Expectation
-p `shouldParseWith` (s, r) = case runParser p s of
-  OK r' "" -> r' `shouldBe` r
-  OK _ lo -> assertFailure $ "Unexpected leftover: " ++ show lo
-  Fail -> assertFailure "Parse failed unexpectedly"
-  Err e -> assertFailure $ "Parse threw unexpected error: " ++ show e
-
--- | The parser should fail when given this string.
-shouldParseFail :: Show e => Parser e a -> ByteString -> Expectation
-p `shouldParseFail` s = case runParser p s of
-  Fail -> pure ()
-  OK _ _ -> assertFailure "Parse succeeded unexpectedly"
-  Err e -> assertFailure $ "Parse threw unexpected error: " ++ show e
-
--- | The parser should throw an error when given this string.
-shouldParseErr :: Parser e a -> ByteString -> Expectation
-p `shouldParseErr` s = case runParser p s of
-  Err e -> pure ()
-  Fail -> assertFailure "Parse failed unexpectedly"
-  OK _ _ -> assertFailure "Parse succeeded unexpectedly"
-
--- | The parser should throw an error when given this string, and the error
--- should be the one given.
-shouldParseErrWith ::
-  (Show e, Eq e) => Parser e a -> (ByteString, e) -> Expectation
-p `shouldParseErrWith` (s, e) = case runParser p s of
-  Err e' -> e' `shouldBe` e
-  Fail -> assertFailure "Parse failed unexpectedly"
-  OK _ _ -> assertFailure "Parse succeeded unexpectedly"
 
 -- | The spec for FlatParse.Basic.
 basicSpec :: SpecWith ()
@@ -149,64 +107,293 @@ basicSpec = describe "FlatParse.Basic" $ do
       it "fails when out of space" $ $(string "foo") `shouldParseFail` "fo"
 
     describe "switch" $ do
-      pure ()
+      it "parses simple words" $
+        $( switch
+             [|
+               case _ of
+                 "foo" -> pure 1
+                 "bar" -> pure 2
+               |]
+         )
+          `shouldParseWith` ("foo", 1)
+
+      it "matches the default" $
+        $( switch
+             [|
+               case _ of
+                 "foo" -> pure 1
+                 "bar" -> pure 2
+                 _ -> pure 0
+               |]
+         )
+          `shouldParsePartialWith` ("fez", 0)
+
+      it "fails with no default" $
+        $( switch
+             [|
+               case _ of
+                 "foo" -> pure 1
+                 "bar" -> pure 2
+               |]
+         )
+          `shouldParseFail` "fez"
+
+      it "prefers longest match" $
+        $( switch
+             [|
+               case _ of
+                 "foo" -> pure 1
+                 "foobar" -> pure 2
+               |]
+         )
+          `shouldParseWith` ("foobar", 2)
+
+      it "doesn't reproduce bug #12" $
+        $( switch
+             [|
+               case _ of
+                 "Eac" -> pure ()
+                 "EAc" -> pure ()
+                 "E" -> pure ()
+               |]
+         )
+          `shouldParse` "E"
 
     describe "switchWithPost" $ do
-      pure ()
+      it "applies post after match" $
+        $( switchWithPost
+             (Just [|$(string "bar")|])
+             [|
+               case _ of
+                 "foo" -> pure ()
+               |]
+         )
+          `shouldParse` "foobar"
+
+      it "doesn't apply post after default" $
+        $( switchWithPost
+             (Just [|$(string "bar")|])
+             [|
+               case _ of
+                 "foo" -> pure ()
+                 _ -> pure ()
+               |]
+         )
+          `shouldParse` ""
+
+      it "requires the post must match" $
+        $( switchWithPost
+             (Just [|$(string "bar")|])
+             [|
+               case _ of
+                 "foo" -> pure ()
+               |]
+         )
+          `shouldParseFail` "foo"
 
     describe "rawSwitchWithPost" $ do
-      pure ()
+      it "parses simple words" $
+        $( rawSwitchWithPost
+             Nothing
+             [ ("foo", [|pure 1|]),
+               ("bar", [|pure 2|])
+             ]
+             Nothing
+         )
+          `shouldParseWith` ("foo", 1)
+
+      it "matches the default" $
+        $( rawSwitchWithPost
+             Nothing
+             [ ("foo", [|pure 1|]),
+               ("bar", [|pure 2|])
+             ]
+             (Just [|pure 0|])
+         )
+          `shouldParsePartialWith` ("fez", 0)
+
+      it "fails with no default" $
+        $( rawSwitchWithPost
+             Nothing
+             [ ("foo", [|pure 1|]),
+               ("bar", [|pure 2|])
+             ]
+             Nothing
+         )
+          `shouldParseFail` "fez"
+
+      it "prefers longest match" $
+        $( rawSwitchWithPost
+             Nothing
+             [ ("foo", [|pure 1|]),
+               ("foobar", [|pure 2|])
+             ]
+             Nothing
+         )
+          `shouldParseWith` ("foobar", 2)
+
+      it "applies post after match" $
+        $( rawSwitchWithPost
+             (Just [|$(string "bar")|])
+             [("foo", [|pure ()|])]
+             Nothing
+         )
+          `shouldParse` "foobar"
+
+      it "doesn't apply post after default" $
+        $( rawSwitchWithPost
+             (Just [|$(string "bar")|])
+             [("foo", [|pure ()|])]
+             (Just [|pure ()|])
+         )
+          `shouldParse` ""
+
+      it "requires the post must match" $
+        $( rawSwitchWithPost
+             (Just [|$(string "bar")|])
+             [("foo", [|pure ()|])]
+             Nothing
+         )
+          `shouldParseFail` "foo"
 
     describe "satisfy" $ do
-      pure ()
+      it "succeeds on the right char" $
+        satisfy (== 'a') `shouldParseWith` ("a", 'a')
+
+      it "succeeds on multi-byte chars" $ do
+        let chars = "$¢€𐍈" :: [Char]
+        sequence_
+          [ if a == b
+              then satisfy (== a) `shouldParseWith` (packUTF8 (pure b), b)
+              else satisfy (== a) `shouldParseFail` packUTF8 (pure b)
+            | a <- chars,
+              b <- chars
+          ]
+
+      it "fails on the wrong char" $
+        satisfy (== 'a') `shouldParseFail` "b"
+      it "fails at end of file" $
+        satisfy (== 'a') `shouldParseFail` ""
 
     describe "satisfyASCII" $ do
-      pure ()
+      it "succeeds on the right char" $
+        satisfyASCII (== 'a') `shouldParseWith` ("a", 'a')
+      it "fails on the wrong char" $
+        satisfyASCII (== 'a') `shouldParseFail` "b"
+
+      it "fails on the wrong multi-byte char" $
+        -- The specification for satisfyASCII requires that the predicate
+        -- return False for non-ASCII characters, but multi-byte chars are
+        -- still allowed in the input.
+        satisfyASCII (== 'a') `shouldParseFail` packUTF8 "ȩ"
+
+      it "fails at end of file" $
+        satisfyASCII (== 'a') `shouldParseFail` ""
 
     describe "satisfyASCII_" $ do
-      pure ()
+      it "succeeds on the right char" $
+        satisfyASCII_ (== 'a') `shouldParseWith` ("a", ())
+      it "fails on the wrong char" $
+        satisfyASCII_ (== 'a') `shouldParseFail` "b"
+      it "fails on the wrong multi-byte char" $
+        satisfyASCII_ (== 'a') `shouldParseFail` packUTF8 "ȩ"
+      it "fails at end of file" $
+        satisfyASCII_ (== 'a') `shouldParseFail` ""
 
     describe "fusedSatisfy" $ do
-      pure ()
+      it "correctly routes chars based on length" $ do
+        fusedSatisfy (== '$') (const False) (const False) (const False)
+          `shouldParse` packUTF8 "$"
+        fusedSatisfy (const False) (== '¢') (const False) (const False)
+          `shouldParse` packUTF8 "¢"
+        fusedSatisfy (const False) (const False) (== '€') (const False)
+          `shouldParse` packUTF8 "€"
+        fusedSatisfy (const False) (const False) (const False) (== '𐍈')
+          `shouldParse` packUTF8 "𐍈"
+
+      it "fails on empty input" $
+        fusedSatisfy (const True) (const True) (const True) (const True)
+          `shouldParseFail` ""
 
     describe "anyWord8" $ do
-      pure ()
+      it "reads a byte" $ anyWord8 `shouldParseWith` ("\xef", 0xef)
+      it "fails on empty input" $ anyWord8 `shouldParseFail` ""
 
     describe "anyWord16" $ do
-      pure ()
+      -- Byte order is unspecified, so just assert that it succeeds.
+      it "succeeds" $ anyWord16 `shouldParse` "\xef\xbe"
+
+      it "fails on empty input" $ anyWord16 `shouldParseFail` ""
+      it "fails on insufficient input" $ anyWord16 `shouldParseFail` "\xff"
 
     describe "anyWord32" $ do
-      pure ()
+      -- Byte order is unspecified, so just assert that it succeeds.
+      it "succeeds" $ anyWord32 `shouldParse` "\xef\xbe\xae\x7e"
+
+      it "fails on empty input" $ anyWord32 `shouldParseFail` ""
+      it "fails on insufficient input" $
+        anyWord32 `shouldParseFail` "\xff\xff\xff"
 
     describe "anyWord" $ do
-      pure ()
+      -- This combinator is inherently non-portable, but we know a Word is at
+      -- least some bytes.
+      it "fails on empty input" $ anyWord `shouldParseFail` ""
 
     describe "anyChar" $ do
-      pure ()
+      it "reads 1-byte char" $ anyChar `shouldParseWith` (packUTF8 "$", '$')
+      it "reads 2-byte char" $ anyChar `shouldParseWith` (packUTF8 "¢", '¢')
+      it "reads 3-byte char" $ anyChar `shouldParseWith` (packUTF8 "€", '€')
+      it "reads 4-byte char" $ anyChar `shouldParseWith` (packUTF8 "𐍈", '𐍈')
+      it "fails on empty input" $ anyChar `shouldParseFail` ""
 
     describe "anyChar_" $ do
-      pure ()
+      it "reads 1-byte char" $ anyChar_ `shouldParseWith` (packUTF8 "$", ())
+      it "reads 2-byte char" $ anyChar_ `shouldParseWith` (packUTF8 "¢", ())
+      it "reads 3-byte char" $ anyChar_ `shouldParseWith` (packUTF8 "€", ())
+      it "reads 4-byte char" $ anyChar_ `shouldParseWith` (packUTF8 "𐍈", ())
+      it "fails on empty input" $ anyChar_ `shouldParseFail` ""
 
     describe "anyCharASCII" $ do
-      pure ()
+      it "reads ASCII char" $ anyCharASCII `shouldParseWith` (packUTF8 "$", '$')
+      it "fails on non-ASCII char" $ anyCharASCII `shouldParseFail` packUTF8 "¢"
+      it "fails on empty input" $ anyCharASCII `shouldParseFail` ""
 
     describe "anyCharASCII_" $ do
-      pure ()
+      it "reads ASCII char" $ anyCharASCII_ `shouldParseWith` (packUTF8 "$", ())
+      it "fails on non-ASCII char" $
+        anyCharASCII_ `shouldParseFail` packUTF8 "¢"
+      it "fails on empty input" $ anyCharASCII_ `shouldParseFail` ""
 
     describe "isDigit" $ do
-      pure ()
-
-    describe "isGreekLetter" $ do
-      pure ()
+      it "agrees with Data.Char" $
+        property $
+          \c -> isDigit c === Data.Char.isDigit c
 
     describe "isLatinLetter" $ do
-      pure ()
+      it "agrees with Data.Char" $
+        property $
+          \c ->
+            isLatinLetter c
+              === (Data.Char.isAsciiUpper c || Data.Char.isAsciiLower c)
 
     describe "readInt" $ do
-      pure ()
+      it "round-trips on non-negative Ints" $
+        property $
+          \(NonNegative i) -> readInt `shouldParseWith` (packUTF8 (show i), i)
+
+      it "fails on non-integers" $ readInt `shouldParseFail` "foo"
+      it "fails on negative integers" $ readInt `shouldParseFail` "-5"
+      it "fails on empty input" $ readInt `shouldParseFail` ""
 
     describe "readInteger" $ do
-      pure ()
+      it "round-trips on non-negative Integers" $
+        property $
+          \(NonNegative i) ->
+            readInteger `shouldParseWith` (packUTF8 (show i), i)
+
+      it "fails on non-integers" $ readInteger `shouldParseFail` "foo"
+      it "fails on negative integers" $ readInteger `shouldParseFail` "-5"
+      it "fails on empty input" $ readInteger `shouldParseFail` ""
 
     describe "Explicit-endianness machine integers" $ do
       describe "Unsigned" $ do
@@ -242,32 +429,106 @@ basicSpec = describe "FlatParse.Basic" $ do
           \(i :: Int64)  -> anyInt64be  `shouldParseWith` (B.reverse (w64leAsByteString i), i)
 
   describe "Combinators" $ do
+    describe "Functor instance" $ do
+      it "fmaps over the result" $
+        ((+ 2) <$> readInt) `shouldParseWith` ("2", 4)
+
+    describe "Applicative instance" $ do
+      it "combines using <*>" $
+        ((+) <$> readInt <* $(string "+") <*> readInt)
+          `shouldParseWith` ("2+3", 5)
+
+    describe "Monad instance" $ do
+      it "combines with a do block" $ do
+        let parser = do
+              i <- readInt
+              $(string "+")
+              j <- readInt
+              pure (i + j)
+        parser `shouldParseWith` ("2+3", 5)
+
     describe "(<|>)" $ do
-      pure ()
+      it "chooses first option on success" $
+        (("A" <$ $(string "foo")) <|> ("B" <$ $(string "foo")))
+          `shouldParseWith` ("foo", "A")
+
+      it "chooses second option when first fails" $
+        (("A" <$ $(string "bar")) <|> ("B" <$ $(string "foo")))
+          `shouldParseWith` ("foo", "B")
 
     describe "branch" $ do
-      pure ()
+      it "chooses the first branch on success" $
+        branch (pure ()) (pure "A") (pure "B") `shouldParseWith` ("", "A")
+      it "does not backtrack from first branch" $
+        branch (pure ()) empty (pure "B") `shouldParseFail` ""
+      it "chooses the second branch on failure" $
+        branch empty (pure "A") (pure "B") `shouldParseWith` ("", "B")
 
     describe "chainl" $ do
-      pure ()
+      it "parses a chain of numbers" $
+        chainl (+) readInt ($(char '+') *> readInt)
+          `shouldParseWith` ("1+2+3", 6)
+
+      it "allows the right chain to be empty" $
+        chainl (+) readInt ($(char '+') *> readInt)
+          `shouldParseWith` ("1", 1)
+
+      it "requires at least the leftmost parser to match" $
+        chainl (+) readInt ($(char '+') *> readInt)
+          `shouldParseFail` ""
 
     describe "chainr" $ do
-      pure ()
+      it "parses a chain of numbers" $
+        chainr (+) (readInt <* $(char '+')) readInt
+          `shouldParseWith` ("1+2+3", 6)
+
+      it "allows the left chain to be empty" $
+        chainr (+) (readInt <* $(char '+')) readInt
+          `shouldParseWith` ("1", 1)
+
+      it "requires at least the rightmost parser to match" $
+        chainr (+) (readInt <* $(char '+')) readInt
+          `shouldParseFail` ""
 
     describe "many" $ do
-      pure ()
+      it "parses many chars" $
+        many (satisfy isLatinLetter) `shouldParseWith` ("abc", "abc")
+      it "accepts empty input" $
+        many (satisfy isLatinLetter) `shouldParseWith` ("", "")
+      it "is greedy" $
+        (many (satisfy isDigit) *> satisfy isDigit) `shouldParseFail` "123"
 
     describe "many_" $ do
-      pure ()
+      it "parses many chars" $
+        many_ (satisfy isLatinLetter) `shouldParseWith` ("abc", ())
+      it "accepts empty input" $
+        many_ (satisfy isLatinLetter) `shouldParseWith` ("", ())
+      it "is greedy" $
+        (many_ (satisfy isDigit) *> satisfy isDigit) `shouldParseFail` "123"
 
     describe "some" $ do
-      pure ()
+      it "parses some chars" $
+        some (satisfy isLatinLetter) `shouldParseWith` ("abc", "abc")
+      it "rejects empty input" $
+        some (satisfy isLatinLetter) `shouldParseFail` ""
+      it "is greedy" $
+        (some (satisfy isDigit) *> satisfy isDigit) `shouldParseFail` "123"
 
     describe "some_" $ do
-      pure ()
+      it "parses some chars" $
+        some_ (satisfy isLatinLetter) `shouldParseWith` ("abc", ())
+      it "rejects empty input" $
+        some_ (satisfy isLatinLetter) `shouldParseFail` ""
+      it "is greedy" $
+        (some_ (satisfy isDigit) *> satisfy isDigit) `shouldParseFail` "123"
 
     describe "notFollowedBy" $ do
-      pure ()
+      it "succeeds when it should" $
+        readInt `notFollowedBy` $(char '.') `shouldParsePartial` "123+5"
+      it "fails when first parser doesn't match" $
+        readInt `notFollowedBy` $(char '.') `shouldParseFail` "a"
+      it "fails when followed by the wrong thing" $
+        readInt `notFollowedBy` $(char '.') `shouldParseFail` "123.0"
 
   describe "Positions and spans" $ do
     describe "Pos Ord instance" $ do
@@ -368,3 +629,63 @@ w64leAsByteString w = B.pack [b1, b2, b3, b4, b5, b6, b7, b8]
     b6 = fromIntegral $ (w .&. 0x0000FF0000000000) `shiftR` 40
     b7 = fromIntegral $ (w .&. 0x00FF000000000000) `shiftR` 48
     b8 = fromIntegral $ (w .&. 0xFF00000000000000) `shiftR` 56
+
+--------------------------------------------------------------------------------
+-- Some combinators that make it easier to assert the results of a parser.
+
+-- | The parser should parse this string, consuming it entirely, and succeed.
+shouldParse :: Show e => Parser e a -> ByteString -> Expectation
+p `shouldParse` s = case runParser p s of
+  OK _ "" -> pure ()
+  OK _ lo -> assertFailure $ "Unexpected leftover: " ++ show lo
+  Fail -> assertFailure "Parse failed unexpectedly"
+  Err e -> assertFailure $ "Parse threw unexpected error: " ++ show e
+
+-- | The parser should parse this string, possibly with leftovers, and succeed.
+shouldParsePartial :: Show e => Parser e a -> ByteString -> Expectation
+p `shouldParsePartial` s = case runParser p s of
+  OK _ lo -> pure ()
+  Fail -> assertFailure "Parse failed unexpectedly"
+  Err e -> assertFailure $ "Parse threw unexpected error: " ++ show e
+
+-- | The parser should parse this string, consuming it entirely, and succeed
+-- yielding the matching value.
+shouldParseWith ::
+  (Show a, Eq a, Show e) => Parser e a -> (ByteString, a) -> Expectation
+p `shouldParseWith` (s, r) = case runParser p s of
+  OK r' "" -> r' `shouldBe` r
+  OK _ lo -> assertFailure $ "Unexpected leftover: " ++ show lo
+  Fail -> assertFailure "Parse failed unexpectedly"
+  Err e -> assertFailure $ "Parse threw unexpected error: " ++ show e
+
+-- | The parser should parse this string, possibly with leftovers, and succeed
+-- yielding the matching value.
+shouldParsePartialWith ::
+  (Show a, Eq a, Show e) => Parser e a -> (ByteString, a) -> Expectation
+p `shouldParsePartialWith` (s, r) = case runParser p s of
+  OK r' lo -> r' `shouldBe` r
+  Fail -> assertFailure "Parse failed unexpectedly"
+  Err e -> assertFailure $ "Parse threw unexpected error: " ++ show e
+
+-- | The parser should fail when given this string.
+shouldParseFail :: Show e => Parser e a -> ByteString -> Expectation
+p `shouldParseFail` s = case runParser p s of
+  Fail -> pure ()
+  OK _ _ -> assertFailure "Parse succeeded unexpectedly"
+  Err e -> assertFailure $ "Parse threw unexpected error: " ++ show e
+
+-- | The parser should throw an error when given this string.
+shouldParseErr :: Parser e a -> ByteString -> Expectation
+p `shouldParseErr` s = case runParser p s of
+  Err e -> pure ()
+  Fail -> assertFailure "Parse failed unexpectedly"
+  OK _ _ -> assertFailure "Parse succeeded unexpectedly"
+
+-- | The parser should throw an error when given this string, and the error
+-- should be the one given.
+shouldParseErrWith ::
+  (Show e, Eq e) => Parser e a -> (ByteString, e) -> Expectation
+p `shouldParseErrWith` (s, e) = case runParser p s of
+  Err e' -> e' `shouldBe` e
+  Fail -> assertFailure "Parse failed unexpectedly"
+  OK _ _ -> assertFailure "Parse succeeded unexpectedly"
