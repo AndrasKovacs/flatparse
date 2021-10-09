@@ -408,31 +408,87 @@ basicSpec = describe "FlatParse.Basic" $ do
         parser `shouldParseWith` ("2+3", 5)
 
     describe "(<|>)" $ do
-      pure ()
+      it "chooses first option on success" $
+        (("A" <$ $(string "foo")) <|> ("B" <$ $(string "foo")))
+          `shouldParseWith` ("foo", "A")
+
+      it "chooses second option when first fails" $
+        (("A" <$ $(string "bar")) <|> ("B" <$ $(string "foo")))
+          `shouldParseWith` ("foo", "B")
 
     describe "branch" $ do
-      pure ()
+      it "chooses the first branch on success" $
+        branch (pure ()) (pure "A") (pure "B") `shouldParseWith` ("", "A")
+      it "does not backtrack from first branch" $
+        branch (pure ()) empty (pure "B") `shouldParseFail` ""
+      it "chooses the second branch on failure" $
+        branch empty (pure "A") (pure "B") `shouldParseWith` ("", "B")
 
     describe "chainl" $ do
-      pure ()
+      it "parses a chain of numbers" $
+        chainl (+) readInt ($(char '+') *> readInt)
+          `shouldParseWith` ("1+2+3", 6)
+
+      it "allows the right chain to be empty" $
+        chainl (+) readInt ($(char '+') *> readInt)
+          `shouldParseWith` ("1", 1)
+
+      it "requires at least the leftmost parser to match" $
+        chainl (+) readInt ($(char '+') *> readInt)
+          `shouldParseFail` ""
 
     describe "chainr" $ do
-      pure ()
+      it "parses a chain of numbers" $
+        chainr (+) (readInt <* $(char '+')) readInt
+          `shouldParseWith` ("1+2+3", 6)
+
+      it "allows the left chain to be empty" $
+        chainr (+) (readInt <* $(char '+')) readInt
+          `shouldParseWith` ("1", 1)
+
+      it "requires at least the rightmost parser to match" $
+        chainr (+) (readInt <* $(char '+')) readInt
+          `shouldParseFail` ""
 
     describe "many" $ do
-      pure ()
+      it "parses many chars" $
+        many (satisfy isLatinLetter) `shouldParseWith` ("abc", "abc")
+      it "accepts empty input" $
+        many (satisfy isLatinLetter) `shouldParseWith` ("", "")
+      it "is greedy" $
+        (many (satisfy isDigit) *> satisfy isDigit) `shouldParseFail` "123"
 
     describe "many_" $ do
-      pure ()
+      it "parses many chars" $
+        many_ (satisfy isLatinLetter) `shouldParseWith` ("abc", ())
+      it "accepts empty input" $
+        many_ (satisfy isLatinLetter) `shouldParseWith` ("", ())
+      it "is greedy" $
+        (many_ (satisfy isDigit) *> satisfy isDigit) `shouldParseFail` "123"
 
     describe "some" $ do
-      pure ()
+      it "parses some chars" $
+        some (satisfy isLatinLetter) `shouldParseWith` ("abc", "abc")
+      it "rejects empty input" $
+        some (satisfy isLatinLetter) `shouldParseFail` ""
+      it "is greedy" $
+        (some (satisfy isDigit) *> satisfy isDigit) `shouldParseFail` "123"
 
     describe "some_" $ do
-      pure ()
+      it "parses some chars" $
+        some_ (satisfy isLatinLetter) `shouldParseWith` ("abc", ())
+      it "rejects empty input" $
+        some_ (satisfy isLatinLetter) `shouldParseFail` ""
+      it "is greedy" $
+        (some_ (satisfy isDigit) *> satisfy isDigit) `shouldParseFail` "123"
 
     describe "notFollowedBy" $ do
-      pure ()
+      it "succeeds when it should" $
+        readInt `notFollowedBy` $(char '.') `shouldParsePartial` "123+5"
+      it "fails when first parser doesn't match" $
+        readInt `notFollowedBy` $(char '.') `shouldParseFail` "a"
+      it "fails when followed by the wrong thing" $
+        readInt `notFollowedBy` $(char '.') `shouldParseFail` "123.0"
 
   describe "Positions and spans" $ do
     describe "Pos Ord instance" $ do
