@@ -91,6 +91,7 @@ module FlatParse.Stateful (
   , Basic.validPos
   , Basic.posLineCols
   , Basic.unsafeSpanToByteString
+  , Basic.unsafeSlice
   , Basic.mkPos
   , Basic.lines
 
