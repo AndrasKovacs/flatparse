@@ -36,39 +36,36 @@ Pull requests are welcome. I'm fairly quick to add PR authors as collaborators.
 
 ## Some benchmarks
 
-Execution times below. See source code in [bench](bench). Compiled with GHC 8.8.4 `-O2 -fllvm`.
+Execution times below. See source code in [bench](bench). Compiled with GHC
+8.10.7 `-O2 -fllvm`. Executed on Intel 1165G7 CPU at 28W power draw.
 
 |      benchmark              |  runtime   |
 |-----------------------------|-------------
-| sexp/fpbasic                | 3.345 ms   |
-| sexp/fpstateful             | 3.441 ms   |
-| sexp/bytesmith              | 5.646 ms   |
-| sexp/attoparsec             | 43.58 ms   |
-| sexp/megaparsec             | 57.76 ms   |
-| sexp/parsec                 | 182.4 ms   |
-| long keyword/fpbasic        | 306.1 μs   |
-| long keyword/fpstateful     | 220.3 μs   |
-| long keyword/bytesmith      | 1.707 ms   |
-| long keyword/attoparsec     | 5.420 ms   |
-| long keyword/megaparsec     | 3.605 ms   |
-| long keyword/parsec         | 50.10 ms   |
-| numeral csv/fpbasic         | 898.4 μs   |
-| numeral csv/fpstateful      | 868.3 μs   |
-| numeral csv/bytesmith       | 2.412 ms   |
-| numeral csv/attoparsec      | 21.30 ms   |
-| numeral csv/megaparsec      | 10.37 ms   |
-| numeral csv/parsec          | 78.16 ms   |
+|sexp/fpbasic                 | 1.625 ms   |
+|sexp/fpstateful              | 1.815 ms   |
+|sexp/attoparsec              | 21.75 ms   |
+|sexp/megaparsec              | 33.12 ms   |
+|sexp/parsec                  | 98.65 ms   |
+|long keyword/fpbasic         | 115.9 μs   |
+|long keyword/fpstateful      | 117.7 μs   |
+|long keyword/attoparsec      | 2.955 ms   |
+|long keyword/megaparsec      | 2.185 ms   |
+|long keyword/parsec          | 29.91 ms   |
+|numeral csv/fpbasic          | 549.3 μs   |
+|numeral csv/fpstateful       | 595.5 μs   |
+|numeral csv/attoparsec       | 10.82 ms   |
+|numeral csv/megaparsec       | 6.581 ms   |
+|numeral csv/parsec           | 39.33 ms   |
 
 Object file sizes for each module containing the `s-exp`, `long keyword` and `numeral csv` benchmarks.
 
 | library    | object file size (bytes) |
 | -------    | ------------------------ |
-| fpbasic    |  26456                   |
-| fpstateful |  30008                   |
-| bytesmith  |  39240                   |
-| attoparsec |  83288                   |
-| megaparsec |  188696                  |
-| parsec     |  75880                   |
+| fpbasic    |  23752                   |
+| fpstateful |  25920                   |
+| attoparsec |  93584                   |
+| megaparsec |  257000                  |
+| parsec     |  134296                  |
 
 [basic]: https://hackage.haskell.org/package/flatparse/docs/FlatParse-Basic.html
 [stateful]: https://hackage.haskell.org/package/flatparse/docs/FlatParse-Stateful.html
