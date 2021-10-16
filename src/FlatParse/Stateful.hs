@@ -933,6 +933,14 @@ scanBytes# bytes = do
 -- Switching code generation
 --------------------------------------------------------------------------------
 
+#if MIN_VERSION_base(4,15,0)
+mkDoE = DoE Nothing
+{-# inline mkDoE #-}
+#else
+mkDoE = DoE
+{-# inline mkDoE #-}
+#endif
+
 genTrie :: (Map (Maybe Int) Exp, Trie' (Rule, Int, Maybe Int)) -> Q Exp
 genTrie (rules, t) = do
   branches <- traverse (\e -> (,) <$> (newName "rule") <*> pure e) rules
@@ -956,7 +964,7 @@ genTrie (rules, t) = do
               !next         <- (traverse . traverse) go (M.toList ts)
               !defaultCase  <- fallback r (n + 1)
 
-              let cases = DoE Nothing $
+              let cases = mkDoE $
                     [BindS (VarP (mkName "c")) (VarE 'scanAny8#),
                       NoBindS (CaseE (VarE (mkName "c"))
                          (map (\(w, t) ->

@@ -1,0 +1,8 @@
+
+resolver: lts-14.27
+
+packages:
+- .
+
+ghc-options:
+    "$everything": -split-sections

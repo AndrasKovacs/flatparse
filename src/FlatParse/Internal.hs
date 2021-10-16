@@ -9,12 +9,29 @@ import Data.Map (Map)
 import Data.Word
 import GHC.Exts
 import GHC.ForeignPtr
-import GHC.Num.Integer (Integer(..))
 
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BC8
 import qualified Data.ByteString.Internal as B
 import qualified Data.Map.Strict as M
+
+#if MIN_VERSION_base(4,15,0)
+import GHC.Num.Integer (Integer(..))
+#else
+import GHC.Integer.GMP.Internals (Integer(..))
+#endif
+
+-- Compatibility
+--------------------------------------------------------------------------------
+
+shortInteger :: Int# -> Integer
+#if MIN_VERSION_base(4,15,0)
+shortInteger = IS
+{-# inline shortInteger #-}
+#else
+shortInteger = S#
+#endif
+
 
 -- Char predicates
 --------------------------------------------------------------------------------
@@ -63,7 +80,7 @@ readInteger :: ForeignPtrContents -> Addr# -> Addr# -> (# (##) | (# Integer, Add
 readInteger fp eob s = case readInt' 0# s eob of
   (# n, s' #)
     | 1# <- eqAddr# s s'            -> (# (##) | #)
-    | 1# <- minusAddr# s' s <=# 18# -> (# | (# IS n, s' #) #)
+    | 1# <- minusAddr# s' s <=# 18# -> (# | (# shortInteger n, s' #) #)
     | otherwise -> case BC8.readInteger (B.PS (ForeignPtr s fp) 0 (I# (minusAddr# s' s))) of
         Nothing     -> (# (##) | #)
         Just (i, _) -> (# | (# i, s' #) #)

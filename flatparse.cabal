@@ -5,7 +5,7 @@ cabal-version: 1.12
 -- see: https://github.com/sol/hpack
 
 name:           flatparse
-version:        0.2.3.0
+version:        0.3.0.0
 synopsis:       High-performance parsing from strict bytestrings
 description:    @Flatparse@ is a high-performance parsing library, focusing on programming languages and
                 human-readable data formats. See the README for more information:
@@ -20,7 +20,10 @@ license:        MIT
 license-file:   LICENSE
 build-type:     Simple
 tested-with:
-    GHC == 9.0.1
+    GHC == 8.6.5
+  , GHC == 8.8.4
+  , GHC == 8.10.7
+  , GHC == 9.0.1
 extra-source-files:
     README.md
 
@@ -49,6 +52,7 @@ library
       PatternSynonyms
       TemplateHaskell
       TupleSections
+      CPP
   ghc-options: -Wall -Wno-name-shadowing -Wno-unused-binds -Wno-unused-matches -Wno-missing-signatures -O2 -fllvm
   build-depends:
       base >=4.7 && <5
@@ -75,6 +79,7 @@ test-suite spec
       PatternSynonyms
       TemplateHaskell
       TupleSections
+      CPP
       ExtendedDefaultRules
   ghc-options: -Wall -Wno-name-shadowing -Wno-unused-binds -Wno-unused-matches -Wno-missing-signatures -O2 -fllvm -Wno-type-defaults
   build-depends:
@@ -90,7 +95,6 @@ benchmark bench
   main-is: Bench.hs
   other-modules:
       Attoparsec
-      Bytesmith
       FPBasic
       FPStateful
       Megaparsec
@@ -109,6 +113,7 @@ benchmark bench
       PatternSynonyms
       TemplateHaskell
       TupleSections
+      CPP
   ghc-options: -Wall -Wno-name-shadowing -Wno-unused-binds -Wno-unused-matches -Wno-missing-signatures -O2 -fllvm
   build-depends:
       attoparsec

@@ -1,19 +1,11 @@
 
-resolver: nightly-2021-09-18
+# resolver: lts-14.27
+# resolver: lts-16.31
+# resolver: lts-18.13
+resolver: nightly-2021-10-13
 
 packages:
 - .
 
 ghc-options:
     "$everything": -split-sections
-
-## bytesmith does not seem to work on ghc-9 now
-
-# allow-newer: true
-# extra-deps:
-# - bytesmith-0.3.7.0
-# - byteslice-0.2.6.0
-# - contiguous-0.6.1
-# - run-st-0.1.1.0
-# - primitive-unlifted-1.0.0.0
-# - tuples-0.1.0.0

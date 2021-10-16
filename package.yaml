@@ -1,6 +1,6 @@
 
 name:        flatparse
-version:     0.3.0.0
+version:     0.3.0.1
 license:     MIT
 category:    Parsing
 synopsis:    High-performance parsing from strict bytestrings
@@ -15,7 +15,11 @@ description: |
   human-readable data formats. See the README for more information:
   <https://github.com/AndrasKovacs/flatparse>.
 
-tested-with: GHC == 9.0.1
+tested-with:
+  - GHC == 8.6.5
+  - GHC == 8.8.4
+  - GHC == 8.10.7
+  - GHC == 9.0.1
 
 dependencies:
   - base >= 4.7 && < 5
@@ -33,6 +37,7 @@ default-extensions:
   - PatternSynonyms
   - TemplateHaskell
   - TupleSections
+  - CPP
 
 ghc-options:
   - -Wall
@@ -75,21 +80,13 @@ tests:
       - -O2
       - -fllvm
       - -Wno-type-defaults
-      # - -ddump-simpl
-      # - -dsuppress-all
-      # - -dno-suppress-type-signatures
-      # - -ddump-to-file
-      # - -ddump-stg
-      # - -ddump-llvm
 
 benchmarks:
-# executables:
   bench:
     source-dirs: bench
     main: Bench.hs
     dependencies:
       - attoparsec
-      # - bytesmith
       - bytestring
       - flatparse
       - gauge
@@ -100,9 +97,3 @@ benchmarks:
     ghc-options:
       - -O2
       - -fllvm
-      # - -ddump-simpl
-      # - -dsuppress-all
-      # - -dno-suppress-type-signatures
-      # - -ddump-to-file
-      # - -ddump-stg
-      # - -ddump-llvm
