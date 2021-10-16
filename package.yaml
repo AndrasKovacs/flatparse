@@ -21,6 +21,16 @@ tested-with:
   - GHC == 8.10.7
   - GHC == 9.0.1
 
+flags:
+  llvm:
+    description: use llvm for building
+    default: true
+    manual: false
+  dump:
+    description: dump core, stg and cmm to files
+    default: false
+    manual: true
+
 dependencies:
   - base >= 4.7 && < 5
 
@@ -30,6 +40,7 @@ extra-source-files:
 default-extensions:
   - BangPatterns
   - BlockArguments
+  - CPP
   - ExplicitNamespaces
   - LambdaCase
   - MagicHash
@@ -37,32 +48,38 @@ default-extensions:
   - PatternSynonyms
   - TemplateHaskell
   - TupleSections
-  - CPP
 
 ghc-options:
   - -Wall
+  - -Wno-missing-signatures
   - -Wno-name-shadowing
   - -Wno-unused-binds
   - -Wno-unused-matches
-  - -Wno-missing-signatures
+
+when:
+  - condition: flag(dump)
+    ghc-options:
+      - -ddump-simpl
+      - -ddump-stg
+      - -ddump-cmm
+      - -dsuppress-all
+      - -dno-suppress-type-signatures
+      - -ddump-to-file
+
+  - condition: flag(llvm)
+    ghc-options:
+      - -fllvm
 
 library:
   source-dirs:
     - src
   dependencies:
-    - containers
     - bytestring
-    - template-haskell
+    - containers
     - integer-gmp
+    - template-haskell
   ghc-options:
     - -O2
-    - -fllvm
-    # - -ddump-simpl
-    # - -dsuppress-all
-    # - -dno-suppress-type-signatures
-    # - -ddump-to-file
-    # - -ddump-stg
-    # - -ddump-llvm
 
 tests:
   spec:
@@ -70,15 +87,14 @@ tests:
     source-dirs:
       - test
     dependencies:
+      - HUnit
       - bytestring
       - flatparse
-      - HUnit
       - hspec
     default-extensions:
       - ExtendedDefaultRules
     ghc-options:
       - -O2
-      - -fllvm
       - -Wno-type-defaults
 
 benchmarks:
@@ -90,10 +106,9 @@ benchmarks:
       - bytestring
       - flatparse
       - gauge
+      - integer-gmp
       - megaparsec
       - parsec
       - primitive
-      - integer-gmp
     ghc-options:
       - -O2
-      - -fllvm

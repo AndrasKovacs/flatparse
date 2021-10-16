@@ -31,6 +31,16 @@ source-repository head
   type: git
   location: https://github.com/AndrasKovacs/flatparse
 
+flag dump
+  description: dump core, stg and cmm to files
+  manual: True
+  default: False
+
+flag llvm
+  description: use llvm for building
+  manual: False
+  default: True
+
 library
   exposed-modules:
       FlatParse.Basic
@@ -45,6 +55,7 @@ library
   default-extensions:
       BangPatterns
       BlockArguments
+      CPP
       ExplicitNamespaces
       LambdaCase
       MagicHash
@@ -52,14 +63,17 @@ library
       PatternSynonyms
       TemplateHaskell
       TupleSections
-      CPP
-  ghc-options: -Wall -Wno-name-shadowing -Wno-unused-binds -Wno-unused-matches -Wno-missing-signatures -O2 -fllvm
+  ghc-options: -Wall -Wno-missing-signatures -Wno-name-shadowing -Wno-unused-binds -Wno-unused-matches -O2
   build-depends:
       base >=4.7 && <5
     , bytestring
     , containers
     , integer-gmp
     , template-haskell
+  if flag(dump)
+    ghc-options: -ddump-simpl -ddump-stg -ddump-cmm -dsuppress-all -dno-suppress-type-signatures -ddump-to-file
+  if flag(llvm)
+    ghc-options: -fllvm
   default-language: Haskell2010
 
 test-suite spec
@@ -72,6 +86,7 @@ test-suite spec
   default-extensions:
       BangPatterns
       BlockArguments
+      CPP
       ExplicitNamespaces
       LambdaCase
       MagicHash
@@ -79,15 +94,18 @@ test-suite spec
       PatternSynonyms
       TemplateHaskell
       TupleSections
-      CPP
       ExtendedDefaultRules
-  ghc-options: -Wall -Wno-name-shadowing -Wno-unused-binds -Wno-unused-matches -Wno-missing-signatures -O2 -fllvm -Wno-type-defaults
+  ghc-options: -Wall -Wno-missing-signatures -Wno-name-shadowing -Wno-unused-binds -Wno-unused-matches -O2 -Wno-type-defaults
   build-depends:
       HUnit
     , base >=4.7 && <5
     , bytestring
     , flatparse
     , hspec
+  if flag(dump)
+    ghc-options: -ddump-simpl -ddump-stg -ddump-cmm -dsuppress-all -dno-suppress-type-signatures -ddump-to-file
+  if flag(llvm)
+    ghc-options: -fllvm
   default-language: Haskell2010
 
 benchmark bench
@@ -106,6 +124,7 @@ benchmark bench
   default-extensions:
       BangPatterns
       BlockArguments
+      CPP
       ExplicitNamespaces
       LambdaCase
       MagicHash
@@ -113,8 +132,7 @@ benchmark bench
       PatternSynonyms
       TemplateHaskell
       TupleSections
-      CPP
-  ghc-options: -Wall -Wno-name-shadowing -Wno-unused-binds -Wno-unused-matches -Wno-missing-signatures -O2 -fllvm
+  ghc-options: -Wall -Wno-missing-signatures -Wno-name-shadowing -Wno-unused-binds -Wno-unused-matches -O2
   build-depends:
       attoparsec
     , base >=4.7 && <5
@@ -125,4 +143,8 @@ benchmark bench
     , megaparsec
     , parsec
     , primitive
+  if flag(dump)
+    ghc-options: -ddump-simpl -ddump-stg -ddump-cmm -dsuppress-all -dno-suppress-type-signatures -ddump-to-file
+  if flag(llvm)
+    ghc-options: -fllvm
   default-language: Haskell2010

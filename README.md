@@ -7,6 +7,18 @@
 refers to the `ByteString` parsing input, which has pinned contiguous data, and also to the library internals, which avoids indirections and heap allocations
 whenever possible.
 
+## LLVM flag
+
+`flatparse` by default builds with the [`-fllvm` option](https://downloads.haskell.org/~ghc/latest/docs/html/users_guide/codegens.html#llvm-code-generator-fllvm). You can disable this by turning off the `llvm` package flag. Using a [`cabal.project` file](https://cabal.readthedocs.io/en/latest/cabal-project.html#cfg-field-constraints), this is most conveniently done by adding the following:
+
+    constraints: flatparse -llvm
+
+[Using `stack.yaml`](https://docs.haskellstack.org/en/stable/yaml_configuration/#flags), you can add the following:
+
+    flags:
+      flatparse:
+        llvm: false
+
 ## Features and non-features
 
 * __Excellent performance__. On microbenchmarks, `flatparse` is around 10 times faster than `attoparsec` or `megaparsec`. On larger examples with heavier use of source positions and spans and/or indentation parsing, the performance difference grows to 20-30 times. Compile times and exectuable sizes are also significantly better with `flatparse` than with `megaparsec` or `attoparsec`. `flatparse` internals make liberal use of unboxed tuples and GHC primops. As a result, pure validators (parsers returning `()`) in `flatparse` are not difficult to implement with zero heap allocation.
