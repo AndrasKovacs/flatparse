@@ -46,3 +46,4 @@ jobs:
       - run: cabal v2-haddock $CONFIG
       - run: cabal v2-sdist
       - run: cabal v2-bench
+      - run: cabal v2-test
