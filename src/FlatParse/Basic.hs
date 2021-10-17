@@ -41,13 +41,19 @@ module FlatParse.Basic (
   , switchWithPost
   , rawSwitchWithPost
   , satisfy
+  , satisfy_
   , satisfyASCII
   , satisfyASCII_
   , fusedSatisfy
+  , fusedSatisfy_
   , anyWord8
+  , anyWord8_
   , anyWord16
+  , anyWord16_
   , anyWord32
+  , anyWord32_
   , anyWord
+  , anyWord_
   , anyChar
   , anyChar_
   , anyCharASCII
@@ -419,6 +425,13 @@ satisfy f = Parser \fp eob s -> case runParser# anyChar fp eob s of
   _             -> Fail#
 {-#  inline satisfy #-}
 
+-- | Skip a UTF-8 `Char` for which a predicate holds.
+satisfy_ :: (Char -> Bool) -> Parser e ()
+satisfy_ f = Parser \fp eob s -> case runParser# anyChar fp eob s of
+  OK# c s | f c -> OK# () s
+  _             -> Fail#
+{-#  inline satisfy_ #-}
+
 -- | Parse an ASCII `Char` for which a predicate holds. Assumption: the predicate must only return
 --   `True` for ASCII-range characters. Otherwise this function might read a 128-255 range byte,
 --   thereby breaking UTF-8 decoding.
@@ -430,10 +443,15 @@ satisfyASCII f = Parser \fp eob s -> case eqAddr# eob s of
        | otherwise -> Fail#
 {-#  inline satisfyASCII #-}
 
--- | Parse an ASCII `Char` for which a predicate holds.
+-- | Skip an ASCII `Char` for which a predicate holds. Assumption: the predicate
+--   must only return `True` for ASCII-range characters.
 satisfyASCII_ :: (Char -> Bool) -> Parser e ()
-satisfyASCII_ f = () <$ satisfyASCII f
-{-# inline satisfyASCII_ #-}
+satisfyASCII_ f = Parser \fp eob s -> case eqAddr# eob s of
+  1# -> Fail#
+  _  -> case derefChar8# s of
+    c1 | f (C# c1) -> OK# () (plusAddr# s 1#)
+       | otherwise -> Fail#
+{-#  inline satisfyASCII_ #-}
 
 -- | This is a variant of `satisfy` which allows more optimization. We can pick four testing
 --   functions for the four cases for the possible number of bytes in the UTF-8 character. So in
@@ -486,6 +504,11 @@ fusedSatisfy f1 f2 f3 f4 = Parser \fp eob buf -> case eqAddr# eob buf of
                              _    -> Fail#
 {-# inline fusedSatisfy #-}
 
+-- | Skipping variant of `fusedSatisfy`.
+fusedSatisfy_ :: (Char -> Bool) -> (Char -> Bool) -> (Char -> Bool) -> (Char -> Bool) -> Parser e ()
+fusedSatisfy_ f1 f2 f3 f4 = () <$ fusedSatisfy f1 f2 f3 f4
+{-# inline fusedSatisfy_ #-}
+
 -- | Parse any `Word8`.
 anyWord8 :: Parser e Word8
 anyWord8 = Parser \fp eob buf -> case eqAddr# eob buf of
@@ -493,6 +516,11 @@ anyWord8 = Parser \fp eob buf -> case eqAddr# eob buf of
   _  -> case indexWord8OffAddr# buf 0# of
     w -> OK# (W8# w) (plusAddr# buf 1#)
 {-# inline anyWord8 #-}
+
+-- | Skip any `Word8`.
+anyWord8_ :: Parser e ()
+anyWord8_ = () <$ anyWord8
+{-# inline anyWord8_ #-}
 
 -- | Parse any `Word16`.
 anyWord16 :: Parser e Word16
@@ -502,6 +530,11 @@ anyWord16 = Parser \fp eob buf -> case 2# <=# minusAddr# eob buf of
     w -> OK# (W16# w) (plusAddr# buf 2#)
 {-# inline anyWord16 #-}
 
+-- | Skip any `Word16`.
+anyWord16_ :: Parser e ()
+anyWord16_ = () <$ anyWord16
+{-# inline anyWord16_ #-}
+
 -- | Parse any `Word32`.
 anyWord32 :: Parser e Word32
 anyWord32 = Parser \fp eob buf -> case 4# <=# minusAddr# eob buf of
@@ -510,6 +543,11 @@ anyWord32 = Parser \fp eob buf -> case 4# <=# minusAddr# eob buf of
     w -> OK# (W32# w) (plusAddr# buf 4#)
 {-# inline anyWord32 #-}
 
+-- | Skip any `Word32`.
+anyWord32_ :: Parser e ()
+anyWord32_ = () <$ anyWord32
+{-# inline anyWord32_ #-}
+
 -- | Parse any `Word`.
 anyWord :: Parser e Word
 anyWord = Parser \fp eob buf -> case 8# <=# minusAddr# eob buf of
@@ -517,6 +555,11 @@ anyWord = Parser \fp eob buf -> case 8# <=# minusAddr# eob buf of
   _  -> case indexWordOffAddr# buf 0# of
     w -> OK# (W# w) (plusAddr# buf 8#)
 {-# inline anyWord #-}
+
+-- | Skip any `Word`.
+anyWord_ :: Parser e ()
+anyWord_ = () <$ anyWord
+{-# inline anyWord_ #-}
 
 -- | Parse any UTF-8-encoded `Char`.
 anyChar :: Parser e Char
