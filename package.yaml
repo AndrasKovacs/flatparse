@@ -1,6 +1,6 @@
 
 name:        flatparse
-version:     0.3.0.2
+version:     0.3.0.3
 license:     MIT
 category:    Parsing
 synopsis:    High-performance parsing from strict bytestrings
@@ -24,8 +24,8 @@ tested-with:
 flags:
   llvm:
     description: use llvm for building
-    default: true
-    manual: false
+    default: false
+    manual : true
   dump:
     description: dump core, stg and cmm to files
     default: false

@@ -7,17 +7,15 @@
 refers to the `ByteString` parsing input, which has pinned contiguous data, and also to the library internals, which avoids indirections and heap allocations
 whenever possible.
 
-## LLVM flag
+### LLVM
 
-`flatparse` by default builds with the [`-fllvm` option](https://downloads.haskell.org/~ghc/latest/docs/html/users_guide/codegens.html#llvm-code-generator-fllvm). You can disable this by turning off the `llvm` package flag. Using a [`cabal.project` file](https://cabal.readthedocs.io/en/latest/cabal-project.html#cfg-field-constraints), this is most conveniently done by adding the following:
-
-    constraints: flatparse -llvm
-
-[Using `stack.yaml`](https://docs.haskellstack.org/en/stable/yaml_configuration/#flags), you can add the following:
-
-    flags:
-      flatparse:
-        llvm: false
+It is advised to build with [`-fllvm`
+option](https://downloads.haskell.org/~ghc/latest/docs/html/users_guide/codegens.html#llvm-code-generator-fllvm)
+when using this package, since that can result in significant speedups (20-40%
+from what I've seen). Additionally, you can enable `-fllvm` for `flatparse`
+specifically by enabling the `llvm` package flag. However, this has minor
+impact, since almost all parser code will be typically inlined into modules
+outside `flatparse`, and compiled there.
 
 ## Features and non-features
 
