@@ -6,7 +6,6 @@ import Data.Bits
 import Data.Char
 import Data.Foldable (foldl')
 import Data.Map (Map)
-import Data.Word
 import GHC.Exts
 import GHC.ForeignPtr
 
@@ -27,10 +26,26 @@ import GHC.Integer.GMP.Internals (Integer(..))
 shortInteger :: Int# -> Integer
 #if MIN_VERSION_base(4,15,0)
 shortInteger = IS
-{-# inline shortInteger #-}
 #else
 shortInteger = S#
 #endif
+{-# inline shortInteger #-}
+
+#if MIN_VERSION_base(4,16,0)
+indexWord8OffAddr s x = word8ToWord# (indexWord8OffAddr# s x)
+indexWord16OffAddr s x = word16ToWord# (indexWord16OffAddr# s x)
+indexWord32OffAddr s x = word32ToWord# (indexWord32OffAddr# s x)
+indexWord64OffAddr s x = indexWord64OffAddr# s x
+#else
+indexWord8OffAddr  = indexWord8OffAddr#
+indexWord16OffAddr = indexWord16OffAddr#
+indexWord32OffAddr = indexWord32OffAddr#
+indexWord64OffAddr = indexWord64OffAddr#
+#endif
+{-# inline indexWord8OffAddr #-}
+{-# inline indexWord16OffAddr #-}
+{-# inline indexWord32OffAddr #-}
+{-# inline indexWord64OffAddr #-}
 
 
 -- Char predicates
@@ -61,7 +76,7 @@ mul10 n = uncheckedIShiftL# n 3# +# uncheckedIShiftL# n 1#
 readInt' :: Int# -> Addr# -> Addr# -> (# Int#, Addr# #)
 readInt' acc s end = case eqAddr# s end of
   1# -> (# acc, s #)
-  _  -> case indexWord8OffAddr# s 0# of
+  _  -> case indexWord8OffAddr s 0# of
     w | 1# <- leWord# 48## w, 1# <- leWord# w 57## ->
       readInt' (mul10 acc +# (word2Int# w -# 48#)) (plusAddr# s 1#) end
     _ -> (# acc, s #)
@@ -128,9 +143,12 @@ unsafeSlice (B.PS (ForeignPtr addr fp) (I# start) (I# len))
 
 -- | Convert a `String` to an UTF-8-coded `B.ByteString`.
 packUTF8 :: String -> B.ByteString
-packUTF8 = B.pack . concatMap charToBytes
+packUTF8 str = B.pack $ do
+  c <- str
+  w <- charToBytes c
+  pure (fromIntegral w)
 
-charToBytes :: Char -> [Word8]
+charToBytes :: Char -> [Word]
 charToBytes c'
     | c <= 0x7f     = [fromIntegral c]
     | c <= 0x7ff    = [0xc0 .|. y, 0x80 .|. z]
@@ -144,16 +162,16 @@ charToBytes c'
     x = fromIntegral (unsafeShiftR c 12 .&. 0x3f)
     w = fromIntegral (unsafeShiftR c 18 .&. 0x7)
 
-strToBytes :: String -> [Word8]
+strToBytes :: String -> [Word]
 strToBytes = concatMap charToBytes
 {-# inline strToBytes #-}
 
-packBytes :: [Word8] -> Word
+packBytes :: [Word] -> Word
 packBytes = fst . foldl' go (0, 0) where
   go (acc, shift) w | shift == 64 = error "packWords: too many bytes"
   go (acc, shift) w = (unsafeShiftL (fromIntegral w) shift .|. acc, shift+8)
 
-splitBytes :: [Word8] -> ([Word8], [Word])
+splitBytes :: [Word] -> ([Word], [Word])
 splitBytes ws = case quotRem (length ws) 8 of
   (0, _) -> (ws, [])
   (_, r) -> (as, chunk8s bs) where
@@ -169,7 +187,7 @@ derefChar8# addr = indexCharOffAddr# addr 0#
 -- Switch trie compilation
 --------------------------------------------------------------------------------
 
-data Trie a = Branch !a !(Map Word8 (Trie a))
+data Trie a = Branch !a !(Map Word (Trie a))
   deriving Show
 
 type Rule = Maybe Int
@@ -180,7 +198,7 @@ nilTrie = Branch Nothing mempty
 updRule :: Int -> Maybe Int -> Maybe Int
 updRule rule = Just . maybe rule (min rule)
 
-insert :: Int -> [Word8] -> Trie Rule -> Trie Rule
+insert :: Int -> [Word] -> Trie Rule -> Trie Rule
 insert rule = go where
   go [] (Branch rule' ts) =
     Branch (updRule rule rule') ts
@@ -204,8 +222,8 @@ mindepths (Branch rule ts) =
       ts'
 
 data Trie' a
-  = Branch' !a !(Map Word8 (Trie' a))
-  | Path !a ![Word8] !(Trie' a)
+  = Branch' !a !(Map Word (Trie' a))
+  | Path !a ![Word] !(Trie' a)
   deriving Show
 
 -- | Compress linear paths.

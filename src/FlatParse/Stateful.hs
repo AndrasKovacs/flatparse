@@ -126,9 +126,7 @@ module FlatParse.Stateful (
 import Control.Monad
 import Data.Foldable
 import Data.Map (Map)
-import Data.Word
 import GHC.Exts
-import GHC.Word
 import Language.Haskell.TH
 import System.IO.Unsafe
 import GHC.ForeignPtr
@@ -208,9 +206,7 @@ instance Monad (Parser e) where
     OK# a s n -> runParser# (f a) fp r eob s n
     x         -> unsafeCoerce# x
   {-# inline (>>=) #-}
-  Parser fa >> Parser fb = Parser \fp !r eob s n -> case fa fp r eob s n of
-    OK# a s n -> fb fp r eob s n
-    x         -> unsafeCoerce# x
+  (>>) = (*>)
   {-# inline (>>) #-}
 
 -- | Higher-level boxed data type for parsing results.
@@ -370,14 +366,14 @@ eof = Parser \fp !r eob s n -> case eqAddr# eob s of
 char :: Char -> Q Exp
 char c = string [c]
 
--- | Read a `Word8`.
-byte :: Word8 -> Parser e ()
-byte (W8# w) = ensureBytes# 1 >> scan8# (W# w)
+-- | Read a byte.
+byte :: Word -> Parser e ()
+byte (W# w) = ensureBytes# 1 >> scan8# (W# w)
 {-# inline byte #-}
 
 -- | Read a sequence of bytes. This is a template function, you can use it as @$(bytes [3, 4, 5])@,
 --   for example, and the splice has type @Parser e ()@.
-bytes :: [Word8] -> Q Exp
+bytes :: [Word] -> Q Exp
 bytes bytes = do
   let !len = length bytes
   [| ensureBytes# len >> $(scanBytes# bytes) |]
@@ -540,25 +536,25 @@ fusedSatisfy_ :: (Char -> Bool) -> (Char -> Bool) -> (Char -> Bool) -> (Char -> 
 fusedSatisfy_ f1 f2 f3 f4 = () <$ fusedSatisfy f1 f2 f3 f4
 {-# inline fusedSatisfy_ #-}
 
--- | Parse any `Word8`.
-anyWord8 :: Parser e Word8
+-- | Parse any byte.
+anyWord8 :: Parser e Word
 anyWord8 = Parser \fp !r eob buf n -> case eqAddr# eob buf of
   1# -> Fail#
-  _  -> case indexWord8OffAddr# buf 0# of
-    w -> OK# (W8# w) (plusAddr# buf 1#) n
+  _  -> case indexWord8OffAddr buf 0# of
+    w -> OK# (W# w) (plusAddr# buf 1#) n
 {-# inline anyWord8 #-}
 
--- | Skip any `Word8`.
+-- | Skip any byte.
 anyWord8_ :: Parser e ()
 anyWord8_ = () <$ anyWord8
 {-# inline anyWord8_ #-}
 
 -- | Parse any `Word16`.
-anyWord16 :: Parser e Word16
+anyWord16 :: Parser e Word
 anyWord16 = Parser \fp !r eob buf n -> case 2# <=# minusAddr# eob buf of
   0# -> Fail#
-  _  -> case indexWord16OffAddr# buf 0# of
-    w -> OK# (W16# w) (plusAddr# buf 2#) n
+  _  -> case indexWord16OffAddr buf 0# of
+    w -> OK# (W# w) (plusAddr# buf 2#) n
 {-# inline anyWord16 #-}
 
 -- | Skip any `Word16`.
@@ -567,11 +563,11 @@ anyWord16_ = () <$ anyWord16
 {-# inline anyWord16_ #-}
 
 -- | Parse any `Word32`.
-anyWord32 :: Parser e Word32
+anyWord32 :: Parser e Word
 anyWord32 = Parser \fp !r eob buf n -> case 4# <=# minusAddr# eob buf of
   0# -> Fail#
-  _  -> case indexWord32OffAddr# buf 0# of
-    w -> OK# (W32# w) (plusAddr# buf 4#) n
+  _  -> case indexWord32OffAddr buf 0# of
+    w -> OK# (W# w) (plusAddr# buf 4#) n
 {-# inline anyWord32 #-}
 
 -- | Skip any `Word32`.
@@ -882,7 +878,7 @@ ensureBytes# (I# len) = Parser \fp !r eob s n ->
 --   enough bytes.
 scan8# :: Word -> Parser e ()
 scan8# (W# c) = Parser \fp !r eob s n ->
-  case indexWord8OffAddr# s 0# of
+  case indexWord8OffAddr s 0# of
     c' -> case eqWord# c c' of
       1# -> OK# () (plusAddr# s 1#) n
       _  -> Fail#
@@ -892,7 +888,7 @@ scan8# (W# c) = Parser \fp !r eob s n ->
 --   enough bytes.
 scan16# :: Word -> Parser e ()
 scan16# (W# c) = Parser \fp !r eob s n ->
-  case indexWord16OffAddr# s 0# of
+  case indexWord16OffAddr s 0# of
     c' -> case eqWord# c c' of
       1# -> OK# () (plusAddr# s 2#) n
       _  -> Fail#
@@ -902,7 +898,7 @@ scan16# (W# c) = Parser \fp !r eob s n ->
 --   enough bytes.
 scan32# :: Word -> Parser e ()
 scan32# (W# c) = Parser \fp !r eob s n ->
-  case indexWord32OffAddr# s 0# of
+  case indexWord32OffAddr s 0# of
     c' -> case eqWord# c c' of
       1# -> OK# () (plusAddr# s 4#) n
       _  -> Fail#
@@ -912,15 +908,15 @@ scan32# (W# c) = Parser \fp !r eob s n ->
 --   enough bytes.
 scan64# :: Word -> Parser e ()
 scan64# (W# c) = Parser \fp !r eob s n ->
-  case indexWord64OffAddr# s 0# of
+  case indexWord64OffAddr s 0# of
     c' -> case eqWord# c c' of
       1# -> OK# () (plusAddr# s 8#) n
       _  -> Fail#
 {-# inline scan64# #-}
 
 -- | Unsafely read and return a byte from the input. It's not checked that the input is non-empty.
-scanAny8# :: Parser e Word8
-scanAny8# = Parser \fp !r eob s n -> OK# (W8# (indexWord8OffAddr# s 0#)) (plusAddr# s 1#) n
+scanAny8# :: Parser e Word
+scanAny8# = Parser \fp !r eob s n -> OK# (W# (indexWord8OffAddr s 0#)) (plusAddr# s 1#) n
 {-# inline scanAny8# #-}
 
 scanPartial64# :: Int -> Word -> Parser e ()
@@ -942,7 +938,7 @@ setBack# (I# i) = Parser \fp !r eob s n ->
 
 -- | Template function, creates a @Parser e ()@ which unsafely scans a given
 --   sequence of bytes.
-scanBytes# :: [Word8] -> Q Exp
+scanBytes# :: [Word] -> Q Exp
 scanBytes# bytes = do
   let !(leading, w8s) = splitBytes bytes
       !scanw8s        = go w8s where

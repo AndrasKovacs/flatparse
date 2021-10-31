@@ -65,7 +65,7 @@ prettyError b e =
       pos      = case e of Imprecise pos e -> pos
                            Precise pos e   -> pos
       ls       = FP.lines b
-      [(l, c)] = posLineCols b [pos]
+      (l, c)   = head $ posLineCols b [pos]
       line     = if l < length ls then ls !! l else ""
       linum    = show l
       lpad     = map (const ' ') linum
