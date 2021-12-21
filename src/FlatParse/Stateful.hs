@@ -96,7 +96,7 @@ module FlatParse.Stateful (
   -- ** Position and span conversions
   , Basic.validPos
   , Basic.posLineCols
-  , Basic.unsafeSpanToByteString
+  , unsafeSpanToByteString
   , Basic.unsafeSlice
   , Basic.mkPos
   , Basic.lines
@@ -811,6 +811,14 @@ byteStringed (Parser f) g = Parser \fp !r eob s n -> case f fp r eob s n of
   x          -> unsafeCoerce# x
 {-# inline byteStringed #-}
 
+-- | Create a `B.ByteString` from a `Span`. The result is invalid is the `Span` points
+--   outside the current buffer, or if the `Span` start is greater than the end position.
+unsafeSpanToByteString :: Span -> Parser e B.ByteString
+unsafeSpanToByteString (Span l r) =
+  lookahead (setPos l >> byteStringOf (setPos r))
+{-# inline unsafeSpanToByteString #-}
+
+
 -- | Run a parser in a given input span. The input position and the `Int` state is restored after
 --   the parser is finished, so `inSpan` does not consume input and has no side effect.  Warning:
 --   this operation may crash if the given span points outside the current parsing buffer. It's
@@ -823,14 +831,6 @@ inSpan (Span s eob) (Parser f) = Parser \fp !r eob' s' n' ->
     x         -> unsafeCoerce# x
 {-# inline inSpan #-}
 
---------------------------------------------------------------------------------
-
--- | Create a `B.ByteString` from a `Span`. The result is invalid is the `Span` points
---   outside the current buffer, or if the `Span` start is greater than the end position.
-unsafeSpanToByteString :: Span -> Parser e B.ByteString
-unsafeSpanToByteString (Span l r) =
-  lookahead (setPos l >> byteStringOf (setPos r))
-{-# inline unsafeSpanToByteString #-}
 
 --------------------------------------------------------------------------------
 
