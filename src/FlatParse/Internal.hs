@@ -18,8 +18,10 @@ import qualified Data.Map.Strict as M
 
 #if MIN_VERSION_base(4,15,0)
 import GHC.Num.Integer (Integer(..))
+import GHC.Num.Natural (Natural(..), naturalFromBigNat# )
 #else
 import GHC.Integer.GMP.Internals (Integer(..))
+import GHC.Natural (Natural(..), naturalFromInteger, wordToNatural# )
 #endif
 
 -- Compatibility
@@ -55,38 +57,63 @@ isGreekLetter c = ('Α' <= c && c <= 'Ω') || ('α' <= c && c <= 'ω')
 -- Int(eger) reading
 --------------------------------------------------------------------------------
 
-mul10 :: Int# -> Int#
-mul10 n = uncheckedIShiftL# n 3# +# uncheckedIShiftL# n 1#
+mul10 :: Word# -> Word#
+mul10 n = uncheckedShiftL# n 3# `plusWord#` uncheckedShiftL# n 1#
 {-# inline mul10 #-}
 
-readInt' :: Int# -> Addr# -> Addr# -> (# Int#, Addr# #)
-readInt' acc s end = case eqAddr# s end of
+readAsciiWord' :: Word# -> Addr# -> Addr# -> (# Word#, Addr# #)
+readAsciiWord' acc s end = case eqAddr# s end of
   1# -> (# acc, s #)
   _  -> case indexWord8OffAddr''# s 0# of
     w | 1# <- leWord8# (wordToWord8''# 0x30##) w, 1# <- leWord8# w (wordToWord8''# 0x39##) ->
-      readInt' (mul10 acc +# (word2Int# (word8ToWord''# w) -# 0x30#)) (plusAddr# s 1#) end
+      readAsciiWord' (mul10 acc `plusWord#` (word8ToWord''# w `minusWord#` 0x30##)) (plusAddr# s 1#) end
     _ -> (# acc, s #)
 
-
--- | Read an `Int` from the input, as a non-empty digit sequence. The `Int` may
---   overflow in the result.
-readInt :: Addr# -> Addr# -> (# (##) | (# Int#, Addr# #) #)
-readInt eob s = case readInt' 0# s eob of
+-- | Read a non-empty ASCII digit sequence into a 'Word'. Will overflow on
+--   inputs over @maxBound Word@.
+readAsciiWord :: Addr# -> Addr# -> (# (##) | (# Word#, Addr# #) #)
+readAsciiWord eob s = case readAsciiWord' 0## s eob of
   (# n, s' #) | 1# <- eqAddr# s s' -> (# (##) | #)
               | otherwise          -> (# | (# n, s' #) #)
-{-# inline readInt #-}
+{-# inline readAsciiWord #-}
 
--- | Read an `Integer` from the input, as a non-empty digit sequence.
-readInteger :: ForeignPtrContents -> Addr# -> Addr# -> (# (##) | (# Integer, Addr# #) #)
-readInteger fp eob s = case readInt' 0# s eob of
-  (# n, s' #)
+readAsciiNatural :: ForeignPtrContents -> Addr# -> Addr# -> (# (##) | (# Natural, Addr# #) #)
+readAsciiNatural fp eob s = case readAsciiWord' 0## s eob of
+  (# n#, s' #)
+    -- no digits read
     | 1# <- eqAddr# s s'            -> (# (##) | #)
-    | 1# <- minusAddr# s' s <=# 18# -> (# | (# shortInteger n, s' #) #)
+
+    -- if number is 19 digits long or fewer, no overflow could have occurred,
+    -- because @maxBound :: Word@ has 20 digits
+    | 1# <- minusAddr# s' s <=# 19# ->
+#if MIN_VERSION_base(4,15,0)
+        (# | (# NS n#, s' #) #)
+#else
+        (# | (# wordToNatural# n#, s' #) #)
+#endif
+
+    -- else there might be an overflow: reparse with slower code from bytestring
+    -- the output can only be positive because we don't parse sign prefixes here
+    -- (so it would've failed with no digits read)
     | otherwise -> case BC8.readInteger (B.PS (ForeignPtr s fp) 0 (I# (minusAddr# s' s))) of
         Nothing     -> (# (##) | #)
-        Just (i, _) -> (# | (# i, s' #) #)
-{-# inline readInteger #-}
 
+#if MIN_VERSION_base(4,15,0)
+        -- 'Integer''s bignat doesn't go straight into 'Natural' due to
+        -- invariant differences, so need to use a helper
+        Just ((IP n#), _) -> (# | (# naturalFromBigNat# n#, s' #) #)
+
+        -- this actually can't occur because invariant for 'IS' means it has to
+        -- be 19 digits or less, but that case is covered above
+        Just ((IS i#), _) -> error "impossible" -- (# | (# NS (int2Word# i#), s' #) #)
+
+        -- negative result: just impossible
+        Just ((IN i#), _) -> error "impossible"
+#else
+        -- urgh, don't care about pre-9.2. use slow safe function
+        Just (i, _) -> (# | (# naturalFromInteger i , s' #) #)
+#endif
+{-# inline readAsciiNatural #-}
 
 -- Positions and spans
 --------------------------------------------------------------------------------

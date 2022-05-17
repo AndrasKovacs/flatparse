@@ -74,8 +74,8 @@ module FlatParse.Stateful (
   , isDigit
   , isGreekLetter
   , isLatinLetter
-  , FlatParse.Stateful.readInt
-  , FlatParse.Stateful.readInteger
+  , FlatParse.Stateful.readAsciiWord
+  , FlatParse.Stateful.readAsciiNatural
 
   -- ** Explicit-endianness machine integers
   , anyWord16le
@@ -162,6 +162,7 @@ import GHC.Int
 import Language.Haskell.TH
 import System.IO.Unsafe
 import GHC.ForeignPtr
+import Numeric.Natural
 
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Internal as B
@@ -641,21 +642,20 @@ anyCharASCII_ :: Parser e ()
 anyCharASCII_ = () <$ anyCharASCII
 {-# inline anyCharASCII_ #-}
 
--- | Read an `Int` from the input, as a non-empty digit sequence. The `Int` may
---   overflow in the result.
-readInt :: Parser e Int
-readInt = Parser \fp r eob s n -> case FlatParse.Internal.readInt eob s of
+-- | Read a non-empty ASCII base 10 digit sequence into a 'Word'. Overflows on
+--   strings representing values over @maxBound :: Word@.
+readAsciiWord :: Parser e Word
+readAsciiWord = Parser \fp r eob s n -> case FlatParse.Internal.readAsciiWord eob s of
   (# (##) | #)        -> Fail#
-  (# | (# i, s' #) #) -> OK# (I# i) s' n
-{-# inline readInt #-}
+  (# | (# aw, s' #) #) -> OK# (W# aw) s' n
+{-# inline readAsciiWord #-}
 
--- | Read an `Integer` from the input, as a non-empty digit sequence.
-readInteger :: Parser e Integer
-readInteger = Parser \fp r eob s n -> case FlatParse.Internal.readInteger fp eob s of
+-- | Read a non-empty ASCII base 10 digit sequence into a 'Natural'.
+readAsciiNatural :: Parser e Natural
+readAsciiNatural = Parser \fp r eob s n -> case FlatParse.Internal.readAsciiNatural fp eob s of
   (# (##) | #)        -> Fail#
-  (# | (# i, s' #) #) -> OK# i s' n
-{-# inline readInteger #-}
-
+  (# | (# an, s' #) #) -> OK# an s' n
+{-# inline readAsciiNatural #-}
 
 --------------------------------------------------------------------------------
 

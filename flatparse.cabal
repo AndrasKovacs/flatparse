@@ -105,6 +105,7 @@ test-suite spec
     , bytestring
     , flatparse
     , hspec
+    , quickcheck-instances >=0.3.26 && <0.4
   if flag(dump)
     ghc-options: -ddump-simpl -ddump-stg -ddump-cmm -dsuppress-all -dno-suppress-type-signatures -ddump-to-file
   if flag(llvm)

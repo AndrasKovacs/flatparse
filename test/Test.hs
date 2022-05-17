@@ -5,6 +5,7 @@ module Main where
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import qualified Data.Char
+import qualified Data.ByteString.Char8 as BC8
 import FlatParse.Basic
 import Test.HUnit
 import Test.Hspec
@@ -13,6 +14,8 @@ import Test.QuickCheck hiding ( (.&.) )
 import Data.Word
 import Data.Int
 import Data.Bits
+import Numeric.Natural
+import Test.QuickCheck.Instances.Natural()
 
 main :: IO ()
 main = hspec $ do
@@ -376,24 +379,28 @@ basicSpec = describe "FlatParse.Basic" $ do
             isLatinLetter c
               === (Data.Char.isAsciiUpper c || Data.Char.isAsciiLower c)
 
-    describe "readInt" $ do
-      it "round-trips on non-negative Ints" $
-        property $
-          \(NonNegative i) -> readInt `shouldParseWith` (packUTF8 (show i), i)
-
-      it "fails on non-integers" $ readInt `shouldParseFail` "foo"
-      it "fails on negative integers" $ readInt `shouldParseFail` "-5"
-      it "fails on empty input" $ readInt `shouldParseFail` ""
-
-    describe "readInteger" $ do
-      it "round-trips on non-negative Integers" $
-        property $
-          \(NonNegative i) ->
-            readInteger `shouldParseWith` (packUTF8 (show i), i)
-
-      it "fails on non-integers" $ readInteger `shouldParseFail` "foo"
-      it "fails on negative integers" $ readInteger `shouldParseFail` "-5"
-      it "fails on empty input" $ readInteger `shouldParseFail` ""
+    describe "readAsciiWord" $ do
+      prop "parses well-sized input" $ do
+        \(w :: Word) -> readAsciiWord `shouldParseWith` (bshow w, w)
+      it "has expected overflow behaviour" $ do
+        readAsciiWord `shouldParseWith` ("18446744073709551615", 18446744073709551615)
+        readAsciiWord `shouldParseWith` ("18446744073709551616", 0)
+      it "fails on negative integers" $ readAsciiWord `shouldParseFail` "-5"
+      it "fails on non-integers"      $ readAsciiWord `shouldParseFail` "foo"
+      it "fails on empty input"       $ readAsciiWord `shouldParseFail` ""
+    describe "readAsciiNatural" $ do
+      prop "parses any input" $ do
+        \(n :: Natural) -> readAsciiNatural `shouldParseWith` (bshow n, n)
+      -- have to check edge cases ourselves because quickcheck won't for Natural
+      it "parses regular input (n < 2^64)" $ do
+        readAsciiNatural `shouldParseWith` ("18446744073709551615", 18446744073709551615)
+      it "parses huge input (n > 2^64)" $ do
+        readAsciiNatural `shouldParseWith` ("18446744073709551616", 18446744073709551616)
+        readAsciiNatural `shouldParseWith` ("999999999999999999999999999999999"
+                                           , 999999999999999999999999999999999)
+      it "fails on negative integers" $ readAsciiWord `shouldParseFail` "-5"
+      it "fails on non-integers"      $ readAsciiWord `shouldParseFail` "foo"
+      it "fails on empty input"       $ readAsciiWord `shouldParseFail` ""
 
     describe "Explicit-endianness machine integers" $ do
       describe "Unsigned" $ do
@@ -431,19 +438,19 @@ basicSpec = describe "FlatParse.Basic" $ do
   describe "Combinators" $ do
     describe "Functor instance" $ do
       it "fmaps over the result" $
-        ((+ 2) <$> readInt) `shouldParseWith` ("2", 4)
+        ((+ 2) <$> readAsciiWord) `shouldParseWith` ("2", 4)
 
     describe "Applicative instance" $ do
       it "combines using <*>" $
-        ((+) <$> readInt <* $(string "+") <*> readInt)
+        ((+) <$> readAsciiWord <* $(string "+") <*> readAsciiWord)
           `shouldParseWith` ("2+3", 5)
 
     describe "Monad instance" $ do
       it "combines with a do block" $ do
         let parser = do
-              i <- readInt
+              i <- readAsciiWord
               $(string "+")
-              j <- readInt
+              j <- readAsciiWord
               pure (i + j)
         parser `shouldParseWith` ("2+3", 5)
 
@@ -466,28 +473,28 @@ basicSpec = describe "FlatParse.Basic" $ do
 
     describe "chainl" $ do
       it "parses a chain of numbers" $
-        chainl (+) readInt ($(char '+') *> readInt)
+        chainl (+) readAsciiWord ($(char '+') *> readAsciiWord)
           `shouldParseWith` ("1+2+3", 6)
 
       it "allows the right chain to be empty" $
-        chainl (+) readInt ($(char '+') *> readInt)
+        chainl (+) readAsciiWord ($(char '+') *> readAsciiWord)
           `shouldParseWith` ("1", 1)
 
       it "requires at least the leftmost parser to match" $
-        chainl (+) readInt ($(char '+') *> readInt)
+        chainl (+) readAsciiWord ($(char '+') *> readAsciiWord)
           `shouldParseFail` ""
 
     describe "chainr" $ do
       it "parses a chain of numbers" $
-        chainr (+) (readInt <* $(char '+')) readInt
+        chainr (+) (readAsciiWord <* $(char '+')) readAsciiWord
           `shouldParseWith` ("1+2+3", 6)
 
       it "allows the left chain to be empty" $
-        chainr (+) (readInt <* $(char '+')) readInt
+        chainr (+) (readAsciiWord <* $(char '+')) readAsciiWord
           `shouldParseWith` ("1", 1)
 
       it "requires at least the rightmost parser to match" $
-        chainr (+) (readInt <* $(char '+')) readInt
+        chainr (+) (readAsciiWord <* $(char '+')) readAsciiWord
           `shouldParseFail` ""
 
     describe "many" $ do
@@ -524,11 +531,11 @@ basicSpec = describe "FlatParse.Basic" $ do
 
     describe "notFollowedBy" $ do
       it "succeeds when it should" $
-        readInt `notFollowedBy` $(char '.') `shouldParsePartial` "123+5"
+        readAsciiWord `notFollowedBy` $(char '.') `shouldParsePartial` "123+5"
       it "fails when first parser doesn't match" $
-        readInt `notFollowedBy` $(char '.') `shouldParseFail` "a"
+        readAsciiWord `notFollowedBy` $(char '.') `shouldParseFail` "a"
       it "fails when followed by the wrong thing" $
-        readInt `notFollowedBy` $(char '.') `shouldParseFail` "123.0"
+        readAsciiWord `notFollowedBy` $(char '.') `shouldParseFail` "123.0"
 
   describe "Positions and spans" $ do
     describe "Pos Ord instance" $ do
@@ -598,6 +605,9 @@ basicSpec = describe "FlatParse.Basic" $ do
       pure ()
 
 --------------------------------------------------------------------------------
+
+bshow :: Show a => a -> ByteString
+bshow = BC8.pack . show
 
 w8AsByteString :: (Bits w, Num w, Integral w) => w -> ByteString
 w8AsByteString w = B.pack [b1]
