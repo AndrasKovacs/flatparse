@@ -577,17 +577,17 @@ basicSpec = describe "FlatParse.Basic" $ do
     describe "lines" $ do
       pure ()
 
-  describe "Getting the rest of the input" $ do
+  describe "Getting the rest of the input as a String" $ do
     describe "takeLine" $ do
       pure ()
 
     describe "traceLine" $ do
       pure ()
 
-    describe "takeRest" $ do
+    describe "takeRestStr" $ do
       pure ()
 
-    describe "traceRest" $ do
+    describe "traceRestStr" $ do
       pure ()
 
   describe "String conversions" $ do
