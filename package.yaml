@@ -91,6 +91,7 @@ tests:
       - bytestring
       - flatparse
       - hspec
+      - QuickCheck
     default-extensions:
       - ExtendedDefaultRules
     ghc-options:
