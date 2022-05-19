@@ -93,6 +93,7 @@ tests:
       - flatparse
       - hspec
       - QuickCheck
+      - quickcheck-instances
     default-extensions:
       - ExtendedDefaultRules
     ghc-options:
