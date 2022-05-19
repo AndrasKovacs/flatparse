@@ -97,6 +97,7 @@ module FlatParse.Basic (
   , some
   , some_
   , notFollowedBy
+  , isolate
 
   -- * Positions and spans
   , Pos(..)
@@ -732,6 +733,25 @@ some_ pa = pa >> many_ pa
 notFollowedBy :: Parser e a -> Parser e b -> Parser e a
 notFollowedBy p1 p2 = p1 <* fails p2
 {-# inline notFollowedBy #-}
+
+-- | @isolate n p@ runs the parser @p@ isolated to the next @n@ bytes. All
+--   isolated bytes must be consumed.
+--
+-- Throws a runtime error if given a negative integer.
+isolate :: Int -> Parser e a -> Parser e a
+isolate (I# n#) p = Parser \fp eob s ->
+  let s' = plusAddr# s n#
+  in  case n# <=# minusAddr# eob s of
+        1# -> case n# >=# 0# of
+          1# -> case runParser# p fp s' s of
+            OK# a s'' -> case eqAddr# s' s'' of
+              1# -> OK# a s''
+              _  -> Fail# -- isolated segment wasn't fully consumed
+            Fail#     -> Fail#
+            Err# e    -> Err# e
+          _  -> error "FlatParse.Basic.isolate: negative integer"
+        _  -> Fail# -- you tried to isolate more than we have left
+{-# inline isolate #-}
 
 
 --------------------------------------------------------------------------------
