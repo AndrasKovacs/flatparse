@@ -2,7 +2,7 @@
 
 module FlatParse.Internal where
 
-import FlatParse.Internal.Int
+import FlatParse.Internal.UnboxedNumerics
 
 import Data.Bits
 import Data.Char

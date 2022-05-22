@@ -47,7 +47,7 @@ library
       FlatParse.Examples.BasicLambda.Lexer
       FlatParse.Examples.BasicLambda.Parser
       FlatParse.Internal
-      FlatParse.Internal.Int
+      FlatParse.Internal.UnboxedNumerics
       FlatParse.Stateful
   other-modules:
       Paths_flatparse
