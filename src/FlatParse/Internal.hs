@@ -2,6 +2,8 @@
 
 module FlatParse.Internal where
 
+import FlatParse.Internal.UnboxedNumerics
+
 import Data.Bits
 import Data.Char
 import Data.Foldable (foldl')
@@ -30,22 +32,6 @@ shortInteger = IS
 shortInteger = S#
 #endif
 {-# inline shortInteger #-}
-
-#if MIN_VERSION_base(4,16,0)
-indexWord8OffAddr s x = word8ToWord# (indexWord8OffAddr# s x)
-indexWord16OffAddr s x = word16ToWord# (indexWord16OffAddr# s x)
-indexWord32OffAddr s x = word32ToWord# (indexWord32OffAddr# s x)
-indexWord64OffAddr s x = indexWord64OffAddr# s x
-#else
-indexWord8OffAddr  = indexWord8OffAddr#
-indexWord16OffAddr = indexWord16OffAddr#
-indexWord32OffAddr = indexWord32OffAddr#
-indexWord64OffAddr = indexWord64OffAddr#
-#endif
-{-# inline indexWord8OffAddr #-}
-{-# inline indexWord16OffAddr #-}
-{-# inline indexWord32OffAddr #-}
-{-# inline indexWord64OffAddr #-}
 
 
 -- Char predicates
@@ -76,9 +62,9 @@ mul10 n = uncheckedIShiftL# n 3# +# uncheckedIShiftL# n 1#
 readInt' :: Int# -> Addr# -> Addr# -> (# Int#, Addr# #)
 readInt' acc s end = case eqAddr# s end of
   1# -> (# acc, s #)
-  _  -> case indexWord8OffAddr s 0# of
-    w | 1# <- leWord# 48## w, 1# <- leWord# w 57## ->
-      readInt' (mul10 acc +# (word2Int# w -# 48#)) (plusAddr# s 1#) end
+  _  -> case indexWord8OffAddr''# s 0# of
+    w | 1# <- leWord8# (wordToWord8''# 0x30##) w, 1# <- leWord8# w (wordToWord8''# 0x39##) ->
+      readInt' (mul10 acc +# (word2Int# (word8ToWord''# w) -# 0x30#)) (plusAddr# s 1#) end
     _ -> (# acc, s #)
 
 

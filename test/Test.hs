@@ -1,9 +1,16 @@
+{-# LANGUAGE ScopedTypeVariables #-}
+
 module Main where
 
 import Data.ByteString (ByteString)
+import qualified Data.ByteString as B
 import FlatParse.Basic
 import Test.HUnit
 import Test.Hspec
+import Test.Hspec.QuickCheck
+import Data.Word
+import Data.Int
+import Data.Bits
 
 main :: IO ()
 main = hspec $ do
@@ -201,6 +208,39 @@ basicSpec = describe "FlatParse.Basic" $ do
     describe "readInteger" $ do
       pure ()
 
+    describe "Explicit-endianness machine integers" $ do
+      describe "Unsigned" $ do
+        prop "parses Word8s" $ do
+          \(w :: Word8)  -> anyWord8    `shouldParseWith` (w8AsByteString w, w)
+        prop "parses Word16s (LE)" $ do
+          \(w :: Word16) -> anyWord16le `shouldParseWith` (w16leAsByteString w, w)
+        prop "parses Word16s (BE)" $ do
+          \(w :: Word16) -> anyWord16be `shouldParseWith` (B.reverse (w16leAsByteString w), w)
+        prop "parses Word32s (LE)" $ do
+          \(w :: Word32) -> anyWord32le `shouldParseWith` (w32leAsByteString w, w)
+        prop "parses Word32s (BE)" $ do
+          \(w :: Word32) -> anyWord32be `shouldParseWith` (B.reverse (w32leAsByteString w), w)
+        prop "parses Word64s (LE)" $ do
+          \(w :: Word64) -> anyWord64le `shouldParseWith` (w64leAsByteString w, w)
+        prop "parses Word64s (BE)" $ do
+          \(w :: Word64) -> anyWord64be `shouldParseWith` (B.reverse (w64leAsByteString w), w)
+
+      describe "Signed" $ do
+        prop "parses Int8s" $ do
+          \(i :: Int8)   -> anyInt8     `shouldParseWith` (w8AsByteString i, i)
+        prop "parses Int16s (LE)" $ do
+          \(i :: Int16)  -> anyInt16le  `shouldParseWith` (w16leAsByteString i, i)
+        prop "parses Int16s (BE)" $ do
+          \(i :: Int16)  -> anyInt16be  `shouldParseWith` (B.reverse (w16leAsByteString i), i)
+        prop "parses Int32s (LE)" $ do
+          \(i :: Int32)  -> anyInt32le  `shouldParseWith` (w32leAsByteString i, i)
+        prop "parses Int32s (BE)" $ do
+          \(i :: Int32)  -> anyInt32be  `shouldParseWith` (B.reverse (w32leAsByteString i), i)
+        prop "parses Int64s (LE)" $ do
+          \(i :: Int64)  -> anyInt64le  `shouldParseWith` (w64leAsByteString i, i)
+        prop "parses Int64s (BE)" $ do
+          \(i :: Int64)  -> anyInt64be  `shouldParseWith` (B.reverse (w64leAsByteString i), i)
+
   describe "Combinators" $ do
     describe "(<|>)" $ do
       pure ()
@@ -295,3 +335,36 @@ basicSpec = describe "FlatParse.Basic" $ do
 
     describe "unpackUTF8" $ do
       pure ()
+
+--------------------------------------------------------------------------------
+
+w8AsByteString :: (Bits w, Num w, Integral w) => w -> ByteString
+w8AsByteString w = B.pack [b1]
+  where
+    b1 = fromIntegral $  w .&. 0x00FF
+
+w16leAsByteString :: (Bits w, Num w, Integral w) => w -> ByteString
+w16leAsByteString w = B.pack [b1, b2]
+  where
+    b1 = fromIntegral $  w .&. 0x00FF
+    b2 = fromIntegral $ (w .&. 0xFF00) `shiftR` 8
+
+w32leAsByteString :: (Bits w, Num w, Integral w) => w -> ByteString
+w32leAsByteString w = B.pack [b1, b2, b3, b4]
+  where
+    b1 = fromIntegral $  w .&. 0x000000FF
+    b2 = fromIntegral $ (w .&. 0x0000FF00) `shiftR` 8
+    b3 = fromIntegral $ (w .&. 0x00FF0000) `shiftR` 16
+    b4 = fromIntegral $ (w .&. 0xFF000000) `shiftR` 24
+
+w64leAsByteString :: (Bits w, Num w, Integral w) => w -> ByteString
+w64leAsByteString w = B.pack [b1, b2, b3, b4, b5, b6, b7, b8]
+  where
+    b1 = fromIntegral $  w .&. 0x00000000000000FF
+    b2 = fromIntegral $ (w .&. 0x000000000000FF00) `shiftR` 8
+    b3 = fromIntegral $ (w .&. 0x0000000000FF0000) `shiftR` 16
+    b4 = fromIntegral $ (w .&. 0x00000000FF000000) `shiftR` 24
+    b5 = fromIntegral $ (w .&. 0x000000FF00000000) `shiftR` 32
+    b6 = fromIntegral $ (w .&. 0x0000FF0000000000) `shiftR` 40
+    b7 = fromIntegral $ (w .&. 0x00FF000000000000) `shiftR` 48
+    b8 = fromIntegral $ (w .&. 0xFF00000000000000) `shiftR` 56
