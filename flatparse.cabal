@@ -5,7 +5,7 @@ cabal-version: 1.12
 -- see: https://github.com/sol/hpack
 
 name:           flatparse
-version:        0.3.2.0
+version:        0.3.3.0
 synopsis:       High-performance parsing from strict bytestrings
 description:    @Flatparse@ is a high-performance parsing library, focusing on programming languages and
                 human-readable data formats. See the README for more information:
@@ -23,7 +23,8 @@ tested-with:
     GHC == 8.6.5
   , GHC == 8.8.4
   , GHC == 8.10.7
-  , GHC == 9.0.1
+  , GHC == 9.0.2
+  , GHC == 9.2.2
 extra-source-files:
     README.md
 

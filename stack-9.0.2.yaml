@@ -1,0 +1,8 @@
+
+resolver: lts-19.8
+
+packages:
+- .
+
+ghc-options:
+    "$everything": -split-sections
