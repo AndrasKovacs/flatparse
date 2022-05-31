@@ -421,9 +421,10 @@ switch = switchWithPost Nothing
 
 {-|
 Switch expression with an optional first argument for performing a post-processing action after
-every successful branch matching. For example, if we have @ws :: Parser e ()@ for a
-whitespace parser, we might want to consume whitespace after matching on any of the switch
-cases. For that case, we can define a "lexeme" version of `switch` as follows.
+every successful branch matching, not including the default branch. For example, if we have
+@ws :: Parser e ()@ for a whitespace parser, we might want to consume whitespace after matching
+on any of the switch cases. For that case, we can define a "lexeme" version of `switch` as
+follows.
 
 @
   switch' :: Q Exp -> Q Exp
@@ -611,15 +612,16 @@ anyCharASCII_ :: Parser e ()
 anyCharASCII_ = () <$ anyCharASCII
 {-# inline anyCharASCII_ #-}
 
--- | Read an `Int` from the input, as a non-empty digit sequence. The `Int` may
---   overflow in the result.
+-- | Read a non-negative `Int` from the input, as a non-empty digit sequence.
+-- The `Int` may overflow in the result.
 readInt :: Parser e Int
 readInt = Parser \fp eob s -> case FlatParse.Internal.readInt eob s of
   (# (##) | #)        -> Fail#
   (# | (# n, s' #) #) -> OK# (I# n) s'
 {-# inline readInt #-}
 
--- | Read an `Integer` from the input, as a non-empty digit sequence.
+-- | Read a non-negative `Integer` from the input, as a non-empty digit
+-- sequence.
 readInteger :: Parser e Integer
 readInteger = Parser \fp eob s -> case FlatParse.Internal.readInteger fp eob s of
   (# (##) | #)        -> Fail#
