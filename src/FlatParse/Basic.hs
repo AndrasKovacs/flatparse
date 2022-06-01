@@ -33,6 +33,8 @@ module FlatParse.Basic (
 
   -- * Basic lexing and parsing
   , eof
+  , take
+  , takeRest
   , char
   , byte
   , bytes
@@ -95,6 +97,7 @@ module FlatParse.Basic (
   , some
   , some_
   , notFollowedBy
+  , isolate
 
   -- * Positions and spans
   , Pos(..)
@@ -116,11 +119,11 @@ module FlatParse.Basic (
   , mkPos
   , FlatParse.Basic.lines
 
-  -- * Getting the rest of the input
+  -- * Getting the rest of the input as a 'String'
   , takeLine
   , traceLine
-  , takeRest
-  , traceRest
+  , takeRestStr
+  , traceRestStr
 
   -- * `String` conversions
   , packUTF8
@@ -146,6 +149,8 @@ module FlatParse.Basic (
   , withAnyInt64#
 
   ) where
+
+import Prelude hiding ( take )
 
 import Control.Monad
 import Data.Foldable
@@ -359,6 +364,25 @@ eof = Parser \fp eob s -> case eqAddr# eob s of
   1# -> OK# () s
   _  -> Fail#
 {-# inline eof #-}
+
+-- | Read the given number of bytes as a 'ByteString'.
+--
+-- Throws a runtime error if given a negative integer.
+take :: Int -> Parser e B.ByteString
+take (I# n#) = Parser \fp eob s -> case n# <=# minusAddr# eob s of
+  1# -> -- have to runtime check for negative values, because they cause a hang
+    case n# >=# 0# of
+      1# -> OK# (B.PS (ForeignPtr s fp) 0 (I# n#)) (plusAddr# s n#)
+      _  -> error "FlatParse.Basic.take: negative integer"
+  _  -> Fail#
+{-# inline take #-}
+
+-- | Consume the rest of the input. May return the empty bytestring.
+takeRest :: Parser e B.ByteString
+takeRest = Parser \fp eob s ->
+  let n# = minusAddr# eob s
+  in  OK# (B.PS (ForeignPtr s fp) 0 (I# n#)) eob
+{-# inline takeRest #-}
 
 -- | Parse a UTF-8 character literal. This is a template function, you can use it as
 --   @$(char \'x\')@, for example, and the splice in this case has type @Parser e ()@.
@@ -710,6 +734,25 @@ notFollowedBy :: Parser e a -> Parser e b -> Parser e a
 notFollowedBy p1 p2 = p1 <* fails p2
 {-# inline notFollowedBy #-}
 
+-- | @isolate n p@ runs the parser @p@ isolated to the next @n@ bytes. All
+--   isolated bytes must be consumed.
+--
+-- Throws a runtime error if given a negative integer.
+isolate :: Int -> Parser e a -> Parser e a
+isolate (I# n#) p = Parser \fp eob s ->
+  let s' = plusAddr# s n#
+  in  case n# <=# minusAddr# eob s of
+        1# -> case n# >=# 0# of
+          1# -> case runParser# p fp s' s of
+            OK# a s'' -> case eqAddr# s' s'' of
+              1# -> OK# a s''
+              _  -> Fail# -- isolated segment wasn't fully consumed
+            Fail#     -> Fail#
+            Err# e    -> Err# e
+          _  -> error "FlatParse.Basic.isolate: negative integer"
+        _  -> Fail# -- you tried to isolate more than we have left
+{-# inline isolate #-}
+
 
 --------------------------------------------------------------------------------
 
@@ -858,19 +901,19 @@ traceLine :: Parser e String
 traceLine = lookahead takeLine
 
 -- | Take the rest of the input as a `String`. Assumes UTF-8 encoding.
-takeRest :: Parser e String
-takeRest = ((:) <$> anyChar <*> takeRest) <|> pure []
+takeRestStr :: Parser e String
+takeRestStr = ((:) <$> anyChar <*> takeRestStr) <|> pure []
 
 -- | Get the rest of the input as a `String`, but restore the parsing state. Assumes UTF-8 encoding.
 --   This can be used for debugging.
-traceRest :: Parser e String
-traceRest = lookahead traceRest
+traceRestStr :: Parser e String
+traceRestStr = lookahead traceRestStr
 
 --------------------------------------------------------------------------------
 
 -- | Convert an UTF-8-coded `B.ByteString` to a `String`.
 unpackUTF8 :: B.ByteString -> String
-unpackUTF8 str = case runParser takeRest str of
+unpackUTF8 str = case runParser takeRestStr str of
   OK a _ -> a
   _      -> error "unpackUTF8: invalid encoding"
 

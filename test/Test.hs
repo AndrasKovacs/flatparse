@@ -2,6 +2,8 @@
 
 module Main where
 
+import Prelude hiding (take)
+
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import qualified Data.Char
@@ -13,6 +15,7 @@ import Test.QuickCheck hiding ( (.&.) )
 import Data.Word
 import Data.Int
 import Data.Bits
+import Test.QuickCheck.Instances.ByteString()
 
 main :: IO ()
 main = hspec $ do
@@ -530,6 +533,14 @@ basicSpec = describe "FlatParse.Basic" $ do
       it "fails when followed by the wrong thing" $
         readInt `notFollowedBy` $(char '.') `shouldParseFail` "123.0"
 
+    describe "isolate" $ do
+      prop "isolate takeRest is identity" $ do
+        \(bs :: ByteString) ->
+          isolate (B.length bs) takeRest `shouldParseWith` (bs, bs)
+      prop "isolate take length is identity" $ do
+        \(bs :: ByteString) ->
+          isolate (B.length bs) (take (B.length bs)) `shouldParseWith` (bs, bs)
+
   describe "Positions and spans" $ do
     describe "Pos Ord instance" $ do
       pure ()
@@ -577,17 +588,17 @@ basicSpec = describe "FlatParse.Basic" $ do
     describe "lines" $ do
       pure ()
 
-  describe "Getting the rest of the input" $ do
+  describe "Getting the rest of the input as a String" $ do
     describe "takeLine" $ do
       pure ()
 
     describe "traceLine" $ do
       pure ()
 
-    describe "takeRest" $ do
+    describe "takeRestStr" $ do
       pure ()
 
-    describe "traceRest" $ do
+    describe "traceRestStr" $ do
       pure ()
 
   describe "String conversions" $ do
