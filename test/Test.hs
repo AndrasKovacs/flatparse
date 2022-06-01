@@ -2,8 +2,6 @@
 
 module Main where
 
-import Prelude hiding (take)
-
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import qualified Data.Char
@@ -534,12 +532,12 @@ basicSpec = describe "FlatParse.Basic" $ do
         readInt `notFollowedBy` $(char '.') `shouldParseFail` "123.0"
 
     describe "isolate" $ do
-      prop "isolate takeRest is identity" $ do
+      prop "isolate takeRestBs is identity" $ do
         \(bs :: ByteString) ->
-          isolate (B.length bs) takeRest `shouldParseWith` (bs, bs)
-      prop "isolate take length is identity" $ do
+          isolate (B.length bs) takeRestBs `shouldParseWith` (bs, bs)
+      prop "isolate takeBs length is identity" $ do
         \(bs :: ByteString) ->
-          isolate (B.length bs) (take (B.length bs)) `shouldParseWith` (bs, bs)
+          isolate (B.length bs) (takeBs (B.length bs)) `shouldParseWith` (bs, bs)
 
   describe "Positions and spans" $ do
     describe "Pos Ord instance" $ do
@@ -595,10 +593,10 @@ basicSpec = describe "FlatParse.Basic" $ do
     describe "traceLine" $ do
       pure ()
 
-    describe "takeRestStr" $ do
+    describe "takeRest" $ do
       pure ()
 
-    describe "traceRestStr" $ do
+    describe "traceRest" $ do
       pure ()
 
   describe "String conversions" $ do

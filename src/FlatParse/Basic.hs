@@ -33,8 +33,8 @@ module FlatParse.Basic (
 
   -- * Basic lexing and parsing
   , eof
-  , take
-  , takeRest
+  , takeBs
+  , takeRestBs
   , char
   , byte
   , bytes
@@ -122,8 +122,8 @@ module FlatParse.Basic (
   -- * Getting the rest of the input as a 'String'
   , takeLine
   , traceLine
-  , takeRestStr
-  , traceRestStr
+  , takeRest
+  , traceRest
 
   -- * `String` conversions
   , packUTF8
@@ -149,8 +149,6 @@ module FlatParse.Basic (
   , withAnyInt64#
 
   ) where
-
-import Prelude hiding ( take )
 
 import Control.Monad
 import Data.Foldable
@@ -368,21 +366,21 @@ eof = Parser \fp eob s -> case eqAddr# eob s of
 -- | Read the given number of bytes as a 'ByteString'.
 --
 -- Throws a runtime error if given a negative integer.
-take :: Int -> Parser e B.ByteString
-take (I# n#) = Parser \fp eob s -> case n# <=# minusAddr# eob s of
+takeBs :: Int -> Parser e B.ByteString
+takeBs (I# n#) = Parser \fp eob s -> case n# <=# minusAddr# eob s of
   1# -> -- have to runtime check for negative values, because they cause a hang
     case n# >=# 0# of
       1# -> OK# (B.PS (ForeignPtr s fp) 0 (I# n#)) (plusAddr# s n#)
       _  -> error "FlatParse.Basic.take: negative integer"
   _  -> Fail#
-{-# inline take #-}
+{-# inline takeBs #-}
 
 -- | Consume the rest of the input. May return the empty bytestring.
-takeRest :: Parser e B.ByteString
-takeRest = Parser \fp eob s ->
+takeRestBs :: Parser e B.ByteString
+takeRestBs = Parser \fp eob s ->
   let n# = minusAddr# eob s
   in  OK# (B.PS (ForeignPtr s fp) 0 (I# n#)) eob
-{-# inline takeRest #-}
+{-# inline takeRestBs #-}
 
 -- | Parse a UTF-8 character literal. This is a template function, you can use it as
 --   @$(char \'x\')@, for example, and the splice in this case has type @Parser e ()@.
@@ -901,19 +899,19 @@ traceLine :: Parser e String
 traceLine = lookahead takeLine
 
 -- | Take the rest of the input as a `String`. Assumes UTF-8 encoding.
-takeRestStr :: Parser e String
-takeRestStr = ((:) <$> anyChar <*> takeRestStr) <|> pure []
+takeRest :: Parser e String
+takeRest = ((:) <$> anyChar <*> takeRest) <|> pure []
 
 -- | Get the rest of the input as a `String`, but restore the parsing state. Assumes UTF-8 encoding.
 --   This can be used for debugging.
-traceRestStr :: Parser e String
-traceRestStr = lookahead traceRestStr
+traceRest :: Parser e String
+traceRest = lookahead traceRest
 
 --------------------------------------------------------------------------------
 
 -- | Convert an UTF-8-coded `B.ByteString` to a `String`.
 unpackUTF8 :: B.ByteString -> String
-unpackUTF8 str = case runParser takeRestStr str of
+unpackUTF8 str = case runParser takeRest str of
   OK a _ -> a
   _      -> error "unpackUTF8: invalid encoding"
 
