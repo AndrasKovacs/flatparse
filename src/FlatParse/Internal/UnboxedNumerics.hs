@@ -109,5 +109,7 @@ extendWord8# :: Word# -> Word8#
 extendWord8# w# = w#
 leWord8# :: Word8# -> Word8# -> Int#
 leWord8# w1# w2# = leWord# w1# w2#
+eqWord8# :: Word8# -> Word8# -> Int#
+eqWord8# w1# w2# = eqWord# w1# w2#
 
 #endif
