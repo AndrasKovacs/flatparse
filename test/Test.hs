@@ -78,6 +78,11 @@ basicSpec = describe "FlatParse.Basic" $ do
       it "succeeds at end of file" $ eof `shouldParse` ""
       it "fails with more input" $ eof `shouldParseFail` "more"
 
+    describe "skip" $ do
+      prop "skips to the end of input" $
+        \(bs :: ByteString) ->
+          (skip (B.length bs) >> eof) `shouldParse` bs
+
     describe "char" $ do
       it "succeeds on that char" $ $(char 'a') `shouldParse` "a"
       it "succeeds on multibyte char" $ $(char 'ȩ') `shouldParse` packUTF8 "ȩ"
@@ -396,6 +401,13 @@ basicSpec = describe "FlatParse.Basic" $ do
       it "fails on negative integers" $ readInteger `shouldParseFail` "-5"
       it "fails on empty input" $ readInteger `shouldParseFail` ""
 
+    describe "anyCString" $ do
+      prop "parses arbitrary null-terminated bytestrings" $
+        \(bs :: ByteString) ->
+          let bs' = B.snoc bs 0x00
+              expected = B.takeWhile (/= 0x00) bs'
+          in  anyCString `shouldParsePartialWith` (bs', expected)
+
     describe "Explicit-endianness machine integers" $ do
       describe "Unsigned" $ do
         prop "parses Word8s" $ do
@@ -605,6 +617,15 @@ basicSpec = describe "FlatParse.Basic" $ do
 
     describe "unpackUTF8" $ do
       pure ()
+
+  describe "Location & address primitives" $ do
+    it "valid lookaheadFromAddr# usage succeeds" $ do
+      -- use Int#/Int64# directly because Word8# -> Int# is annoying on old GHCs
+      let bs = B.pack [ 0x09, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+                      , 0xFF, 0x31, 0x32, 0x33, 0x00, 0xFF]
+          p = withAddr# $ \addr# -> withAnyInt64# $ \os# ->
+                  lookaheadFromAddr# addr# $ atSkip# os# $ anyCString
+      p `shouldParsePartialWith` (bs, "123")
 
 --------------------------------------------------------------------------------
 
