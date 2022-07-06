@@ -30,7 +30,7 @@ module FlatParse.Basic (
   , try
   , optional
   , optional_
-  , optioned
+  , withOption
   , cut
   , cutting
 
@@ -111,9 +111,9 @@ module FlatParse.Basic (
   , setPos
   , endPos
   , spanOf
-  , spanned
+  , withSpan
   , byteStringOf
-  , byteStringed
+  , withByteString
   , inSpan
 
   -- ** Position and span conversions
@@ -336,7 +336,7 @@ try (Parser f) = Parser \fp eob s -> case f fp eob s of
   x      -> x
 {-# inline try #-}
 
--- | Convert a parsing failure to a `Maybe`. If possible, use `optioned` instead.
+-- | Convert a parsing failure to a `Maybe`. If possible, use `withOption` instead.
 optional :: Parser e a -> Parser e (Maybe a)
 optional p = (Just <$> p) <|> pure Nothing
 {-# inline optional #-}
@@ -348,12 +348,12 @@ optional_ p = (() <$ p) <|> pure ()
 
 -- | CPS'd version of `optional`. This is usually more efficient, since it gets rid of the
 --   extra `Maybe` allocation.
-optioned :: Parser e a -> (a -> Parser e b) -> Parser e b -> Parser e b
-optioned (Parser f) just (Parser nothing) = Parser \fp eob s -> case f fp eob s of
+withOption :: Parser e a -> (a -> Parser e b) -> Parser e b -> Parser e b
+withOption (Parser f) just (Parser nothing) = Parser \fp eob s -> case f fp eob s of
   OK# a s -> runParser# (just a) fp eob s
   Fail#   -> nothing fp eob s
   Err# e  -> Err# e
-{-# inline optioned #-}
+{-# inline withOption #-}
 
 -- | Convert a parsing failure to an error.
 cut :: Parser e a -> e -> Parser e a
@@ -801,14 +801,14 @@ spanOf (Parser f) = Parser \fp eob s -> case f fp eob s of
 
 -- | Bind the result together with the span of the result. CPS'd version of `spanOf`
 --   for better unboxing.
-spanned :: Parser e a -> (a -> Span -> Parser e b) -> Parser e b
-spanned (Parser f) g = Parser \fp eob s -> case f fp eob s of
+withSpan :: Parser e a -> (a -> Span -> Parser e b) -> Parser e b
+withSpan (Parser f) g = Parser \fp eob s -> case f fp eob s of
   OK# a s' -> runParser# (g a (Span (addrToPos# eob s) (addrToPos# eob s'))) fp eob s'
   x        -> unsafeCoerce# x
-{-# inline spanned #-}
+{-# inline withSpan #-}
 
 -- | Return the `B.ByteString` consumed by a parser. Note: it's more efficient to use `spanOf` and
---   `spanned` instead.
+--   `withSpan` instead.
 byteStringOf :: Parser e a -> Parser e B.ByteString
 byteStringOf (Parser f) = Parser \fp eob s -> case f fp eob s of
   OK# a s' -> OK# (B.PS (ForeignPtr s fp) 0 (I# (minusAddr# s' s))) s'
@@ -816,17 +816,17 @@ byteStringOf (Parser f) = Parser \fp eob s -> case f fp eob s of
 {-# inline byteStringOf #-}
 
 -- | CPS'd version of `byteStringOf`. Can be more efficient, because the result is more eagerly unboxed
---   by GHC. It's more efficient to use `spanOf` or `spanned` instead.
-byteStringed :: Parser e a -> (a -> B.ByteString -> Parser e b) -> Parser e b
-byteStringed (Parser f) g = Parser \fp eob s -> case f fp eob s of
+--   by GHC. It's more efficient to use `spanOf` or `withSpan` instead.
+withByteString :: Parser e a -> (a -> B.ByteString -> Parser e b) -> Parser e b
+withByteString (Parser f) g = Parser \fp eob s -> case f fp eob s of
   OK# a s' -> runParser# (g a (B.PS (ForeignPtr s fp) 0 (I# (minusAddr# s' s)))) fp eob s'
   x        -> unsafeCoerce# x
-{-# inline byteStringed #-}
+{-# inline withByteString #-}
 
 -- | Run a parser in a given input span. The input position and the `Int` state is restored after
 --   the parser is finished, so `inSpan` does not consume input and has no side effect.  Warning:
 --   this operation may crash if the given span points outside the current parsing buffer. It's
---   always safe to use `inSpan` if the span comes from a previous `spanned` or `spanOf` call on
+--   always safe to use `inSpan` if the span comes from a previous `withSpan` or `spanOf` call on
 --   the current input.
 inSpan :: Span -> Parser e a -> Parser e a
 inSpan (Span s eob) (Parser f) = Parser \fp eob' s' ->

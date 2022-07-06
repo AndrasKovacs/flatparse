@@ -33,7 +33,7 @@ module FlatParse.Stateful (
   , try
   , optional
   , optional_
-  , optioned
+  , withOption
   , cut
   , cutting
 
@@ -112,9 +112,9 @@ module FlatParse.Stateful (
   , setPos
   , endPos
   , spanOf
-  , spanned
+  , withSpan
   , byteStringOf
-  , byteStringed
+  , withByteString
   , inSpan
 
   -- ** Position and span conversions
@@ -351,7 +351,7 @@ try (Parser f) = Parser \fp !r eob s n -> case f fp r eob s n of
   x      -> x
 {-# inline try #-}
 
--- | Convert a parsing failure to a `Maybe`. If possible, use `optioned` instead.
+-- | Convert a parsing failure to a `Maybe`. If possible, use `withOption` instead.
 optional :: Parser e a -> Parser e (Maybe a)
 optional p = (Just <$> p) <|> pure Nothing
 {-# inline optional #-}
@@ -363,12 +363,12 @@ optional_ p = (() <$ p) <|> pure ()
 
 -- | CPS'd version of `optional`. This is usually more efficient, since it gets rid of the
 --   extra `Maybe` allocation.
-optioned :: Parser e a -> (a -> Parser e b) -> Parser e b -> Parser e b
-optioned (Parser f) just (Parser nothing) = Parser \fp !r eob s n -> case f fp r eob s n of
+withOption :: Parser e a -> (a -> Parser e b) -> Parser e b -> Parser e b
+withOption (Parser f) just (Parser nothing) = Parser \fp !r eob s n -> case f fp r eob s n of
   OK# a s n -> runParser# (just a) fp r eob s n
   Fail#     -> nothing fp r eob s n
   Err# e    -> Err# e
-{-# inline optioned #-}
+{-# inline withOption #-}
 
 -- | Convert a parsing failure to an error.
 cut :: Parser e a -> e -> Parser e a
@@ -801,7 +801,7 @@ endPos = Pos 0
 {-# inline endPos #-}
 
 
--- | Return the consumed span of a parser. Use `spanned` if possible for better efficiency.
+-- | Return the consumed span of a parser. Use `withSpan` if possible for better efficiency.
 spanOf :: Parser e a -> Parser e Span
 spanOf (Parser f) = Parser \fp !r eob s n -> case f fp r eob s n of
   OK# a s' n -> OK# (Span (addrToPos# eob s) (addrToPos# eob s')) s' n
@@ -810,14 +810,14 @@ spanOf (Parser f) = Parser \fp !r eob s n -> case f fp r eob s n of
 
 -- | Bind the result together with the span of the result. CPS'd version of `spanOf`
 --   for better unboxing.
-spanned :: Parser e a -> (a -> Span -> Parser e b) -> Parser e b
-spanned (Parser f) g = Parser \fp !r eob s n -> case f fp r eob s n of
+withSpan :: Parser e a -> (a -> Span -> Parser e b) -> Parser e b
+withSpan (Parser f) g = Parser \fp !r eob s n -> case f fp r eob s n of
   OK# a s' n -> runParser# (g a (Span (addrToPos# eob s) (addrToPos# eob s'))) fp r eob s' n
   x          -> unsafeCoerce# x
-{-# inline spanned #-}
+{-# inline withSpan #-}
 
 -- | Return the `B.ByteString` consumed by a parser. Note: it's more efficient to use `spanOf` and
---   `spanned` instead.
+--   `withSpan` instead.
 byteStringOf :: Parser e a -> Parser e B.ByteString
 byteStringOf (Parser f) = Parser \fp !r eob s n -> case f fp r eob s n of
   OK# a s' n -> OK# (B.PS (ForeignPtr s fp) 0 (I# (minusAddr# s' s))) s' n
@@ -825,12 +825,12 @@ byteStringOf (Parser f) = Parser \fp !r eob s n -> case f fp r eob s n of
 {-# inline byteStringOf #-}
 
 -- | CPS'd version of `byteStringOf`. Can be more efficient, because the result is more eagerly unboxed
---   by GHC. It's more efficient to use `spanOf` or `spanned` instead.
-byteStringed :: Parser e a -> (a -> B.ByteString -> Parser e b) -> Parser e b
-byteStringed (Parser f) g = Parser \fp !r eob s n -> case f fp r eob s n of
+--   by GHC. It's more efficient to use `spanOf` or `withSpan` instead.
+withByteString :: Parser e a -> (a -> B.ByteString -> Parser e b) -> Parser e b
+withByteString (Parser f) g = Parser \fp !r eob s n -> case f fp r eob s n of
   OK# a s' n -> runParser# (g a (B.PS (ForeignPtr s fp) 0 (I# (minusAddr# s' s)))) fp r eob s' n
   x          -> unsafeCoerce# x
-{-# inline byteStringed #-}
+{-# inline withByteString #-}
 
 -- | Create a `B.ByteString` from a `Span`. The result is invalid is the `Span` points
 --   outside the current buffer, or if the `Span` start is greater than the end position.
@@ -843,7 +843,7 @@ unsafeSpanToByteString (Span l r) =
 -- | Run a parser in a given input span. The input position and the `Int` state is restored after
 --   the parser is finished, so `inSpan` does not consume input and has no side effect.  Warning:
 --   this operation may crash if the given span points outside the current parsing buffer. It's
---   always safe to use `inSpan` if the span comes from a previous `spanned` or `spanOf` call on
+--   always safe to use `inSpan` if the span comes from a previous `withSpan` or `spanOf` call on
 --   the current input.
 inSpan :: Span -> Parser e a -> Parser e a
 inSpan (Span s eob) (Parser f) = Parser \fp !r eob' s' n' ->

@@ -53,8 +53,8 @@ basicSpec = describe "FlatParse.Basic" $ do
       it "can succeed when argument missing" $ optional empty `shouldParse` ""
       it "propagates errors" $ optional (err "nope") `shouldParseErr` ""
 
-    describe "optioned" $ do
-      let opt p = optioned p (pure . reverse) (pure "bar")
+    describe "withOption" $ do
+      let opt p = withOption p (pure . reverse) (pure "bar")
       it "handles success" $ opt (pure "foo") `shouldParseWith` ("", "oof")
       it "handles failure" $ opt empty `shouldParseWith` ("", "bar")
       it "handles error" $ opt (err "nope") `shouldParseErr` ""

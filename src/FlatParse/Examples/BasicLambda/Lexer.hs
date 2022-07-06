@@ -117,7 +117,7 @@ testParser p str = case packUTF8 str of
 -- | Parse a line comment.
 lineComment :: Parser ()
 lineComment =
-  optioned anyWord8
+  withOption anyWord8
     (\case 10 -> ws
            _  -> lineComment)
     (pure ())
