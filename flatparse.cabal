@@ -73,7 +73,7 @@ library
     , integer-gmp
     , template-haskell
   if flag(dump)
-    ghc-options: -ddump-simpl -ddump-stg -ddump-cmm -dsuppress-all -dno-suppress-type-signatures -ddump-to-file
+    ghc-options: -ddump-simpl -ddump-stg-final -ddump-cmm -dsuppress-all -dno-suppress-type-signatures -ddump-to-file
   if flag(llvm)
     ghc-options: -fllvm
   default-language: Haskell2010
@@ -107,7 +107,7 @@ test-suite spec
     , hspec
     , quickcheck-instances
   if flag(dump)
-    ghc-options: -ddump-simpl -ddump-stg -ddump-cmm -dsuppress-all -dno-suppress-type-signatures -ddump-to-file
+    ghc-options: -ddump-simpl -ddump-stg-final -ddump-cmm -dsuppress-all -dno-suppress-type-signatures -ddump-to-file
   if flag(llvm)
     ghc-options: -fllvm
   default-language: Haskell2010
@@ -148,7 +148,7 @@ benchmark bench
     , parsec
     , primitive
   if flag(dump)
-    ghc-options: -ddump-simpl -ddump-stg -ddump-cmm -dsuppress-all -dno-suppress-type-signatures -ddump-to-file
+    ghc-options: -ddump-simpl -ddump-stg-final -ddump-cmm -dsuppress-all -dno-suppress-type-signatures -ddump-to-file
   if flag(llvm)
     ghc-options: -fllvm
   default-language: Haskell2010

@@ -61,7 +61,7 @@ when:
   - condition: flag(dump)
     ghc-options:
       - -ddump-simpl
-      - -ddump-stg
+      - -ddump-stg-final
       - -ddump-cmm
       - -dsuppress-all
       - -dno-suppress-type-signatures
