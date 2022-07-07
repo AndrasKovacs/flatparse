@@ -202,7 +202,7 @@ pattern Fail# = (# | (# #) | #)
 {-# complete OK#, Err#, Fail# #-}
 
 -- | @Parser r e a@ has a reader environment @r@, error type @e@ and a return type @a@.
-newtype Parser r e a = Parser {runParser# :: ForeignPtrContents -> Int -> Addr# -> Addr# -> Int# -> Res# e a}
+newtype Parser r e a = Parser {runParser# :: ForeignPtrContents -> r -> Addr# -> Addr# -> Int# -> Res# e a}
 
 instance Functor (Parser r e) where
   fmap f (Parser g) = Parser \fp !r eob s n -> case g fp r eob s n of
@@ -262,9 +262,8 @@ instance Functor (Result e) where
 
 --------------------------------------------------------------------------------
 
--- | Run a parser. The first `Int` argument is the reader environment, while the second one is the
---   state.
-runParser :: Parser r e a -> Int -> Int -> B.ByteString -> Result e a
+-- | Run a parser. The `Int` argument is the initial state.
+runParser :: Parser r e a -> r -> Int -> B.ByteString -> Result e a
 runParser (Parser f) !r (I# n) b@(B.PS (ForeignPtr _ fp) _ (I# len)) = unsafeDupablePerformIO do
   B.unsafeUseAsCString b \(Ptr buf) -> do
     let end = plusAddr# buf len
@@ -281,7 +280,7 @@ runParser (Parser f) !r (I# n) b@(B.PS (ForeignPtr _ fp) _ (I# len)) = unsafeDup
 -- | Run a parser on a `String` input. Reminder: @OverloadedStrings@ for `B.ByteString` does not
 --   yield a valid UTF-8 encoding! For non-ASCII `B.ByteString` literal input, use `runParserS` or
 --   `packUTF8` for testing.
-runParserS :: Parser r e a -> Int -> Int -> String -> Result e a
+runParserS :: Parser r e a -> r -> Int -> String -> Result e a
 runParserS pa r !n s = runParser pa r n (packUTF8 s)
 
 --------------------------------------------------------------------------------
@@ -304,12 +303,12 @@ modify f = Parser \fp !r eob s n ->
 {-# inline modify #-}
 
 -- | Query the environment.
-ask :: Parser r e Int
+ask :: Parser r e r
 ask = Parser \fp !r eob s n -> OK# r s n
 {-# inline ask #-}
 
 -- | Run a parser in a modified environment.
-local :: (Int -> Int) -> Parser r e a -> Parser r e a
+local :: (r -> r) -> Parser r e a -> Parser r e a
 local f (Parser g) = Parser \fp !r eob s n -> let !r' = f r in g fp r' eob s n
 {-# inline local #-}
 
@@ -883,7 +882,7 @@ traceRest = lookahead traceRest
 
 -- | Convert an UTF-8-coded `B.ByteString` to a `String`.
 unpackUTF8 :: B.ByteString -> String
-unpackUTF8 str = case runParser takeRest 0 0 str of
+unpackUTF8 str = case runParser takeRest () 0 str of
   OK a _ _ -> a
   _        -> error "unpackUTF8: invalid encoding"
 
