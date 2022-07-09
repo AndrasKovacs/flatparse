@@ -28,7 +28,7 @@ outside `flatparse`, and compiled there.
 * [`FlatParse.Basic`][basic] only supports the above features. If you don't need indentation
   parsing, this is sufficient.
 * [`FlatParse.Stateful`][stateful] additionally supports a built-in `Int` worth of internal state
-  and an additional `Int` reader environment. This can support a wide range of indentation parsing
+  and an additional custom reader environemnt. This can support a wide range of indentation parsing
   features. There is a slight overhead in performance and code size compared to `Basic`. However, in
   small parsers and microbenchmarks the difference between `Basic` and `Stateful` is often reduced
   to near zero by GHC and/or LLVM optimization.
