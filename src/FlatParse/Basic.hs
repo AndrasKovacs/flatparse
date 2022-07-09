@@ -907,8 +907,7 @@ lines str =
 -- | Parse the rest of the current line as a `String`. Assumes UTF-8 encoding,
 --   throws an error if the encoding is invalid.
 takeLine :: Parser e String
-takeLine =
-  branch eof (pure "") do
+takeLine = branch eof (pure "") do
   c <- anyChar
   case c of
     '\n' -> pure ""
@@ -921,12 +920,15 @@ traceLine = lookahead takeLine
 
 -- | Take the rest of the input as a `String`. Assumes UTF-8 encoding.
 takeRest :: Parser e String
-takeRest = ((:) <$> anyChar <*> takeRest) <|> pure []
+takeRest = branch eof (pure "") do
+  c <- anyChar
+  cs <- takeRest
+  pure (c:cs)
 
 -- | Get the rest of the input as a `String`, but restore the parsing state. Assumes UTF-8 encoding.
 --   This can be used for debugging.
 traceRest :: Parser e String
-traceRest = lookahead traceRest
+traceRest = lookahead takeRest
 
 --------------------------------------------------------------------------------
 

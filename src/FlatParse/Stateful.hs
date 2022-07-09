@@ -133,7 +133,7 @@ module FlatParse.Stateful (
 
   -- * `String` conversions
   , packUTF8
-  , unpackUTF8
+  , Basic.unpackUTF8
 
   -- * Internal functions
   , ensureBytes#
@@ -857,8 +857,7 @@ inSpan (Span s eob) (Parser f) = Parser \fp !r eob' s' n' ->
 -- | Parse the rest of the current line as a `String`. Assumes UTF-8 encoding,
 --   throws an error if the encoding is invalid.
 takeLine :: Parser r e String
-takeLine =
-  branch eof (pure "") do
+takeLine = branch eof (pure "") do
   c <- anyChar
   case c of
     '\n' -> pure ""
@@ -871,20 +870,17 @@ traceLine = lookahead takeLine
 
 -- | Take the rest of the input as a `String`. Assumes UTF-8 encoding.
 takeRest :: Parser r e String
-takeRest = ((:) <$> anyChar <*> takeRest) <|> pure []
+takeRest = branch eof (pure "") do
+  c <- anyChar
+  cs <- takeRest
+  pure (c:cs)
 
 -- | Get the rest of the input as a `String`, but restore the parsing state. Assumes UTF-8 encoding.
 --   This can be used for debugging.
 traceRest :: Parser r e String
-traceRest = lookahead traceRest
+traceRest = lookahead takeRest
 
 --------------------------------------------------------------------------------
-
--- | Convert an UTF-8-coded `B.ByteString` to a `String`.
-unpackUTF8 :: B.ByteString -> String
-unpackUTF8 str = case runParser takeRest () 0 str of
-  OK a _ _ -> a
-  _        -> error "unpackUTF8: invalid encoding"
 
 -- | Check that the input has at least the given number of bytes.
 ensureBytes# :: Int -> Parser r e ()
