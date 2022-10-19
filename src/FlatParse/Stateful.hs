@@ -77,6 +77,7 @@ module FlatParse.Stateful (
   , isGreekLetter
   , isLatinLetter
   , FlatParse.Stateful.readInt
+  , FlatParse.Stateful.readIntHex
   , FlatParse.Stateful.readInteger
 
   -- ** Explicit-endianness machine integers
@@ -669,6 +670,13 @@ readInt = Parser \fp r eob s n -> case FlatParse.Internal.readInt eob s of
   (# (##) | #)        -> Fail#
   (# | (# i, s' #) #) -> OK# (I# i) s' n
 {-# inline readInt #-}
+
+-- | Read an `Int` from the input, as a case-insensitive ASCII hecadecimal digit sequence. The `Int` may overflow in the result.
+readIntHex :: Parser r e Int
+readIntHex = Parser \fp r eob s n -> case FlatParse.Internal.readIntHex eob s of
+  (# (##) | #)        -> Fail#
+  (# | (# i, s' #) #) -> OK# (I# i) s' n
+{-# inline readIntHex #-}
 
 -- | Read an `Integer` from the input, as a non-empty digit sequence.
 readInteger :: Parser r e Integer

@@ -2,6 +2,7 @@
 
 module Main where
 
+import Numeric (showHex)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import qualified Data.Char
@@ -390,6 +391,19 @@ basicSpec = describe "FlatParse.Basic" $ do
       it "fails on non-integers" $ readInt `shouldParseFail` "foo"
       it "fails on negative integers" $ readInt `shouldParseFail` "-5"
       it "fails on empty input" $ readInt `shouldParseFail` ""
+
+    describe "readIntHex" $ do
+      it "round-trips on non-negative Ints, lowercase" $
+        property $
+          \(NonNegative i) -> readIntHex `shouldParseWith` (packUTF8 (showHex i ""), i)
+
+      it "round-trips on non-negative Ints, uppercase" $
+        property $
+          \(NonNegative i) -> readIntHex `shouldParseWith` (packUTF8 (Data.Char.toUpper <$> showHex i ""), i)
+
+      it "fails on non-integers" $ readIntHex `shouldParseFail` "quux"
+      it "fails on negative integers" $ readIntHex `shouldParseFail` "-5"
+      it "fails on empty input" $ readIntHex `shouldParseFail` ""
 
     describe "readInteger" $ do
       it "round-trips on non-negative Integers" $
