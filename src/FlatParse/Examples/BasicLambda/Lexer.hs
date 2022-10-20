@@ -8,7 +8,7 @@ demonstrates a simple but decently informative implementation of error message p
 
 module FlatParse.Examples.BasicLambda.Lexer where
 
-import FlatParse.Basic hiding (Parser, runParser, string, char, cut)
+import FlatParse.Basic hiding ( Parser, runParser )
 
 import qualified FlatParse.Basic as FP
 import qualified Data.ByteString as B
@@ -117,7 +117,7 @@ testParser p str = case packUTF8 str of
 -- | Parse a line comment.
 lineComment :: Parser ()
 lineComment =
-  withOption anyWord8
+  withOption getWord8
     (\case 10 -> ws
            _  -> lineComment)
     (pure ())
@@ -129,7 +129,7 @@ multilineComment = go (1 :: Int) where
   go n = $(switch [| case _ of
     "-}" -> go (n - 1)
     "{-" -> go (n + 1)
-    _    -> branch anyWord8 (go n) (pure ()) |])
+    _    -> branch getWord8 (go n) (pure ()) |])
 
 -- | Consume whitespace.
 ws :: Parser ()
@@ -173,7 +173,7 @@ isKeyword span = inSpan span do
 
 -- | Parse a non-keyword string.
 symbol :: String -> Q Exp
-symbol str = [| token $(FP.string str) |]
+symbol str = [| token $(FP.getStringOf str) |]
 
 -- | Parser a non-keyword string, throw precise error on failure.
 symbol' :: String -> Q Exp
@@ -181,7 +181,7 @@ symbol' str = [| $(symbol str) `cut'` Lit str |]
 
 -- | Parse a keyword string.
 keyword :: String -> Q Exp
-keyword str = [| token ($(FP.string str) `notFollowedBy` identChar) |]
+keyword str = [| token ($(FP.getStringOf str) `notFollowedBy` identChar) |]
 
 -- | Parse a keyword string, throw precise error on failure.
 keyword' :: String -> Q Exp

@@ -11,7 +11,7 @@ module FlatParse.Examples.BasicLambda.Parser where
 import Data.Char (ord)
 import qualified Data.ByteString as B
 
-import FlatParse.Basic hiding (Parser, runParser, string, char, cut)
+import FlatParse.Basic hiding ( Parser, cut )
 import FlatParse.Examples.BasicLambda.Lexer
 
 --------------------------------------------------------------------------------
