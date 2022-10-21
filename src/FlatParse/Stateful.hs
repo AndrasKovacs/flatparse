@@ -697,7 +697,8 @@ readInt = Parser \fp r eob s n -> case FlatParse.Internal.readInt eob s of
   (# | (# i, s' #) #) -> OK# (I# i) s' n
 {-# inline readInt #-}
 
--- | Read an `Int` from the input, as a case-insensitive ASCII hecadecimal digit sequence. The `Int` may overflow in the result.
+-- | Read an `Int` from the input, as a non-empty case-insensitive ASCII
+--   hexadecimal digit sequence. The `Int` may overflow in the result.
 readIntHex :: Parser r e Int
 readIntHex = Parser \fp r eob s n -> case FlatParse.Internal.readIntHex eob s of
   (# (##) | #)        -> Fail#

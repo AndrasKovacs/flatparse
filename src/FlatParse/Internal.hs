@@ -93,7 +93,8 @@ readIntHex' acc s end = case eqAddr# s end of
       -> readIntHex' (uncheckedIShiftL# acc 4# +# (word2Int# (word8ToWord''# w) -# 0x57#)) (plusAddr# s 1#) end
     _ -> (# acc, s #)
 
--- | Read an `Int` from the input, as a case-insensitive ASCII hecadecimal digit sequence. The `Int` may overflow in the result.
+-- | Read an `Int` from the input, as a non-empty case-insensitive ASCII
+--   hexadecimal digit sequence. The `Int` may overflow in the result.
 {-# INLINE readIntHex #-}
 readIntHex :: Addr# -> Addr# -> (# (##) | (# Int#, Addr# #) #)
 readIntHex eob s = case readIntHex' 0# s eob of
