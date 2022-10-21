@@ -76,6 +76,7 @@ module FlatParse.Basic (
   , FlatParse.Internal.isGreekLetter
   , FlatParse.Internal.isLatinLetter
   , FlatParse.Basic.readInt
+  , FlatParse.Basic.readIntHex
   , FlatParse.Basic.readInteger
   , anyCString
 
@@ -688,6 +689,13 @@ readInt = Parser \fp eob s -> case FlatParse.Internal.readInt eob s of
   (# (##) | #)        -> Fail#
   (# | (# n, s' #) #) -> OK# (I# n) s'
 {-# inline readInt #-}
+
+-- | Read an `Int` from the input, as a case-insensitive ASCII hecadecimal digit sequence. The `Int` may overflow in the result.
+readIntHex :: Parser e Int
+readIntHex = Parser \fp eob s -> case FlatParse.Internal.readIntHex eob s of
+  (# (##) | #)        -> Fail#
+  (# | (# n, s' #) #) -> OK# (I# n) s'
+{-# inline readIntHex #-}
 
 -- | Read a non-negative `Integer` from the input, as a non-empty digit
 -- sequence.

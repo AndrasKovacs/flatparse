@@ -76,6 +76,30 @@ readInt eob s = case readInt' 0# s eob of
               | otherwise          -> (# | (# n, s' #) #)
 {-# inline readInt #-}
 
+readIntHex' :: Int# -> Addr# -> Addr# -> (# Int#, Addr# #)
+readIntHex' acc s end = case eqAddr# s end of
+  1# -> (# acc, s #)
+  _  -> case indexWord8OffAddr''# s 0# of
+    w | 1# <- leWord8# (wordToWord8''# 0x30##) w
+      , 1# <- leWord8# w (wordToWord8''# 0x39##)
+      -> readIntHex' (uncheckedIShiftL# acc 4# +# (word2Int# (word8ToWord''# w) -# 0x30#)) (plusAddr# s 1#) end
+
+      | 1# <- leWord8# (wordToWord8''# 0x41##) w
+      , 1# <- leWord8# w (wordToWord8''# 0x46##)
+      -> readIntHex' (uncheckedIShiftL# acc 4# +# (word2Int# (word8ToWord''# w) -# 0x37#)) (plusAddr# s 1#) end
+
+      | 1# <- leWord8# (wordToWord8''# 0x61##) w
+      , 1# <- leWord8# w (wordToWord8''# 0x66##)
+      -> readIntHex' (uncheckedIShiftL# acc 4# +# (word2Int# (word8ToWord''# w) -# 0x57#)) (plusAddr# s 1#) end
+    _ -> (# acc, s #)
+
+-- | Read an `Int` from the input, as a case-insensitive ASCII hecadecimal digit sequence. The `Int` may overflow in the result.
+{-# INLINE readIntHex #-}
+readIntHex :: Addr# -> Addr# -> (# (##) | (# Int#, Addr# #) #)
+readIntHex eob s = case readIntHex' 0# s eob of
+    (# n, s' #) | 1# <- eqAddr# s s' -> (# (##) | #)
+                | otherwise          -> (# | (# n, s' #) #)
+
 -- | Read an `Integer` from the input, as a non-empty digit sequence.
 readInteger :: ForeignPtrContents -> Addr# -> Addr# -> (# (##) | (# Integer, Addr# #) #)
 readInteger fp eob s = case readInt' 0# s eob of
