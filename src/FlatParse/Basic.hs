@@ -426,24 +426,26 @@ bytes bytes = do
 byteString :: B.ByteString -> Parser e ()
 byteString (B.PS (ForeignPtr bs _) _ (I# len)) =
 
-  let go64 :: Addr# -> Addr# -> Addr# -> Res# e ()
-      go64 bs bsend s =
+  let go64 :: Addr# -> Addr# -> Addr# -> State# RealWorld -> (# Res# e (), State# RealWorld #)
+      go64 bs bsend s w =
         let bs' = plusAddr# bs 8# in
         case gtAddr# bs' bsend of
-          1# -> go8 bs bsend s
+          1# -> go8 bs bsend s w
           _  -> case eqWord# (indexWord64OffAddr# bs 0#) (indexWord64OffAddr# s 0#) of
-            1# -> go64 bs' bsend (plusAddr# s 8#)
-            _  -> Fail#
+            1# -> go64 bs' bsend (plusAddr# s 8#) w
+            _  -> (# Fail#, w #)
 
-      go8 :: Addr# -> Addr# -> Addr# -> Res# e ()
-      go8 bs bsend s = case ltAddr# bs bsend of
+      go8 :: Addr# -> Addr# -> Addr# -> State# RealWorld -> (# Res# e (), State# RealWorld #)
+      go8 bs bsend s w = case ltAddr# bs bsend of
         1# -> case eqWord8'# (indexWord8OffAddr# bs 0#) (indexWord8OffAddr# s 0#) of
-          1# -> go8 (plusAddr# bs 1#) bsend (plusAddr# s 1#)
-          _  -> Fail#
-        _  -> OK# () s
+          1# -> go8 (plusAddr# bs 1#) bsend (plusAddr# s 1#) w
+          _  -> (# Fail#, w #)
+        _  -> (# OK# () s, w #)
 
   in Parser \fp eob s -> case len <=# minusAddr# eob s of
-       1# -> go64 bs (plusAddr# bs len) s
+       1# -> runRW# \w -> case go64 bs (plusAddr# bs len) s w of
+               (# res, w #) -> case touch# bs w of
+                 w -> res
        _  -> Fail#
 {-# inline byteString #-}
 
