@@ -424,7 +424,7 @@ bytes bytes = do
 
 -- | Parse a given `B.ByteString`. If the bytestring is statically known, consider using 'bytes' instead.
 byteString :: B.ByteString -> Parser e ()
-byteString (B.PS (ForeignPtr bs _) _ (I# len)) =
+byteString (B.PS (ForeignPtr bs fcontent) _ (I# len)) =
 
   let go64 :: Addr# -> Addr# -> Addr# -> State# RealWorld -> (# Res# e (), State# RealWorld #)
       go64 bs bsend s w =
@@ -444,7 +444,7 @@ byteString (B.PS (ForeignPtr bs _) _ (I# len)) =
 
   in Parser \fp eob s -> case len <=# minusAddr# eob s of
        1# -> runRW# \w -> case go64 bs (plusAddr# bs len) s w of
-               (# res, w #) -> case touch# bs w of
+               (# res, w #) -> case touch# fcontent w of
                  w -> res
        _  -> Fail#
 {-# inline byteString #-}
