@@ -42,6 +42,7 @@ module FlatParse.Basic (
   , char
   , byte
   , bytes
+  , byteString
   , string
   , switch
   , switchWithPost
@@ -414,11 +415,35 @@ byte w = ensureBytes# 1 >> scan8# w
 {-# inline byte #-}
 
 -- | Read a sequence of bytes. This is a template function, you can use it as @$(bytes [3, 4, 5])@,
---   for example, and the splice has type @Parser e ()@.
+--   for example, and the splice has type @Parser e ()@. For a non-TH variant see 'byteString'.
 bytes :: [Word] -> Q Exp
 bytes bytes = do
   let !len = length bytes
   [| ensureBytes# len >> $(scanBytes# bytes) |]
+
+-- | Parse a given bytestring. If the bytestring is statically known, consider using 'bytes' instead.
+byteString :: B.ByteString -> Parser e ()
+byteString (B.PS (ForeignPtr fp _) _ len) = ensureBytes# len >> go64 fp 0#
+  where
+    go64 :: Addr# -> Int# -> Parser e ()
+    go64 addr n | tagToEnum# (n <# w64s)
+                = do scan64# (W# (indexWord64OffAddr# addr 0#))
+                     go64 (addr `plusAddr#` 8#) (n +# 1#)
+                | otherwise = go32 addr w32s
+
+    go32 addr 1# = scan32# (W32# (indexWord32OffAddr# addr 0#)) >> go16 (addr `plusAddr#` 4#) w16s
+    go32 addr _  = go16 addr w16s
+
+
+    go16 addr 1# = scan16# (W16# (indexWord16OffAddr# addr 0#)) >> go8 (addr `plusAddr#` 2#) w8s
+    go16 addr _  = go8 addr w8s
+
+    go8 addr 1# = scan8# (W8# (indexWord8OffAddr# addr 0#))
+    go8 _    _  = pure ()
+
+    !(I# w64s,I# r64) = len `quotRem` 8
+    !(I# w32s,I# r32) = I# r64 `quotRem` 4
+    !(I# w16s,I# w8s) = I# r32 `quotRem` 2
 
 -- | Parse a UTF-8 string literal. This is a template function, you can use it as @$(string "foo")@,
 --   for example, and the splice has type @Parser e ()@.

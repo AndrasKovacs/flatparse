@@ -105,6 +105,17 @@ basicSpec = describe "FlatParse.Basic" $ do
       it "fails when out of space" $
         $(bytes [1, 2, 3, 4]) `shouldParseFail` "\x01\x02\x03"
 
+    describe "byteString" $ do
+      it "succeeds on those bytes" $
+        byteString (B.pack [1, 2, 3, 4]) `shouldParse` "\x01\x02\x03\x04"
+      it "succeeds on high bytestring" $
+        byteString (B.pack [0xf1, 0xf2, 0xf3, 0xf4]) `shouldParse` "\xf1\xf2\xf3\xf4"
+      it "fails on wrong bytestring" $
+        byteString (B.pack [1, 2, 5, 4]) `shouldParseFail` "\x01\x02\x03\x04"
+      it "fails when out of space" $
+        byteString (B.pack [1, 2, 3, 4]) `shouldParseFail` "\x01\x02\x03"
+
+
     describe "string" $ do
       it "succeeds on the right string" $ $(string "foo") `shouldParse` "foo"
       it "succeeds with multibyte chars" $
