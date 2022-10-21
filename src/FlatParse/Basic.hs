@@ -421,29 +421,30 @@ bytes bytes = do
   let !len = length bytes
   [| ensureBytes# len >> $(scanBytes# bytes) |]
 
--- | Parse a given bytestring. If the bytestring is statically known, consider using 'bytes' instead.
+-- | Parse a given `B.ByteString`. If the bytestring is statically known, consider using 'bytes' instead.
 byteString :: B.ByteString -> Parser e ()
-byteString (B.PS (ForeignPtr fp _) _ len) = ensureBytes# len >> go64 fp 0#
-  where
-    go64 :: Addr# -> Int# -> Parser e ()
-    go64 addr n | tagToEnum# (n <# w64s)
-                = do scan64# (W# (indexWord64OffAddr# addr 0#))
-                     go64 (addr `plusAddr#` 8#) (n +# 1#)
-                | otherwise = go32 addr w32s
+byteString (B.PS (ForeignPtr bs _) _ (I# len)) =
 
-    go32 addr 1# = scan32# (W32# (indexWord32OffAddr# addr 0#)) >> go16 (addr `plusAddr#` 4#) w16s
-    go32 addr _  = go16 addr w16s
+  let go64 :: Addr# -> Addr# -> Addr# -> Res# e ()
+      go64 bs bsend s =
+        let bs' = plusAddr# bs 8# in
+        case gtAddr# bs' bsend of
+          1# -> go8 bs bsend s
+          _  -> case eqWord# (indexWord64OffAddr# bs 0#) (indexWord64OffAddr# s 0#) of
+            1# -> go64 bs' bsend (plusAddr# s 8#)
+            _  -> Fail#
 
+      go8 :: Addr# -> Addr# -> Addr# -> Res# e ()
+      go8 bs bsend s = case ltAddr# bs bsend of
+        1# -> case eqWord8'# (indexWord8OffAddr# bs 0#) (indexWord8OffAddr# s 0#) of
+          1# -> go8 (plusAddr# bs 1#) bsend (plusAddr# s 1#)
+          _  -> Fail#
+        _  -> OK# () s
 
-    go16 addr 1# = scan16# (W16# (indexWord16OffAddr# addr 0#)) >> go8 (addr `plusAddr#` 2#) w8s
-    go16 addr _  = go8 addr w8s
-
-    go8 addr 1# = scan8# (W8# (indexWord8OffAddr# addr 0#))
-    go8 _    _  = pure ()
-
-    !(I# w64s,I# r64) = len `quotRem` 8
-    !(I# w32s,I# r32) = I# r64 `quotRem` 4
-    !(I# w16s,I# w8s) = I# r32 `quotRem` 2
+  in Parser \fp eob s -> case len <=# minusAddr# eob s of
+       1# -> go64 bs (plusAddr# bs len) s
+       _  -> Fail#
+{-# inline byteString #-}
 
 -- | Parse a UTF-8 string literal. This is a template function, you can use it as @$(string "foo")@,
 --   for example, and the splice has type @Parser e ()@.
