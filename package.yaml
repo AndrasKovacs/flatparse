@@ -11,8 +11,7 @@ bug-reports: https://github.com/AndrasKovacs/flatparse/issues
 github:      AndrasKovacs/flatparse
 
 description: |
-  @Flatparse@ is a high-performance parsing library, focusing on programming languages and
-  human-readable data formats. See the README for more information:
+  @Flatparse@ is a high-performance parsing library for strict bytestring input. See the README for more information:
   <https://github.com/AndrasKovacs/flatparse>.
 
 tested-with:
