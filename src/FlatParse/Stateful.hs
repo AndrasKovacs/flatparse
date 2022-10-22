@@ -80,6 +80,7 @@ module FlatParse.Stateful (
   , FlatParse.Stateful.readInt
   , FlatParse.Stateful.readIntHex
   , FlatParse.Stateful.readInteger
+  , anyCString
 
   -- ** Explicit-endianness machine integers
   , anyWord16le
@@ -139,14 +140,12 @@ module FlatParse.Stateful (
 
   -- * Internal functions
   , ensureBytes#
-  , scan8#
-  , scan16#
-  , scan32#
-  , scan64#
-  , scanAny8#
-  , scanBytes#
-  , setBack#
 
+  -- ** Unboxed arguments
+  , takeBs#
+  , atSkip#
+
+  -- *** Machine integer continuation parsers
   , withAnyWord8#
   , withAnyWord16#
   , withAnyWord32#
@@ -155,6 +154,22 @@ module FlatParse.Stateful (
   , withAnyInt16#
   , withAnyInt32#
   , withAnyInt64#
+
+  -- ** Location & address primitives
+  , setBack#
+  , withAddr#
+  , takeBsOffAddr#
+  , lookaheadFromAddr#
+  , atAddr#
+
+  -- ** Unsafe
+  , anyCStringUnsafe
+  , scan8#
+  , scan16#
+  , scan32#
+  , scan64#
+  , scanAny8#
+  , scanBytes#
 
   ) where
 
@@ -1304,3 +1319,115 @@ anyInt64le = anyInt64
 anyInt64be :: Parser r e Int64
 anyInt64be = withAnyWord64# (\w# -> pure (I64# (word2Int# (byteSwap# w#))))
 {-# inline anyInt64be #-}
+
+--------------------------------------------------------------------------------
+
+-- | Skip forward @n@ bytes and run the given parser. Fails if fewer than @n@
+--   bytes are available.
+--
+-- Throws a runtime error if given a negative integer.
+atSkip# :: Int# -> Parser r e a -> Parser r e a
+atSkip# os# (Parser p) = Parser \fp !r eob s n -> case os# <=# minusAddr# eob s of
+  1# -> case os# >=# 0# of
+    1# -> p fp r eob (plusAddr# s os#) n
+    _  -> error "FlatParse.Basic.atSkip#: negative integer"
+  _  -> Fail#
+{-# inline atSkip# #-}
+
+-- | Read the given number of bytes as a 'ByteString'.
+--
+-- Throws a runtime error if given a negative integer.
+takeBs# :: Int# -> Parser r e B.ByteString
+takeBs# n# = Parser \fp !r eob s n -> case n# <=# minusAddr# eob s of
+  1# -> -- have to runtime check for negative values, because they cause a hang
+    case n# >=# 0# of
+      1# -> OK# (B.PS (ForeignPtr s fp) 0 (I# n#)) (plusAddr# s n#) n
+      _  -> error "FlatParse.Basic.takeBs: negative integer"
+  _  -> Fail#
+{-# inline takeBs# #-}
+
+--------------------------------------------------------------------------------
+
+-- | Run a parser, passing it the current address the parser is at.
+--
+-- Useful for parsing offset-based data tables. For example, you may use this to
+-- save the base address to use together with various 0-indexed offsets.
+withAddr# :: (Addr# -> Parser r e a) -> Parser r e a
+withAddr# p = Parser \fp !r eob s n -> runParser# (p s) fp r eob s n
+{-# inline withAddr# #-}
+
+-- | @takeBsOffAddr# addr# offset# len#@ moves to @addr#@, skips @offset#@
+--   bytes, reads @len#@ bytes into a 'ByteString', and restores the original
+--   address.
+--
+-- The 'Addr#' should be from 'withAddr#'.
+--
+-- Useful for parsing offset-based data tables. For example, you may use this
+-- together with 'withAddr#' to jump to an offset in your input and read some
+-- data.
+takeBsOffAddr# :: Addr# -> Int# -> Int# -> Parser r e B.ByteString
+takeBsOffAddr# addr# offset# len# =
+    lookaheadFromAddr# addr# $ atSkip# offset# $ takeBs# len#
+{-# inline takeBsOffAddr# #-}
+
+-- | 'lookahead', but specify the address to lookahead from.
+--
+-- The 'Addr#' should be from 'withAddr#'.
+lookaheadFromAddr# :: Addr# -> Parser r e a -> Parser r e a
+lookaheadFromAddr# s = lookahead . atAddr# s
+{-# inline lookaheadFromAddr# #-}
+
+-- | Run a parser at the given address.
+--
+-- The 'Addr#' should be from 'withAddr#'.
+--
+-- This is a highly internal function -- you likely want 'lookaheadFromAddr#',
+-- which will reset the address after running the parser.
+atAddr# :: Addr# -> Parser r e a -> Parser r e a
+atAddr# s (Parser p) = Parser \fp !r eob _ n -> p fp r eob s n
+{-# inline atAddr# #-}
+
+--------------------------------------------------------------------------------
+
+-- | Read a null-terminated bytestring (a C-style string).
+--
+-- Consumes the null terminator.
+anyCString :: Parser r e B.ByteString
+anyCString = Parser \fp !r eob s n -> go' fp eob s n
+  where
+    go' fp eob s0 n = go 0# s0 n
+      where
+        go n# s n = case eqAddr# eob s of
+          1# -> Fail#
+          _  ->
+            let s' = plusAddr# s 1#
+            -- TODO below is a candidate for improving with ExtendedLiterals!
+            in  case eqWord8# (indexWord8OffAddr''# s 0#) (wordToWord8''# 0##) of
+                  1# -> OK# (B.PS (ForeignPtr s0 fp) 0 (I# n#)) s' n
+                  _  -> go (n# +# 1#) s' n
+{-# inline anyCString #-}
+
+-- | Read a null-terminated bytestring (a C-style string), where the bytestring
+--   is known to be null-terminated somewhere in the input.
+--
+-- Highly unsafe. Unless you have a guarantee that the string will be null
+-- terminated before the input ends, use 'anyCString' instead. Honestly, I'm not
+-- sure if this is a good function to define. But here it is.
+--
+-- Fails on GHC versions older than 9.0, since we make use of the
+-- 'cstringLength#' primop introduced in GHC 9.0, and we aren't very useful
+-- without it.
+--
+-- Consumes the null terminator.
+anyCStringUnsafe :: Parser r e B.ByteString
+{-# inline anyCStringUnsafe #-}
+#if MIN_VERSION_base(4,15,0)
+anyCStringUnsafe = Parser \fp !r eob s n ->
+  case eqAddr# eob s of
+    1# -> Fail#
+    _  -> let n#  = cstringLength# s
+              s'# = plusAddr# s (n# +# 1#)
+           in OK# (B.PS (ForeignPtr s fp) 0 (I# n#)) s'# n
+#else
+anyCStringUnsafe = error "Flatparse.Basic.anyCStringUnsafe: requires GHC 9.0 / base-4.15, not available on this compiler"
+#endif

@@ -143,14 +143,7 @@ module FlatParse.Basic (
   , takeBs#
   , atSkip#
 
-  -- *** Location & address primitives
-  , setBack#
-  , withAddr#
-  , takeBsOffAddr#
-  , lookaheadFromAddr#
-  , atAddr#
-
-  -- ** Machine integer continuation parsers
+  -- *** Machine integer continuation parsers
   , withAnyWord8#
   , withAnyWord16#
   , withAnyWord32#
@@ -159,6 +152,13 @@ module FlatParse.Basic (
   , withAnyInt16#
   , withAnyInt32#
   , withAnyInt64#
+
+  -- ** Location & address primitives
+  , setBack#
+  , withAddr#
+  , takeBsOffAddr#
+  , lookaheadFromAddr#
+  , atAddr#
 
   -- ** Unsafe
   , anyCStringUnsafe

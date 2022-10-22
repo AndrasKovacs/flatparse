@@ -7,8 +7,7 @@ cabal-version: 1.12
 name:           flatparse
 version:        0.3.5.1
 synopsis:       High-performance parsing from strict bytestrings
-description:    @Flatparse@ is a high-performance parsing library, focusing on programming languages and
-                human-readable data formats. See the README for more information:
+description:    @Flatparse@ is a high-performance parsing library for strict bytestring input. See the README for more information:
                 <https://github.com/AndrasKovacs/flatparse>.
 category:       Parsing
 homepage:       https://github.com/AndrasKovacs/flatparse#readme
