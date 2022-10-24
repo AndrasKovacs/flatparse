@@ -26,7 +26,8 @@ module FlatParse.Stateful (
   , local
 
   -- * Errors and failures
-  , empty
+  , failed
+  , Base.empty
   , err
   , lookahead
   , fails
@@ -156,6 +157,7 @@ module FlatParse.Stateful (
 
   ) where
 
+import qualified Control.Applicative as Base
 import Control.Monad
 import Data.Foldable
 import Data.Map (Map)
@@ -316,9 +318,9 @@ local f (Parser g) = Parser \fp !r eob s n -> let !r' = f r in g fp r' eob s n
 
 -- | The failing parser. By default, parser choice `(<|>)` arbitrarily backtracks
 --   on parser failure.
-empty :: Parser r e a
-empty = Parser \fp !r eob s n -> Fail#
-{-# inline empty #-}
+failed :: Parser r e a
+failed = Parser \fp !r eob s n -> Fail#
+{-# inline failed #-}
 
 -- | Throw a parsing error. By default, parser choice `(<|>)` can't backtrack
 --   on parser error. Use `try` to convert an error to a recoverable failure.
@@ -688,7 +690,25 @@ infixr 6 <|>
   case f fp r eob s n of
     Fail# -> g fp r eob s n
     x     -> x
-{-# inline (<|>) #-}
+{-# inline[1] (<|>) #-}
+
+instance Base.Alternative (Parser r e) where
+  empty = failed
+  {-# inline empty #-}
+  (<|>) = (<|>)
+  {-# inline (Base.<|>) #-}
+
+instance MonadPlus (Parser r e) where
+  mzero = failed
+  {-# inline mzero #-}
+  mplus = (<|>)
+  {-# inline mplus #-}
+
+{-# RULES
+
+"flatparse/reassoc-alt" forall l m r. (l <|> m) <|> r = l <|> (m <|> r)
+
+#-}
 
 -- | Branch on a parser: if the first argument succeeds, continue with the second, else with the third.
 --   This can produce slightly more efficient code than `(<|>)`. Moreover, `ḃranch` does not
@@ -1063,7 +1083,7 @@ genSwitchTrie' postAction cases fallback =
           Nothing    -> pure ((Just i, rhs), (i, str))
           Just !post -> pure ((Just i, (VarE '(>>)) `AppE` post `AppE` rhs), (i, str))
 
-      !m    =  M.fromList ((Nothing, maybe (VarE 'empty) id fallback) : branches)
+      !m    =  M.fromList ((Nothing, maybe (VarE 'failed) id fallback) : branches)
       !trie = compileTrie strings
   in (m , trie)
 
