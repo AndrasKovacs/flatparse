@@ -23,7 +23,8 @@ module FlatParse.Basic (
   , runParserS
 
   -- * Errors and failures
-  , empty
+  , failed
+  , Base.empty
   , err
   , lookahead
   , fails
@@ -171,6 +172,7 @@ module FlatParse.Basic (
 
   ) where
 
+import qualified Control.Applicative as Base
 import Control.Monad
 import Data.Foldable
 import Data.List (sortBy)
@@ -304,9 +306,9 @@ runParserS pa s = runParser pa (packUTF8 s)
 
 -- | The failing parser. By default, parser choice `(<|>)` arbitrarily backtracks
 --   on parser failure.
-empty :: Parser e a
-empty = Parser \fp eob s -> Fail#
-{-# inline empty #-}
+failed :: Parser e a
+failed = Parser \fp eob s -> Fail#
+{-# inline failed #-}
 
 -- | Throw a parsing error. By default, parser choice `(<|>)` can't backtrack
 --   on parser error. Use `try` to convert an error to a recoverable failure.
@@ -718,7 +720,25 @@ infixr 6 <|>
   case f fp eob s of
     Fail# -> g fp eob s
     x     -> x
-{-# inline (<|>) #-}
+{-# inline[1] (<|>) #-}
+
+instance Base.Alternative (Parser e) where
+  empty = failed
+  {-# inline empty #-}
+  (<|>) = (<|>)
+  {-# inline (Base.<|>) #-}
+
+instance MonadPlus (Parser e) where
+  mzero = failed
+  {-# inline mzero #-}
+  mplus = (<|>)
+  {-# inline mplus #-}
+
+{-# RULES
+
+"flatparse/reassoc-alt" forall l m r. (l <|> m) <|> r = l <|> (m <|> r)
+
+#-}
 
 -- | Branch on a parser: if the first argument succeeds, continue with the second, else with the third.
 --   This can produce slightly more efficient code than `(<|>)`. Moreover, `ḃranch` does not
@@ -1156,7 +1176,7 @@ genSwitchTrie' postAction cases fallback =
           Nothing    -> pure ((Just i, rhs), (i, str))
           Just !post -> pure ((Just i, (VarE '(>>)) `AppE` post `AppE` rhs), (i, str))
 
-      !m    = M.fromList ((Nothing, maybe (VarE 'empty) id fallback) : branches)
+      !m    = M.fromList ((Nothing, maybe (VarE 'failed) id fallback) : branches)
       !trie = compileTrie strings
   in (m , trie)
 
