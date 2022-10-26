@@ -10,7 +10,7 @@ import qualified Data.ByteString.Char8 as B
 import qualified Attoparsec
 import qualified Megaparsec
 import qualified Parsec
-import qualified FPStateful
+--import qualified FPStateful
 import qualified FPBasic
 import qualified ReadInteger
 
@@ -31,7 +31,7 @@ main :: IO ()
 main = defaultMain [
   bgroup "sexp" [
     bench "fpbasic"     $ whnf FPBasic.runSexp    sexpInp,
-    bench "fpstateful"  $ whnf FPStateful.runSexp sexpInp,
+    --bench "fpstateful"  $ whnf FPStateful.runSexp sexpInp,
     bench "attoparsec"  $ whnf Attoparsec.runSexp sexpInp,
     bench "megaparsec"  $ whnf Megaparsec.runSexp sexpInp,
     bench "parsec"      $ whnf Parsec.runSexp     sexpInp
@@ -39,7 +39,7 @@ main = defaultMain [
 
   bgroup "long keyword" [
     bench "fpbasic"    $ whnf FPBasic.runLongws    longwsInp,
-    bench "fpstateful" $ whnf FPStateful.runLongws longwsInp,
+    --bench "fpstateful" $ whnf FPStateful.runLongws longwsInp,
     bench "attoparsec" $ whnf Attoparsec.runLongws longwsInp,
     bench "megaparsec" $ whnf Megaparsec.runLongws longwsInp,
     bench "parsec"     $ whnf Parsec.runLongws     longwsInp
@@ -47,7 +47,7 @@ main = defaultMain [
 
   bgroup "numeral csv" [
     bench "fpbasic"    $ whnf FPBasic.runNumcsv    numcsvInp,
-    bench "fpstateful" $ whnf FPStateful.runNumcsv numcsvInp,
+    --bench "fpstateful" $ whnf FPStateful.runNumcsv numcsvInp,
     bench "attoparsec" $ whnf Attoparsec.runNumcsv numcsvInp,
     bench "megaparsec" $ whnf Megaparsec.runNumcsv numcsvInp,
     bench "parsec"     $ whnf Parsec.runNumcsv     numcsvInp

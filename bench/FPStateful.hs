@@ -1,4 +1,4 @@
-
+{-
 module FPStateful (
     runSexp
   , runLongws
@@ -25,3 +25,6 @@ numeral   = some_ (satisfyASCII_ isDigit) >> ws
 comma     = $(char ',') >> ws
 numcsv    = numeral >> many_ (comma >> numeral) >> eof
 runNumcsv = runParser numcsv () 0
+-}
+
+module FPStateful where
