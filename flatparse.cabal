@@ -45,11 +45,13 @@ library
   exposed-modules:
       FlatParse.Basic
       FlatParse.Basic.Addr
-      FlatParse.Basic.Chars
+      FlatParse.Basic.Bytes
       FlatParse.Basic.Integers
       FlatParse.Basic.Internal
       FlatParse.Basic.Parser
       FlatParse.Basic.Position
+      FlatParse.Basic.Strings
+      FlatParse.BasicString
       FlatParse.Common.Assorted
       FlatParse.Common.Numbers
       FlatParse.Common.Position

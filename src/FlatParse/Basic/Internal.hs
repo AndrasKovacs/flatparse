@@ -22,14 +22,6 @@ lookahead (Parser f) = Parser \fp eob s ->
 
 --------------------------------------------------------------------------------
 
--- | Check that the input has at least the given number of bytes.
-ensureBytes# :: Int -> Parser e ()
-ensureBytes# (I# len) = Parser \fp eob s ->
-  case len  <=# minusAddr# eob s of
-    1# -> OK# () s
-    _  -> Fail#
-{-# inline ensureBytes# #-}
-
 scanPartial64# :: Int -> Word -> Parser e ()
 scanPartial64# (I# len) (W# w) = Parser \fp eob s ->
   case indexWordOffAddr# s 0# of
@@ -40,12 +32,6 @@ scanPartial64# (I# len) (W# w) = Parser \fp eob s ->
             1# -> OK# () (plusAddr# s len)
             _  -> Fail#
 {-# inline scanPartial64# #-}
-
--- | Decrease the current input position by the given number of bytes.
-setBack# :: Int -> Parser e ()
-setBack# (I# i) = Parser \fp eob s ->
-  OK# () (plusAddr# s (negateInt# i))
-{-# inline setBack# #-}
 
 --------------------------------------------------------------------------------
 -- Helpers for common internal operations
@@ -112,3 +98,10 @@ atSkipUnsafe# os# (Parser p) = Parser \fp eob s -> case os# <=# minusAddr# eob s
 skip# :: Int# -> Parser e ()
 skip# os# = atSkip# os# (pure ())
 {-# inline skip# #-}
+
+-- | Go back @n@ bytes.
+--
+-- Highly unsafe. Makes no checks.
+skipBack# :: Int -> Parser e ()
+skipBack# (I# i) = Parser \fp eob s -> OK# () (plusAddr# s (negateInt# i))
+{-# inline skipBack# #-}

@@ -1,12 +1,19 @@
-module FlatParse.Basic.Chars where
+{-# language UnboxedTuples #-}
+
+module FlatParse.Basic.Strings where
 
 import Prelude hiding ( getChar )
 
 import FlatParse.Basic.Parser
+import FlatParse.Basic.Bytes ( getBytesOf )
 
 import FlatParse.Common.Assorted ( derefChar8# )
 
 import GHC.Exts
+
+import Language.Haskell.TH
+import qualified FlatParse.Common.Numbers as Common
+import qualified FlatParse.Common.Assorted as Common
 
 -- | Parse a UTF-8 `Char` for which a predicate holds.
 satisfy :: (Char -> Bool) -> Parser e Char
@@ -169,3 +176,37 @@ getCharASCII = Parser \fp eob buf -> case eqAddr# eob buf of
 getCharASCII_ :: Parser e ()
 getCharASCII_ = () <$ getCharASCII
 {-# inline getCharASCII_ #-}
+
+-- | Parse a UTF-8 character literal. This is a template function, you can use it as
+--   @$(char \'x\')@, for example, and the splice in this case has type @Parser e ()@.
+getCharOf :: Char -> Q Exp
+getCharOf c = getStringOf [c]
+
+-- | Parse a UTF-8 string literal. This is a template function, you can use it as @$(string "foo")@,
+--   for example, and the splice has type @Parser e ()@.
+getStringOf :: String -> Q Exp
+getStringOf str = getBytesOf (Common.strToBytes str)
+
+-- | Read a non-negative `Int` from the input, as a non-empty digit sequence.
+-- The `Int` may overflow in the result.
+getAsciiDecimalInt :: Parser e Int
+getAsciiDecimalInt = Parser \fp eob s -> case Common.readInt eob s of
+  (# (##) | #)        -> Fail#
+  (# | (# n, s' #) #) -> OK# (I# n) s'
+{-# inline getAsciiDecimalInt #-}
+
+-- | Read an `Int` from the input, as a non-empty case-insensitive ASCII
+--   hexadecimal digit sequence. The `Int` may overflow in the result.
+getAsciiHexInt :: Parser e Int
+getAsciiHexInt = Parser \fp eob s -> case Common.readIntHex eob s of
+  (# (##) | #)        -> Fail#
+  (# | (# n, s' #) #) -> OK# (I# n) s'
+{-# inline getAsciiHexInt #-}
+
+-- | Read a non-negative `Integer` from the input, as a non-empty digit
+-- sequence.
+getAsciiDecimalInteger :: Parser e Integer
+getAsciiDecimalInteger = Parser \fp eob s -> case Common.readInteger fp eob s of
+  (# (##) | #)        -> Fail#
+  (# | (# i, s' #) #) -> OK# i s'
+{-# inline getAsciiDecimalInteger #-}

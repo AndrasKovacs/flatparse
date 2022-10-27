@@ -16,13 +16,13 @@ module FlatParse.Basic (
   -- ** Executing parsers
   , Result(..)
   , runParser
-  , runParserS
 
   -- * Errors and failures
   , err
   , lookahead
   , fails
   , try
+  , Control.Applicative.optional
   , optional_
   , withOption
   , cut
@@ -40,6 +40,7 @@ module FlatParse.Basic (
   , some_
   , notFollowedBy
   , isolate
+  , isolateUnsafe#
 
   -- * Primitive parsers
   , eof
@@ -49,11 +50,14 @@ module FlatParse.Basic (
 
   -- ** Byte-wise
   , take
+  , take#
   , takeRest
   , skip
+  , atSkip#
   , getBytesOf
   , getByteStringOf
   , getCString
+  , getCStringUnsafe
 
   -- ** Machine integers
   , module FlatParse.Basic.Integers
@@ -81,49 +85,30 @@ module FlatParse.Basic (
   -- ** Positions and spans
   , module FlatParse.Basic.Position
 
-  -- ** Position and span conversions
-  , validPos
-  , posLineCols
-  , unsafeSpanToByteString
-  , mkPos
-  , FlatParse.Basic.lines
-
-  -- * Getting the rest of the input as a 'String'
-  , takeLine
-  , traceLine
-  , takeRestString
-  , traceRestString
-
-  -- * `String` conversions
-  , packUTF8
-  , unpackUTF8
-
-  -- * Internal functions
-  , ensureBytes#
-
-  -- ** Unboxed arguments
-  , take#
-  , atSkip#
-
-
   -- ** Location & address primitives
-  , setBack#
   , module FlatParse.Basic.Addr
-
-  -- ** Unsafe
-  , getCStringUnsafe
 
   ) where
 
 import Prelude hiding ( take, getChar )
 
+import qualified FlatParse.Common.Assorted as Common
+import FlatParse.Common.Position
+import FlatParse.Common.Trie
+
+import FlatParse.Basic.Parser
+import FlatParse.Basic.Integers
+import FlatParse.Basic.Internal
+import FlatParse.Basic.Bytes
+import FlatParse.Basic.Strings
+import FlatParse.Basic.Position
+import FlatParse.Basic.Addr
+
 import Control.Applicative
 
 import Control.Monad
 import Data.Foldable
-import Data.List (sortBy)
 import Data.Map (Map)
-import Data.Ord (comparing)
 import GHC.Exts
 import GHC.Word
 import GHC.ForeignPtr ( ForeignPtr(..) )
@@ -134,19 +119,6 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Unsafe as B
 import qualified Data.ByteString.Internal as B
 import qualified Data.Map.Strict as M
-
-import qualified FlatParse.Common.Numbers as Common
-import qualified FlatParse.Common.Assorted as Common
-import FlatParse.Common.Position
-import FlatParse.Common.Trie
-import FlatParse.Common.Assorted ( packBytes, splitBytes, strToBytes, packUTF8 )
-
-import FlatParse.Basic.Parser
-import FlatParse.Basic.Integers
-import FlatParse.Basic.Internal
-import FlatParse.Basic.Chars
-import FlatParse.Basic.Position
-import FlatParse.Basic.Addr
 
 -- | Higher-level boxed data type for parsing results.
 data Result e a =
@@ -268,16 +240,6 @@ skip :: Int -> Parser e ()
 skip (I# os#) = atSkip# os# (pure ())
 {-# inline skip #-}
 
--- | Parse a UTF-8 character literal. This is a template function, you can use it as
---   @$(char \'x\')@, for example, and the splice in this case has type @Parser e ()@.
-getCharOf :: Char -> Q Exp
-getCharOf c = getStringOf [c]
-
--- | Parse a UTF-8 string literal. This is a template function, you can use it as @$(string "foo")@,
---   for example, and the splice has type @Parser e ()@.
-getStringOf :: String -> Q Exp
-getStringOf str = getBytesOf (strToBytes str)
-
 {-|
 This is a template function which makes it possible to branch on a collection of string literals in
 an efficient way. By using `switch`, such branching is compiled to a trie of primitive parsing
@@ -344,30 +306,6 @@ rawSwitchWithPost postAction cases fallback = do
   !cases <- forM cases \(str, rhs) -> (str,) <$> rhs
   !fallback <- sequence fallback
   genTrie $! genSwitchTrie' postAction cases fallback
-
--- | Read a non-negative `Int` from the input, as a non-empty digit sequence.
--- The `Int` may overflow in the result.
-getAsciiDecimalInt :: Parser e Int
-getAsciiDecimalInt = Parser \fp eob s -> case Common.readInt eob s of
-  (# (##) | #)        -> Fail#
-  (# | (# n, s' #) #) -> OK# (I# n) s'
-{-# inline getAsciiDecimalInt #-}
-
--- | Read an `Int` from the input, as a non-empty case-insensitive ASCII
---   hexadecimal digit sequence. The `Int` may overflow in the result.
-getAsciiHexInt :: Parser e Int
-getAsciiHexInt = Parser \fp eob s -> case Common.readIntHex eob s of
-  (# (##) | #)        -> Fail#
-  (# | (# n, s' #) #) -> OK# (I# n) s'
-{-# inline getAsciiHexInt #-}
-
--- | Read a non-negative `Integer` from the input, as a non-empty digit
--- sequence.
-getAsciiDecimalInteger :: Parser e Integer
-getAsciiDecimalInteger = Parser \fp eob s -> case Common.readInteger fp eob s of
-  (# (##) | #)        -> Fail#
-  (# | (# i, s' #) #) -> OK# i s'
-{-# inline getAsciiDecimalInteger #-}
 
 --------------------------------------------------------------------------------
 
@@ -442,43 +380,6 @@ getByteStringOf (B.PS (ForeignPtr bs fcontent) _ (I# len)) =
        _  -> Fail#
 {-# inline getByteStringOf #-}
 
--- | Read a sequence of bytes. This is a template function, you can use it as
---   @$(getBytesOf [3, 4, 5])@, for example, and the splice has type @Parser e
---   ()@.
-getBytesOf :: [Word] -> Q Exp
-getBytesOf bytes = do
-  let !len = length bytes
-  [| ensureBytes# len >> $(scanBytes# bytes) |]
-
--- | Template function, creates a @Parser e ()@ which unsafely scans a given
---   sequence of bytes.
-scanBytes# :: [Word] -> Q Exp
-scanBytes# bytes = do
-  let !(leading, w8s) = splitBytes bytes
-      !scanw8s        = go w8s where
-                         go (w8:[] ) = [| getWord64OfUnsafe w8 |]
-                         go (w8:w8s) = [| getWord64OfUnsafe w8 >> $(go w8s) |]
-                         go []       = [| pure () |]
-  case w8s of
-    [] -> go leading
-          where
-            go (a:b:c:d:[]) = let !w = packBytes [a, b, c, d] in [| getWord32OfUnsafe w |]
-            go (a:b:c:d:ws) = let !w = packBytes [a, b, c, d] in [| getWord32OfUnsafe w >> $(go ws) |]
-            go (a:b:[])     = let !w = packBytes [a, b]       in [| getWord16OfUnsafe w |]
-            go (a:b:ws)     = let !w = packBytes [a, b]       in [| getWord16OfUnsafe w >> $(go ws) |]
-            go (a:[])       = [| getWord8OfUnsafe a |]
-            go []           = [| pure () |]
-    _  -> case leading of
-
-      []              -> scanw8s
-      [a]             -> [| getWord8OfUnsafe a >> $scanw8s |]
-      ws@[a, b]       -> let !w = packBytes ws in [| getWord16OfUnsafe w >> $scanw8s |]
-      ws@[a, b, c, d] -> let !w = packBytes ws in [| getWord32OfUnsafe w >> $scanw8s |]
-      ws              -> let !w = packBytes ws
-                             !l = length ws
-                         in [| scanPartial64# l w >> $scanw8s |]
-
-
 -- Switching code generation
 --------------------------------------------------------------------------------
 
@@ -503,7 +404,7 @@ genTrie (rules, t) = do
 
       fallback :: Rule -> Int ->  Q Exp
       fallback rule 0 = pure $ VarE $ fst $ ix branches rule
-      fallback rule n = [| setBack# n >> $(pure $ VarE $ fst $ ix branches rule) |]
+      fallback rule n = [| skipBack# n >> $(pure $ VarE $ fst $ ix branches rule) |]
 
   let go :: Trie' (Rule, Int, Maybe Int) -> Q Exp
       go = \case
@@ -601,114 +502,6 @@ isolateUnsafe# n# p = Parser \fp eob s ->
           Err# e    -> Err# e
         _  -> Fail# -- you tried to isolate more than we have left
 {-# inline isolateUnsafe# #-}
-
---------------------------------------------------------------------------------
-
--- | Convert an UTF-8-coded `B.ByteString` to a `String`.
-unpackUTF8 :: B.ByteString -> String
-unpackUTF8 str = case runParser takeRestString str of
-  OK a _ -> a
-  _      -> error "unpackUTF8: invalid encoding"
-
--- | Take the rest of the input as a `String`. Assumes UTF-8 encoding.
-takeRestString :: Parser e String
-takeRestString = branch eof (pure "") do
-  c <- getChar
-  cs <- takeRestString
-  pure (c:cs)
-
--- | Get the rest of the input as a `String`, but restore the parsing state. Assumes UTF-8 encoding.
---   This can be used for debugging.
-traceRestString :: Parser e String
-traceRestString = lookahead takeRestString
-
---------------------------------------------------------------------------------
-
--- | Parse the rest of the current line as a `String`. Assumes UTF-8 encoding,
---   throws an error if the encoding is invalid.
-takeLine :: Parser e String
-takeLine = branch eof (pure "") do
-  c <- getChar
-  case c of
-    '\n' -> pure ""
-    _    -> (c:) <$> takeLine
-
--- | Parse the rest of the current line as a `String`, but restore the parsing state.
---   Assumes UTF-8 encoding. This can be used for debugging.
-traceLine :: Parser e String
-traceLine = lookahead takeLine
-
--- | Run a parser on a `String` input. Reminder: @OverloadedStrings@ for `B.ByteString` does not
---   yield a valid UTF-8 encoding! For non-ASCII `B.ByteString` literal input, use `runParserS` or
---   `packUTF8` for testing.
-runParserS :: Parser e a -> String -> Result e a
-runParserS pa s = runParser pa (packUTF8 s)
-
--- | Create a `Pos` from a line and column number. Throws an error on out-of-bounds
---   line and column numbers.
-mkPos :: B.ByteString -> (Int, Int) -> Pos
-mkPos str (line', col') =
-  let go line col | line == line' && col == col' = getPos
-      go line col = (do
-        c <- getChar
-        if c == '\n' then go (line + 1) 0
-                     else go line (col + 1)) <|> error "mkPos: invalid position"
-  in case runParser (go 0 0) str of
-    OK res _ -> res
-    _        -> error "impossible"
-
--- | Break an UTF-8-coded `B.ByteString` to lines. Throws an error on invalid
---   input. This is mostly useful for grabbing specific source lines for
---   displaying error messages.
-lines :: B.ByteString -> [String]
-lines str =
-  let go = ([] <$ eof) <|> ((:) <$> takeLine <*> go)
-  in case runParser go str of
-    OK ls _ -> ls
-    _       -> error "linesUTF8: invalid input"
-
-
--- | Check whether a `Pos` points into a `B.ByteString`.
-validPos :: B.ByteString -> Pos -> Bool
-validPos str pos =
-  let go = do
-        start <- getPos
-        pure (start <= pos && pos <= endPos)
-  in case runParser go str of
-    OK b _ -> b
-    _      -> error "impossible"
-{-# inline validPos #-}
-
--- | Compute corresponding line and column numbers for each `Pos` in a list. Throw an error
---   on invalid positions. Note: computing lines and columns may traverse the `B.ByteString`,
---   but it traverses it only once regardless of the length of the position list.
-posLineCols :: B.ByteString -> [Pos] -> [(Int, Int)]
-posLineCols str poss =
-  let go !line !col [] = pure []
-      go line col ((i, pos):poss) = do
-        p <- getPos
-        if pos == p then
-          ((i, (line, col)):) <$> go line col poss
-        else do
-          c <- getChar
-          if '\n' == c then
-            go (line + 1) 0 ((i, pos):poss)
-          else
-            go line (col + 1) ((i, pos):poss)
-
-      sorted :: [(Int, Pos)]
-      sorted = sortBy (comparing snd) (zip [0..] poss)
-
-  in case runParser (go 0 0 sorted) str of
-       OK res _ -> snd <$> sortBy (comparing fst) res
-       _        -> error "invalid position"
-
--- | Create a `B.ByteString` from a `Span`. The result is invalid if the `Span` points
---   outside the current buffer, or if the `Span` start is greater than the end position.
-unsafeSpanToByteString :: Span -> Parser e B.ByteString
-unsafeSpanToByteString (Span l r) =
-  lookahead (setPos l >> byteStringOf (setPos r))
-{-# inline unsafeSpanToByteString #-}
 
 --------------------------------------------------------------------------------
 -- Low-level boxed combinators

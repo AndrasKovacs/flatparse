@@ -8,6 +8,7 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import qualified Data.Char
 import qualified FlatParse.Basic as FB
+import qualified FlatParse.BasicString as FB
 -- import qualified FlatParse.Stateful as FS
 import Test.HUnit
 import Test.Hspec
@@ -18,8 +19,6 @@ import Data.Int
 import GHC.Int
 import Data.Bits
 import Test.QuickCheck.Instances.ByteString()
-
-import Control.Applicative
 
 main :: IO ()
 main = hspec $ do
@@ -55,9 +54,9 @@ basicSpec = describe "FlatParse.Basic" $ do
       it "propagates errors" $ FB.optional (FB.err "nope") `shouldParseErr` ""
 
     describe "optional_" $ do
-      it "can succeed" $ FB.optional (pure ()) `shouldParse` ""
-      it "can succeed when argument missing" $ FB.optional FB.empty `shouldParse` ""
-      it "propagates errors" $ FB.optional (FB.err "nope") `shouldParseErr` ""
+      it "can succeed" $ FB.optional_ (pure ()) `shouldParse` ""
+      it "can succeed when argument missing" $ FB.optional_ FB.empty `shouldParse` ""
+      it "propagates errors" $ FB.optional_ (FB.err "nope") `shouldParseErr` ""
 
     describe "withOption" $ do
       let opt p = FB.withOption p (pure . reverse) (pure "bar")
@@ -491,11 +490,11 @@ basicSpec = describe "FlatParse.Basic" $ do
 
     describe "(<|>)" $ do
       it "chooses first option on success" $
-        (("A" <$ $(FB.getStringOf "foo")) <|> ("B" <$ $(FB.getStringOf "foo")))
+        (("A" <$ $(FB.getStringOf "foo")) FB.<|> ("B" <$ $(FB.getStringOf "foo")))
           `shouldParseWith` ("foo", "A")
 
       it "chooses second option when first fails" $
-        (("A" <$ $(FB.getStringOf "bar")) <|> ("B" <$ $(FB.getStringOf "foo")))
+        (("A" <$ $(FB.getStringOf "bar")) FB.<|> ("B" <$ $(FB.getStringOf "foo")))
           `shouldParseWith` ("foo", "B")
 
     describe "branch" $ do
