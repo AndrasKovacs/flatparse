@@ -1,4 +1,7 @@
-module FlatParse.Basic.Position where
+module FlatParse.Basic.Position
+  ( module FlatParse.Common.Position
+  , module FlatParse.Basic.Position
+  ) where
 
 import FlatParse.Basic.Parser
 import FlatParse.Common.Position

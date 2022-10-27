@@ -5,7 +5,6 @@ module FlatParse.Basic.Internal where
 import FlatParse.Basic.Parser
 
 import GHC.Exts
-import GHC.Word
 import GHC.ForeignPtr
 
 import qualified Data.ByteString as B
@@ -113,48 +112,3 @@ atSkipUnsafe# os# (Parser p) = Parser \fp eob s -> case os# <=# minusAddr# eob s
 skip# :: Int# -> Parser e ()
 skip# os# = atSkip# os# (pure ())
 {-# inline skip# #-}
-
---------------------------------------------------------------------------------
--- Low-level boxed combinators
-
--- | Read a null-terminated bytestring (a C-style string).
---
--- Consumes the null terminator.
-getCString :: Parser e B.ByteString
-getCString = Parser \fp eob s -> go' fp eob s
-  where
-    go' fp eob s0 = go 0# s0
-      where
-        go n# s = case eqAddr# eob s of
-          1# -> Fail#
-          _  ->
-            let s' = plusAddr# s 1#
-                w# = indexWord8OffAddr# s 0#
-            in  if   W8# w# == 0x00
-                then OK# (B.PS (ForeignPtr s0 fp) 0 (I# n#)) s'
-                else go (n# +# 1#) s'
-{-# inline getCString #-}
-
--- | Read a null-terminated bytestring (a C-style string), where the bytestring
---   is known to be null-terminated somewhere in the input.
---
--- Undefined behaviour if your bytestring isn't null-terminated somewhere.
--- You almost certainly want 'getCString' instead.
---
--- Fails on GHC versions older than 9.0, since we make use of the
--- 'cstringLength#' primop introduced in GHC 9.0, and we aren't very useful
--- without it.
---
--- Consumes the null terminator.
-getCStringUnsafe :: Parser e B.ByteString
-{-# inline getCStringUnsafe #-}
-#if MIN_VERSION_base(4,15,0)
-getCStringUnsafe = Parser \fp eob s ->
-  case eqAddr# eob s of
-    1# -> Fail#
-    _  -> let n#  = cstringLength# s
-              s'# = plusAddr# s (n# +# 1#)
-           in OK# (B.PS (ForeignPtr s fp) 0 (I# n#)) s'#
-#else
-getCStringUnsafe = error "Flatparse.Basic.getCStringUnsafe: requires GHC 9.0 / base-4.15, not available on this compiler"
-#endif

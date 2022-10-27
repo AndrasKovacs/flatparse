@@ -60,6 +60,8 @@ import GHC.Int
 import FlatParse.Basic.Parser
 import FlatParse.Common.Assorted ( word16ToInt16, word32ToInt32, word64ToInt64 )
 
+import Control.Applicative ( Alternative(empty) )
+
 --------------------------------------------------------------------------------
 
 -- | Helper for defining CPS parsers for types of a constant byte size (i.e.
@@ -289,7 +291,7 @@ getSizedOfUnsafe# size# indexOffAddr aExpected =
     go aParsed =
         if   aParsed == aExpected
         then pure ()
-        else failed
+        else empty
 {-# inline getSizedOfUnsafe# #-}
 
 -- | Read the next 1 byte and assert its value as a 'Word8'.

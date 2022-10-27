@@ -6,9 +6,6 @@ module FlatParse.Basic.Parser
     Parser(..)
   , Res#
   , pattern OK#, pattern Err#, pattern Fail#
-
-  -- * Primitive combinators
-  , failed
   ) where
 
 import GHC.Exts ( Addr#, unsafeCoerce# )
@@ -61,8 +58,9 @@ instance Monad (Parser e) where
   (>>) = (*>)
   {-# inline (>>) #-}
 
+-- | By default, parser choice `(<|>)` arbitrarily backtracks on parser failure.
 instance Base.Alternative (Parser e) where
-  empty = failed
+  empty = Parser \fp eob s -> Fail#
   {-# inline empty #-}
 
   (<|>) = (<|>)
@@ -81,12 +79,7 @@ instance Base.Alternative (Parser e) where
   some p = (:) <$> p <*> Base.many p
   {-# inline some #-}
 
--- | The failing parser. By default, parser choice `(<|>)` arbitrarily backtracks
---   on parser failure.
-failed :: Parser e a
-failed = Parser \fp eob s -> Fail#
-{-# inline failed #-}
-
+-- TODO don't get how to handle this, whether I can inline it safely
 infixr 6 <|>
 (<|>) :: Parser e a -> Parser e a -> Parser e a
 (<|>) (Parser f) (Parser g) = Parser \fp eob s ->
@@ -102,7 +95,7 @@ infixr 6 <|>
 #-}
 
 instance MonadPlus (Parser e) where
-  mzero = failed
+  mzero = Base.empty
   {-# inline mzero #-}
   mplus = (<|>)
   {-# inline mplus #-}

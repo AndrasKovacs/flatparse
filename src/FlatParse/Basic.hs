@@ -10,67 +10,27 @@ denoted by a @#@ hash suffix.
 
 module FlatParse.Basic (
 
-  -- * Parser types and constructors
-    type Parser(..)
-  , type Res#
-  , pattern OK#
-  , pattern Fail#
-  , pattern Err#
-  , Result(..)
+  -- * Parser monad
+    type Parser
 
-  -- * Running parsers
+  -- ** Executing parsers
+  , Result(..)
   , runParser
   , runParserS
 
   -- * Errors and failures
-  , failed
-  , Control.Applicative.empty
   , err
   , lookahead
   , fails
   , try
-  , Control.Applicative.optional
   , optional_
   , withOption
   , cut
   , cutting
 
-  -- * Basic lexing and parsing
-  , eof
-  , take
-  , takeRest
-  , skip
-  , switch
-  , switchWithPost
-  , rawSwitchWithPost
-
-  , getCharOf
-  , getBytesOf
-  , getByteStringOf
-  , getStringOf
-
-  , getChar
-  , getChar_
-  , getCharASCII
-  , getCharASCII_
-  , getAsciiDecimalInt
-  , getAsciiDecimalInteger
-  , getAsciiHexInt
-  , getCString
-
-  , Common.isDigit
-  , Common.isGreekLetter
-  , Common.isLatinLetter
-
-  , satisfy
-  , satisfy_
-  , satisfyASCII
-  , satisfyASCII_
-  , fusedSatisfy
-  , fusedSatisfy_
-
   -- * Combinators
-  , (<|>)
+  , (Control.Applicative.<|>)
+  , Control.Applicative.empty
   , branch
   , chainl
   , chainr
@@ -81,23 +41,50 @@ module FlatParse.Basic (
   , notFollowedBy
   , isolate
 
-  -- * Positions and spans
-  , Pos(..)
-  , Span(..)
-  , getPos
-  , setPos
-  , endPos
-  , spanOf
-  , withSpan
-  , byteStringOf
-  , withByteString
-  , inSpan
+  -- * Primitive parsers
+  , eof
+  , switch
+  , switchWithPost
+  , rawSwitchWithPost
+
+  -- ** Byte-wise
+  , take
+  , takeRest
+  , skip
+  , getBytesOf
+  , getByteStringOf
+  , getCString
+
+  -- ** Machine integers
+  , module FlatParse.Basic.Integers
+
+  -- ** 'Char', 'String'
+  , getCharOf
+  , getStringOf
+  , getChar
+  , getChar_
+  , getCharASCII
+  , getCharASCII_
+  , getAsciiDecimalInt
+  , getAsciiDecimalInteger
+  , getAsciiHexInt
+  , Common.isDigit
+  , Common.isGreekLetter
+  , Common.isLatinLetter
+  , satisfy
+  , satisfy_
+  , satisfyASCII
+  , satisfyASCII_
+  , fusedSatisfy
+  , fusedSatisfy_
+
+  -- ** Positions and spans
+  , module FlatParse.Basic.Position
 
   -- ** Position and span conversions
   , validPos
   , posLineCols
   , unsafeSpanToByteString
-  , unsafeSlice
   , mkPos
   , FlatParse.Basic.lines
 
@@ -121,16 +108,10 @@ module FlatParse.Basic (
 
   -- ** Location & address primitives
   , setBack#
-  , withAddr#
-  , takeOffAddr#
-  , withOffAddr#
-  , lookaheadFromAddr#
-  , atAddr#
+  , module FlatParse.Basic.Addr
 
   -- ** Unsafe
   , getCStringUnsafe
-
-  , module FlatParse.Basic.Integers
 
   ) where
 
@@ -580,7 +561,7 @@ genSwitchTrie' postAction cases fallback =
           Nothing    -> pure ((Just i, rhs), (i, str))
           Just !post -> pure ((Just i, (VarE '(>>)) `AppE` post `AppE` rhs), (i, str))
 
-      !m    = M.fromList ((Nothing, maybe (VarE 'failed) id fallback) : branches)
+      !m    = M.fromList ((Nothing, maybe (VarE 'empty) id fallback) : branches)
       !trie = compileTrie strings
   in (m , trie)
 
@@ -728,3 +709,48 @@ unsafeSpanToByteString :: Span -> Parser e B.ByteString
 unsafeSpanToByteString (Span l r) =
   lookahead (setPos l >> byteStringOf (setPos r))
 {-# inline unsafeSpanToByteString #-}
+
+--------------------------------------------------------------------------------
+-- Low-level boxed combinators
+
+-- | Read a null-terminated bytestring (a C-style string).
+--
+-- Consumes the null terminator.
+getCString :: Parser e B.ByteString
+getCString = Parser \fp eob s -> go' fp eob s
+  where
+    go' fp eob s0 = go 0# s0
+      where
+        go n# s = case eqAddr# eob s of
+          1# -> Fail#
+          _  ->
+            let s' = plusAddr# s 1#
+                w# = indexWord8OffAddr# s 0#
+            in  if   W8# w# == 0x00
+                then OK# (B.PS (ForeignPtr s0 fp) 0 (I# n#)) s'
+                else go (n# +# 1#) s'
+{-# inline getCString #-}
+
+-- | Read a null-terminated bytestring (a C-style string), where the bytestring
+--   is known to be null-terminated somewhere in the input.
+--
+-- Undefined behaviour if your bytestring isn't null-terminated somewhere.
+-- You almost certainly want 'getCString' instead.
+--
+-- Fails on GHC versions older than 9.0, since we make use of the
+-- 'cstringLength#' primop introduced in GHC 9.0, and we aren't very useful
+-- without it.
+--
+-- Consumes the null terminator.
+getCStringUnsafe :: Parser e B.ByteString
+{-# inline getCStringUnsafe #-}
+#if MIN_VERSION_base(4,15,0)
+getCStringUnsafe = Parser \fp eob s ->
+  case eqAddr# eob s of
+    1# -> Fail#
+    _  -> let n#  = cstringLength# s
+              s'# = plusAddr# s (n# +# 1#)
+           in OK# (B.PS (ForeignPtr s fp) 0 (I# n#)) s'#
+#else
+getCStringUnsafe = error "Flatparse.Basic.getCStringUnsafe: requires GHC 9.0 / base-4.15, not available on this compiler"
+#endif
