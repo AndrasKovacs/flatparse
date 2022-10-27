@@ -1,15 +1,21 @@
 {-# language UnboxedTuples #-}
 
+-- | Parser building blocks.
+
 module FlatParse.Basic.Other where
 
 import FlatParse.Basic.Parser
 
 -- TODO TH!!
 import FlatParse.Basic.Combinators ( branch, skipBack# )
-import FlatParse.Basic.Bytes ( scanBytes#, ensureBytes# )
-import FlatParse.Basic.Integers ( getWord8Unsafe )
+import FlatParse.Basic.Integers ( getWord64OfUnsafe
+                                , getWord32OfUnsafe
+                                , getWord16OfUnsafe
+                                , getWord8OfUnsafe
+                                , getWord8Unsafe )
 
 import FlatParse.Common.Trie
+import qualified FlatParse.Common.Assorted as Common
 
 import GHC.Exts
 import GHC.Word
@@ -23,35 +29,6 @@ import Control.Monad ( forM )
 import Language.Haskell.TH
 import qualified Data.Map.Strict as M
 import           Data.Map.Strict ( Map )
-
--- | Parse a given `B.ByteString`. If the bytestring is statically known,
---   consider using 'bytes' instead.
-getByteStringOf :: B.ByteString -> Parser e ()
-getByteStringOf (B.PS (ForeignPtr bs fcontent) _ (I# len)) =
-
-  let go64 :: Addr# -> Addr# -> Addr# -> State# RealWorld -> (# Res# e (), State# RealWorld #)
-      go64 bs bsend s w =
-        let bs' = plusAddr# bs 8# in
-        case gtAddr# bs' bsend of
-          1# -> go8 bs bsend s w
-          _  -> if   W64# (indexWord64OffAddr# bs 0#) == W64# (indexWord64OffAddr# s 0#)
-                then go64 bs' bsend (plusAddr# s 8#) w
-                else (# Fail#, w #)
-
-      go8 :: Addr# -> Addr# -> Addr# -> State# RealWorld -> (# Res# e (), State# RealWorld #)
-      go8 bs bsend s w =
-        case ltAddr# bs bsend of
-          1# -> if   W8# (indexWord8OffAddr# bs 0#) == W8# (indexWord8OffAddr# s 0#)
-                then go8 (plusAddr# bs 1#) bsend (plusAddr# s 1#) w
-                else (# Fail#, w #)
-          _  -> (# OK# () s, w #)
-
-  in Parser \fp eob s -> case len <=# minusAddr# eob s of
-       1# -> runRW# \w -> case go64 bs (plusAddr# bs len) s w of
-               (# res, w #) -> case touch# fcontent w of
-                 w -> res
-       _  -> Fail#
-{-# inline getByteStringOf #-}
 
 -- | Read a null-terminated bytestring (a C-style string).
 --
@@ -94,6 +71,91 @@ getCStringUnsafe = Parser \fp eob s ->
 #else
 getCStringUnsafe = error "Flatparse.Basic.Combinators.getCStringUnsafe: requires GHC 9.0 / base-4.15, not available on this compiler"
 #endif
+
+-- | Parse a given `B.ByteString`. If the bytestring is statically known,
+--   consider using 'bytes' instead.
+getByteStringOf :: B.ByteString -> Parser e ()
+getByteStringOf (B.PS (ForeignPtr bs fcontent) _ (I# len)) =
+
+  let go64 :: Addr# -> Addr# -> Addr# -> State# RealWorld -> (# Res# e (), State# RealWorld #)
+      go64 bs bsend s w =
+        let bs' = plusAddr# bs 8# in
+        case gtAddr# bs' bsend of
+          1# -> go8 bs bsend s w
+          _  -> if   W64# (indexWord64OffAddr# bs 0#) == W64# (indexWord64OffAddr# s 0#)
+                then go64 bs' bsend (plusAddr# s 8#) w
+                else (# Fail#, w #)
+
+      go8 :: Addr# -> Addr# -> Addr# -> State# RealWorld -> (# Res# e (), State# RealWorld #)
+      go8 bs bsend s w =
+        case ltAddr# bs bsend of
+          1# -> if   W8# (indexWord8OffAddr# bs 0#) == W8# (indexWord8OffAddr# s 0#)
+                then go8 (plusAddr# bs 1#) bsend (plusAddr# s 1#) w
+                else (# Fail#, w #)
+          _  -> (# OK# () s, w #)
+
+  in Parser \fp eob s -> case len <=# minusAddr# eob s of
+       1# -> runRW# \w -> case go64 bs (plusAddr# bs len) s w of
+               (# res, w #) -> case touch# fcontent w of
+                 w -> res
+       _  -> Fail#
+{-# inline getByteStringOf #-}
+
+-- | Check that the input has at least the given number of bytes.
+ensureBytes# :: Int -> Parser e ()
+ensureBytes# (I# len) = Parser \fp eob s ->
+  case len  <=# minusAddr# eob s of
+    1# -> OK# () s
+    _  -> Fail#
+{-# inline ensureBytes# #-}
+
+-- | Read a sequence of bytes. This is a template function, you can use it as
+--   @$(getBytesOf [3, 4, 5])@, for example, and the splice has type @Parser e
+--   ()@.
+getBytesOf :: [Word] -> Q Exp
+getBytesOf bytes = do
+  let !len = length bytes
+  [| ensureBytes# len >> $(scanBytes# bytes) |]
+
+-- | Template function, creates a @Parser e ()@ which unsafely scans a given
+--   sequence of bytes.
+scanBytes# :: [Word] -> Q Exp
+scanBytes# bytes = do
+  let !(leading, w8s) = Common.splitBytes bytes
+      !scanw8s        = go w8s where
+                         go (w8:[] ) = [| getWord64OfUnsafe w8 |]
+                         go (w8:w8s) = [| getWord64OfUnsafe w8 >> $(go w8s) |]
+                         go []       = [| pure () |]
+  case w8s of
+    [] -> go leading
+          where
+            go (a:b:c:d:[]) = let !w = Common.packBytes [a, b, c, d] in [| getWord32OfUnsafe w |]
+            go (a:b:c:d:ws) = let !w = Common.packBytes [a, b, c, d] in [| getWord32OfUnsafe w >> $(go ws) |]
+            go (a:b:[])     = let !w = Common.packBytes [a, b]       in [| getWord16OfUnsafe w |]
+            go (a:b:ws)     = let !w = Common.packBytes [a, b]       in [| getWord16OfUnsafe w >> $(go ws) |]
+            go (a:[])       = [| getWord8OfUnsafe a |]
+            go []           = [| pure () |]
+    _  -> case leading of
+
+      []              -> scanw8s
+      [a]             -> [| getWord8OfUnsafe a >> $scanw8s |]
+      ws@[a, b]       -> let !w = Common.packBytes ws in [| getWord16OfUnsafe w >> $scanw8s |]
+      ws@[a, b, c, d] -> let !w = Common.packBytes ws in [| getWord32OfUnsafe w >> $scanw8s |]
+      ws              -> let !w = Common.packBytes ws
+                             !l = length ws
+                         in [| scanPartial64# l w >> $scanw8s |]
+
+scanPartial64# :: Int -> Word -> Parser e ()
+scanPartial64# (I# len) (W# w) = Parser \fp eob s ->
+  case indexWordOffAddr# s 0# of
+    w' -> case uncheckedIShiftL# (8# -# len) 3# of
+      sh -> case uncheckedShiftL# w' sh of
+        w' -> case uncheckedShiftRL# w' sh of
+          w' -> case eqWord# w w' of
+            1# -> OK# () (plusAddr# s len)
+            _  -> Fail#
+{-# inline scanPartial64# #-}
+
 
 -- Switching code generation
 --------------------------------------------------------------------------------

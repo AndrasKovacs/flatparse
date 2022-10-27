@@ -1,11 +1,13 @@
 {-# language UnboxedTuples #-}
 
+-- | Parsers and utilities for parsing (UTF-8) 'Char's and strings.
+
 module FlatParse.Basic.Strings where
 
 import Prelude hiding ( getChar )
 
 import FlatParse.Basic.Parser
-import FlatParse.Basic.Bytes ( getBytesOf )
+import FlatParse.Basic.Other ( getBytesOf )
 
 import FlatParse.Common.Assorted ( derefChar8# )
 

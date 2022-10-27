@@ -1,26 +1,16 @@
 {-# language UnboxedTuples #-}
 
+-- | Basic parser building blocks.
+
 module FlatParse.Basic.Combinators where
 
 import FlatParse.Basic.Parser
-import FlatParse.Basic.Integers
-import FlatParse.Basic.Bytes
-
-import FlatParse.Common.Trie
 
 import GHC.Exts
-import GHC.Word
-import Control.Applicative ( empty )
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Internal as B
 import GHC.ForeignPtr ( ForeignPtr(..) )
-import qualified Data.Foldable
-import Control.Monad ( forM )
 import Control.Applicative ( (<|>) )
-
-import Language.Haskell.TH
-import qualified Data.Map.Strict as M
-import           Data.Map.Strict ( Map )
 
 -- | Throw a parsing error. By default, parser choice `(<|>)` can't backtrack
 --   on parser error. Use `try` to convert an error to a recoverable failure.

@@ -97,7 +97,6 @@ import FlatParse.Basic.Parser
 import FlatParse.Basic.Integers
 import FlatParse.Basic.Combinators
 import FlatParse.Basic.Other
-import FlatParse.Basic.Bytes
 import FlatParse.Basic.Strings
 import FlatParse.Basic.Position
 import FlatParse.Basic.Addr

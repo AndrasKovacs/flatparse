@@ -53,12 +53,13 @@ module FlatParse.Basic.Integers
   , getSizedOfUnsafe#
   ) where
 
+import FlatParse.Basic.Parser
+
+import FlatParse.Common.Assorted ( word16ToInt16, word32ToInt32, word64ToInt64 )
+
 import GHC.Exts
 import GHC.Word
 import GHC.Int
-
-import FlatParse.Basic.Parser
-import FlatParse.Common.Assorted ( word16ToInt16, word32ToInt32, word64ToInt64 )
 
 import Control.Applicative ( Alternative(empty) )
 
