@@ -52,3 +52,14 @@ scanBytes# bytes = do
       ws              -> let !w = Common.packBytes ws
                              !l = length ws
                          in [| scanPartial64# l w >> $scanw8s |]
+
+scanPartial64# :: Int -> Word -> Parser e ()
+scanPartial64# (I# len) (W# w) = Parser \fp eob s ->
+  case indexWordOffAddr# s 0# of
+    w' -> case uncheckedIShiftL# (8# -# len) 3# of
+      sh -> case uncheckedShiftL# w' sh of
+        w' -> case uncheckedShiftRL# w' sh of
+          w' -> case eqWord# w w' of
+            1# -> OK# () (plusAddr# s len)
+            _  -> Fail#
+{-# inline scanPartial64# #-}

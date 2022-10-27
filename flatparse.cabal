@@ -46,8 +46,9 @@ library
       FlatParse.Basic
       FlatParse.Basic.Addr
       FlatParse.Basic.Bytes
+      FlatParse.Basic.Combinators
       FlatParse.Basic.Integers
-      FlatParse.Basic.Internal
+      FlatParse.Basic.Other
       FlatParse.Basic.Parser
       FlatParse.Basic.Position
       FlatParse.Basic.Strings
