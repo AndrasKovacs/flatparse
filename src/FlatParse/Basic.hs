@@ -115,14 +115,15 @@ module FlatParse.Basic (
   , ensureBytes#
 
   -- ** Unboxed arguments
-  , takeBs#
+  , take#
   , atSkip#
 
 
   -- ** Location & address primitives
   , setBack#
   , withAddr#
-  , takeBsOffAddr#
+  , takeOffAddr#
+  , withOffAddr#
   , lookaheadFromAddr#
   , atAddr#
 
@@ -164,6 +165,7 @@ import FlatParse.Basic.Integers
 import FlatParse.Basic.Internal
 import FlatParse.Basic.Chars
 import FlatParse.Basic.Position
+import FlatParse.Basic.Addr
 
 -- | Higher-level boxed data type for parsing results.
 data Result e a =
@@ -268,7 +270,7 @@ eof = Parser \fp eob s -> case eqAddr# eob s of
 --
 -- Throws a runtime error if given a negative integer.
 take :: Int -> Parser e B.ByteString
-take (I# n#) = takeBs# n#
+take (I# n#) = take# n#
 {-# inline take #-}
 
 -- | Consume the rest of the input. May return the empty bytestring.

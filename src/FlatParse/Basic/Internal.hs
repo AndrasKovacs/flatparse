@@ -71,21 +71,23 @@ withNotEob (Parser p) = Parser \fp eob s -> case eqAddr# eob s of
 --------------------------------------------------------------------------------
 -- Low level unboxed combinators
 
--- | Read the given number of bytes as a 'ByteString'.
+-- | Read @n@ bytes as a 'ByteString'. Fails if newer than @n@ bytes are
+--   available.
 --
 -- Throws a runtime error if given a negative integer.
-takeBs# :: Int# -> Parser e B.ByteString
-takeBs# n# = withPosInt# n# takeBsUnsafe#
-{-# inline takeBs# #-}
+take# :: Int# -> Parser e B.ByteString
+take# n# = withPosInt# n# takeUnsafe#
+{-# inline take# #-}
 
--- | Read the given number of bytes as a 'ByteString'.
+-- | Read @n@ bytes as a 'ByteString'. Fails if newer than @n@ bytes are
+--   available.
 --
 -- Undefined behaviour if given a negative integer.
-takeBsUnsafe# :: Int# -> Parser e B.ByteString
-takeBsUnsafe# n# = Parser \fp eob s -> case n# <=# minusAddr# eob s of
+takeUnsafe# :: Int# -> Parser e B.ByteString
+takeUnsafe# n# = Parser \fp eob s -> case n# <=# minusAddr# eob s of
   1# -> OK# (B.PS (ForeignPtr s fp) 0 (I# n#)) (plusAddr# s n#)
   _  -> Fail#
-{-# inline takeBsUnsafe# #-}
+{-# inline takeUnsafe# #-}
 
 -- | Skip forward @n@ bytes and run the given parser. Fails if fewer than @n@
 --   bytes are available.
@@ -111,45 +113,6 @@ atSkipUnsafe# os# (Parser p) = Parser \fp eob s -> case os# <=# minusAddr# eob s
 skip# :: Int# -> Parser e ()
 skip# os# = atSkip# os# (pure ())
 {-# inline skip# #-}
-
--- | Run a parser, passing it the current address the parser is at.
---
--- Useful for parsing offset-based data tables. For example, you may use this to
--- save the base address to use together with various 0-indexed offsets.
-withAddr# :: (Addr# -> Parser e a) -> Parser e a
-withAddr# p = Parser \fp eob s -> runParser# (p s) fp eob s
-{-# inline withAddr# #-}
-
--- | @takeBsOffAddr# addr# offset# len#@ moves to @addr#@, skips @offset#@
---   bytes, reads @len#@ bytes into a 'ByteString', and restores the original
---   address.
---
--- The 'Addr#' should be from 'withAddr#'.
---
--- Useful for parsing offset-based data tables. For example, you may use this
--- together with 'withAddr#' to jump to an offset in your input and read some
--- data.
-takeBsOffAddr# :: Addr# -> Int# -> Int# -> Parser e B.ByteString
-takeBsOffAddr# addr# offset# len# =
-    lookaheadFromAddr# addr# $ atSkip# offset# $ takeBs# len#
-{-# inline takeBsOffAddr# #-}
-
--- | 'lookahead', but specify the address to lookahead from.
---
--- The 'Addr#' should be from 'withAddr#'.
-lookaheadFromAddr# :: Addr# -> Parser e a -> Parser e a
-lookaheadFromAddr# s = lookahead . atAddr# s
-{-# inline lookaheadFromAddr# #-}
-
--- | Run a parser at the given address.
---
--- The 'Addr#' should be from 'withAddr#'.
---
--- This is a highly internal function -- you likely want 'lookaheadFromAddr#',
--- which will reset the address after running the parser.
-atAddr# :: Addr# -> Parser e a -> Parser e a
-atAddr# s (Parser p) = Parser \fp eob _ -> p fp eob s
-{-# inline atAddr# #-}
 
 --------------------------------------------------------------------------------
 -- Low-level boxed combinators

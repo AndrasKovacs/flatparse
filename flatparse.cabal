@@ -44,6 +44,7 @@ flag llvm
 library
   exposed-modules:
       FlatParse.Basic
+      FlatParse.Basic.Addr
       FlatParse.Basic.Chars
       FlatParse.Basic.Integers
       FlatParse.Basic.Internal
