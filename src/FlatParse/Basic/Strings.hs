@@ -2,7 +2,26 @@
 
 -- | Parsers and utilities for parsing (UTF-8) 'Char's and strings.
 
-module FlatParse.Basic.Strings where
+module FlatParse.Basic.Strings
+  ( getCharOf
+  , getStringOf
+  , getChar
+  , getChar_
+  , getCharASCII
+  , getCharASCII_
+  , getAsciiDecimalInt
+  , getAsciiDecimalInteger
+  , getAsciiHexInt
+  , Common.isDigit
+  , Common.isGreekLetter
+  , Common.isLatinLetter
+  , satisfy
+  , satisfy_
+  , satisfyASCII
+  , satisfyASCII_
+  , fusedSatisfy
+  , fusedSatisfy_
+  ) where
 
 import Prelude hiding ( getChar )
 

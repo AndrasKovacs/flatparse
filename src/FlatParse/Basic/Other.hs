@@ -1,20 +1,25 @@
 {-# language UnboxedTuples #-}
 
--- | Parser building blocks.
+-- | Assorted parser building blocks which may use the more basic combinators,
+--   and don't belong elsewhere.
 
-module FlatParse.Basic.Other where
+module FlatParse.Basic.Other
+  ( getCString, getCStringUnsafe
+  , getByteStringOf, getBytesOf
+  , switch, switchWithPost, rawSwitchWithPost
+  ) where
 
 import FlatParse.Basic.Parser
 
 -- TODO TH!!
-import FlatParse.Basic.Combinators ( branch, skipBack# )
+import FlatParse.Basic.Base ( branch, skipBack# )
 import FlatParse.Basic.Integers ( getWord64OfUnsafe
                                 , getWord32OfUnsafe
                                 , getWord16OfUnsafe
                                 , getWord8OfUnsafe
                                 , getWord8Unsafe )
 
-import FlatParse.Common.Trie
+import FlatParse.Common.Trie hiding ( ensureBytes )
 import qualified FlatParse.Common.Assorted as Common
 
 import GHC.Exts
@@ -101,21 +106,13 @@ getByteStringOf (B.PS (ForeignPtr bs fcontent) _ (I# len)) =
        _  -> Fail#
 {-# inline getByteStringOf #-}
 
--- | Check that the input has at least the given number of bytes.
-ensureBytes# :: Int -> Parser e ()
-ensureBytes# (I# len) = Parser \fp eob s ->
-  case len  <=# minusAddr# eob s of
-    1# -> OK# () s
-    _  -> Fail#
-{-# inline ensureBytes# #-}
-
 -- | Read a sequence of bytes. This is a template function, you can use it as
 --   @$(getBytesOf [3, 4, 5])@, for example, and the splice has type @Parser e
 --   ()@.
 getBytesOf :: [Word] -> Q Exp
 getBytesOf bytes = do
   let !len = length bytes
-  [| ensureBytes# len >> $(scanBytes# bytes) |]
+  [| ensureBytes len >> $(scanBytes# bytes) |]
 
 -- | Template function, creates a @Parser e ()@ which unsafely scans a given
 --   sequence of bytes.
@@ -156,7 +153,6 @@ scanPartial64# (I# len) (W# w) = Parser \fp eob s ->
             _  -> Fail#
 {-# inline scanPartial64# #-}
 
-
 -- Switching code generation
 --------------------------------------------------------------------------------
 
@@ -177,7 +173,7 @@ genTrie (rules, t) = do
         Just a  -> a
 
   let ensure :: Maybe Int -> Maybe (Q Exp)
-      ensure = fmap (\n -> [| ensureBytes# n |])
+      ensure = fmap (\n -> [| ensureBytes n |])
 
       fallback :: Rule -> Int ->  Q Exp
       fallback rule 0 = pure $ VarE $ fst $ ix branches rule
@@ -311,3 +307,13 @@ rawSwitchWithPost postAction cases fallback = do
   !cases <- forM cases \(str, rhs) -> (str,) <$> rhs
   !fallback <- sequence fallback
   genTrie $! genSwitchTrie' postAction cases fallback
+
+--------------------------------------------------------------------------------
+
+-- | Assert that the input has at least the given number of bytes.
+ensureBytes :: Int -> Parser e ()
+ensureBytes (I# len) = Parser \fp eob s ->
+  case len <=# minusAddr# eob s of
+    1# -> OK# () s
+    _  -> Fail#
+{-# inline ensureBytes #-}

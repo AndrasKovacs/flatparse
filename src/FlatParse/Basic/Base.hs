@@ -2,7 +2,42 @@
 
 -- | Basic parser building blocks.
 
-module FlatParse.Basic.Combinators where
+module FlatParse.Basic.Base
+  (
+  -- * Errors and failures
+    err
+  , try
+  , fails
+  , cut
+  , cutting
+  , optional_
+  , withOption
+
+  -- * Primitive combinators
+  , lookahead
+  , branch
+  , chainl
+  , chainr
+  , many_
+  , some_
+  , notFollowedBy
+  , isolate
+  , isolateUnsafe#
+
+  -- * Primitive byte-wise parsers
+  , eof
+  , take
+  , take#
+  , takeUnsafe#
+  , takeRest
+  , skip
+  , atSkip#
+  , atSkipUnsafe#
+  , skipBack#
+
+  ) where
+
+import Prelude hiding ( take )
 
 import FlatParse.Basic.Parser
 
@@ -18,6 +53,13 @@ err :: e -> Parser e a
 err e = Parser \fp eob s -> Err# e
 {-# inline err #-}
 
+-- | Convert a parsing error into failure.
+try :: Parser e a -> Parser e a
+try (Parser f) = Parser \fp eob s -> case f fp eob s of
+  Err# _ -> Fail#
+  x      -> x
+{-# inline try #-}
+
 -- | Convert a parsing failure to a success.
 fails :: Parser e a -> Parser e ()
 fails (Parser f) = Parser \fp eob s ->
@@ -26,27 +68,6 @@ fails (Parser f) = Parser \fp eob s ->
     Fail#   -> OK# () s
     Err# e  -> Err# e
 {-# inline fails #-}
-
--- | Convert a parsing error into failure.
-try :: Parser e a -> Parser e a
-try (Parser f) = Parser \fp eob s -> case f fp eob s of
-  Err# _ -> Fail#
-  x      -> x
-{-# inline try #-}
-
--- | Convert a parsing failure to a `()`.
-optional_ :: Parser e a -> Parser e ()
-optional_ p = (() <$ p) <|> pure ()
-{-# inline optional_ #-}
-
--- | CPS'd version of `optional`. This is usually more efficient, since it gets
---   rid of the extra `Maybe` allocation.
-withOption :: Parser e a -> (a -> Parser e r) -> Parser e r -> Parser e r
-withOption (Parser f) just (Parser nothing) = Parser \fp eob s -> case f fp eob s of
-  OK# a s -> runParser# (just a) fp eob s
-  Fail#   -> nothing fp eob s
-  Err# e  -> Err# e
-{-# inline withOption #-}
 
 -- | Convert a parsing failure to an error.
 cut :: Parser e a -> e -> Parser e a
@@ -65,7 +86,28 @@ cutting (Parser f) e merge = Parser \fp eob s -> case f fp eob s of
   x       -> x
 {-# inline cutting #-}
 
+-- | Convert a parsing failure to a `()`.
+optional_ :: Parser e a -> Parser e ()
+optional_ p = (() <$ p) <|> pure ()
+{-# inline optional_ #-}
+
+-- | CPS'd version of `optional`. This is usually more efficient, since it gets
+--   rid of the extra `Maybe` allocation.
+withOption :: Parser e a -> (a -> Parser e r) -> Parser e r -> Parser e r
+withOption (Parser f) just (Parser nothing) = Parser \fp eob s -> case f fp eob s of
+  OK# a s -> runParser# (just a) fp eob s
+  Fail#   -> nothing fp eob s
+  Err# e  -> Err# e
+{-# inline withOption #-}
+
 --------------------------------------------------------------------------------
+
+-- | Succeed if the input is empty.
+eof :: Parser e ()
+eof = Parser \fp eob s -> case eqAddr# eob s of
+  1# -> OK# () s
+  _  -> Fail#
+{-# inline eof #-}
 
 -- | Save the parsing state, then run a parser, then restore the state.
 lookahead :: Parser e a -> Parser e a
@@ -151,13 +193,6 @@ notFollowedBy p1 p2 = p1 <* fails p2
 {-# inline notFollowedBy #-}
 
 --------------------------------------------------------------------------------
-
--- | Succeed if the input is empty.
-eof :: Parser e ()
-eof = Parser \fp eob s -> case eqAddr# eob s of
-  1# -> OK# () s
-  _  -> Fail#
-{-# inline eof #-}
 
 -- | Read the given number of bytes as a 'ByteString'.
 --

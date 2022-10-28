@@ -1,3 +1,5 @@
+-- | Parsers and utilities concerning position in input.
+
 module FlatParse.Basic.Position
   ( module FlatParse.Common.Position
   , module FlatParse.Basic.Position

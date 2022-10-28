@@ -45,7 +45,7 @@ library
   exposed-modules:
       FlatParse.Basic
       FlatParse.Basic.Addr
-      FlatParse.Basic.Combinators
+      FlatParse.Basic.Base
       FlatParse.Basic.Integers
       FlatParse.Basic.Other
       FlatParse.Basic.Parser

@@ -20,7 +20,7 @@ functions.)
 module FlatParse.Basic.Addr where
 
 import FlatParse.Basic.Parser
-import FlatParse.Basic.Combinators ( take#, atSkip#, lookahead )
+import FlatParse.Basic.Base ( take#, atSkip#, lookahead )
 
 import GHC.Exts
 

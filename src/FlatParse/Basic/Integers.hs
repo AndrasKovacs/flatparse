@@ -1,22 +1,10 @@
 {- | Machine integer parsers.
 
-The following naming conventions are followed:
+Parsers use native byte order, unless stated otherwise.
 
-  * @withX@ are continuation passing style (CPS) parsers.
-    * These are sprinkled throughout to enable better reasoning about
-      performance.
-  * @getX@ are regular monadic parsers.
-  * @getXOf@ parse and check equality with a provided value.
-  * Definitions ending with @#@ are called with unboxed values.
-  * Definitions ending with @Unsafe@ are unsafe. Read their documentation before
-    using.
-
-Other points:
-
-  * TODO: The endianness code is currently lying. We blindly assume that our
-    host system is little-endian, and parse in big-endian by parsing normally
-    then "reversing" the resulting integer.
-  * Unless otherwise mentioned, native byte order is utilized.
+TODO: The endianness code is currently lying. We blindly assume that our host
+system is little-endian, and parse in big-endian by parsing normally then
+"reversing" the resulting integer.
 -}
 
 module FlatParse.Basic.Integers
