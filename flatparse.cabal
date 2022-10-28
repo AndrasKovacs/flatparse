@@ -47,6 +47,7 @@ library
       FlatParse.Basic.Addr
       FlatParse.Basic.Base
       FlatParse.Basic.Integers
+      FlatParse.Basic.Integers.Varints
       FlatParse.Basic.Other
       FlatParse.Basic.Parser
       FlatParse.Basic.Position

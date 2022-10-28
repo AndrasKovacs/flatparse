@@ -1,4 +1,4 @@
-{-# language UnboxedTuples #-}
+{-# language UnboxedTuples, BinaryLiterals #-}
 
 module FlatParse.Common.Numbers where
 
@@ -68,3 +68,23 @@ readIntHex :: Addr# -> Addr# -> (# (##) | (# Int#, Addr# #) #)
 readIntHex eob s = case readIntHex' 0# s eob of
     (# n, s' #) | 1# <- eqAddr# s s' -> (# (##) | #)
                 | otherwise          -> (# | (# n, s' #) #)
+
+-- | protobuf style (LE, redundant, on continues)
+getVarintProtobuf# :: Addr# -> Addr# -> (# (##) | (# Int#, Addr#, Int# #) #)
+-- v TODO not working??
+#if !MIN_VERSION_base(4,17,0)
+getVarintProtobuf# = error "TODO not supported on this GHC bud"
+#else
+getVarintProtobuf# end# = go 0# 0#
+  where
+    go :: Int# -> Int# -> Addr# -> (# (##) | (# Int#, Addr#, Int# #) #)
+    go i# n# s# = case eqAddr# s# end# of
+      1# -> (# (##) | #)
+      _  ->
+        let w# = indexWord8OffAddr# s# 0#
+            w'# = word2Int# (word8ToWord# (w# `andWord8#` (wordToWord8# 0b01111111##)))
+            i'# = i# `orI#` (w'# `uncheckedIShiftL#` n#)
+        in  case w# `geWord8#` wordToWord8# 0b10000000## of
+              1# -> go i'# (n# +# 7#) (s# `plusAddr#` 1#)
+              _  -> (# | (# i'#, s#, n# #) #)
+#endif
