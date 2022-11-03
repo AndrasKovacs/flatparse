@@ -81,6 +81,7 @@ module FlatParse.Basic (
   , FlatParse.Basic.readWord
   , FlatParse.Basic.readWordHex
   , FlatParse.Basic.readInteger
+  , readVarintProtobuf
   , anyCString
 
   -- ** Explicit-endianness machine integers
@@ -728,6 +729,30 @@ readInteger = Parser \fp eob s -> case FlatParse.Internal.readInteger fp eob s o
   (# (##) | #)        -> Fail#
   (# | (# i, s' #) #) -> OK# i s'
 {-# inline readInteger #-}
+
+-- | Read a protobuf-style varint into an `Word`.
+--
+-- protobuf-style varints are byte-aligned. For each byte, the lower 7 bits are
+-- data and the MSB indicates if there are further bytes. Once fully parsed, the
+-- 7-bit payloads are concatenated and interpreted as a little-endian unsigned
+-- integer.
+--
+-- Really, these are varnats. They also match with the LEB128 varint encoding.
+--
+-- protobuf encodes negatives in unsigned integers using zigzag encoding. See
+-- the @fromZigzag@ family of functions for this functionality.
+--
+-- Further reading:
+-- https://developers.google.com/protocol-buffers/docs/encoding#varints
+readVarintProtobuf :: Parser e Word
+readVarintProtobuf = Parser \fp eob s ->
+    case readVarintProtobuf# eob s of
+      (# (##) | #) -> Fail#
+      (# | (# w#, s#, n# #) #) ->
+        case n# ># 64# of
+          1# -> Fail# -- overflow
+          _  -> OK# (W# w#) s#
+{-# inline readVarintProtobuf #-}
 
 --------------------------------------------------------------------------------
 

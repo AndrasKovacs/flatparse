@@ -1,4 +1,5 @@
-{-# language UnboxedTuples #-}
+{-# language UnboxedTuples, BinaryLiterals #-}
+
 module FlatParse.Internal where
 
 import FlatParse.Internal.UnboxedNumerics
@@ -173,6 +174,57 @@ readInteger fp eob s = case readIntOverflow_ 0# eob s of
         Nothing     -> (# (##) | #)
         Just (i, _) -> (# | (# i, s' #) #)
 {-# inline readInteger #-}
+
+-- | protobuf style (LE, redundant, on continues)
+--
+-- also returns a count of the maximum data bits read -- if this is >64, the
+-- result is overflowed and useless. we could also do this using the 'Addr#'
+-- returned like the other @readX@ functions. But we're forced to keep track of
+-- this number in the algo, so I guess we might as well?
+readVarintProtobuf# :: Addr# -> Addr# -> (# (##) | (# Word#, Addr#, Int# #) #)
+readVarintProtobuf# end# = go 0## 0#
+  where
+    go :: Word# -> Int# -> Addr# -> (# (##) | (# Word#, Addr#, Int# #) #)
+    go i# n# s# = case eqAddr# s# end# of
+      1# -> (# (##) | #)
+      _  ->
+        let w# = indexWord8OffAddr''# s# 0#
+            w'# = word8ToWord''# (w# `andWord8#` (wordToWord8''# 0b01111111##))
+            i'# = i# `or#` (w'# `uncheckedShiftL#` n#)
+            s'# = s# `plusAddr#` 1#
+            n'# = n# +# 7#
+        in  case w# `geWord8#` wordToWord8''# 0b10000000## of
+              1# -> go i'# n'# s'#
+              _  -> (# | (# i'#, s'#, n'# #) #)
+
+--------------------------------------------------------------------------------
+-- Zigzag encoding
+-- See: https://hackage.haskell.org/package/zigzag-0.0.1.0/docs/src/Data.Word.Zigzag.html
+
+fromZigzagNative :: Word -> Int
+fromZigzagNative (W# w#) = I# (fromZigzagNative# w#)
+{-# inline fromZigzagNative #-}
+
+-- GHC should optimize to this, but to be sure, here it is
+fromZigzagNative# :: Word# -> Int#
+fromZigzagNative# w# =
+    word2Int# ((w# `uncheckedShiftRL#` 1#) `xor#` (not# (w# `and#` 1##) `plusWord#` 1##))
+{-# inline fromZigzagNative# #-}
+
+toZigzagNative :: Int -> Word
+toZigzagNative (I# i#) = W# (toZigzagNative# i#)
+{-# inline toZigzagNative #-}
+
+-- GHC should optimize to this, but to be sure, here it is
+toZigzagNative# :: Int# -> Word#
+toZigzagNative# i# = toZigzagNative'# (int2Word# i#)
+{-# inline toZigzagNative# #-}
+
+-- GHC should optimize to this, but to be sure, here it is
+toZigzagNative'# :: Word# -> Word#
+toZigzagNative'# w# =
+    (w# `uncheckedShiftL#` 1#) `xor#` (w# `uncheckedShiftRL#` 63#)
+{-# inline toZigzagNative'# #-}
 
 
 -- Positions and spans

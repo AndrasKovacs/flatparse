@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.35.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -71,11 +71,11 @@ library
     , containers
     , integer-gmp
     , template-haskell
+  default-language: Haskell2010
   if flag(dump)
     ghc-options: -ddump-simpl -ddump-stg-final -ddump-cmm -dsuppress-all -dno-suppress-type-signatures -ddump-to-file
   if flag(llvm)
     ghc-options: -fllvm
-  default-language: Haskell2010
 
 test-suite spec
   type: exitcode-stdio-1.0
@@ -105,11 +105,11 @@ test-suite spec
     , flatparse
     , hspec
     , quickcheck-instances
+  default-language: Haskell2010
   if flag(dump)
     ghc-options: -ddump-simpl -ddump-stg-final -ddump-cmm -dsuppress-all -dno-suppress-type-signatures -ddump-to-file
   if flag(llvm)
     ghc-options: -fllvm
-  default-language: Haskell2010
 
 benchmark bench
   type: exitcode-stdio-1.0
@@ -146,8 +146,8 @@ benchmark bench
     , megaparsec
     , parsec
     , primitive
+  default-language: Haskell2010
   if flag(dump)
     ghc-options: -ddump-simpl -ddump-stg-final -ddump-cmm -dsuppress-all -dno-suppress-type-signatures -ddump-to-file
   if flag(llvm)
     ghc-options: -fllvm
-  default-language: Haskell2010

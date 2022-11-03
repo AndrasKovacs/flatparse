@@ -1,4 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ScopedTypeVariables, BinaryLiterals #-}
 
 module Main where
 
@@ -446,6 +446,18 @@ basicSpec = describe "FlatParse.Basic" $ do
       it "fails on non-integers" $ FB.readInteger `shouldParseFail` "foo"
       it "fails on negative integers" $ FB.readInteger `shouldParseFail` "-5"
       it "fails on FB.empty input" $ FB.readInteger `shouldParseFail` ""
+
+    describe "readVarintProtobuf" $ do
+      it "parses some examples" $ do
+        FB.readVarintProtobuf `shouldParseWith` (B.pack [0b01111111], 127)
+        FB.readVarintProtobuf `shouldParseWith` (B.pack [0b11111111, 0b00000000], 127)
+        FB.readVarintProtobuf `shouldParseWith` (B.pack [0b10000000, 0b00000001], 128)
+        FB.readVarintProtobuf `shouldParseWith` (B.pack [0b10010110, 0b00000001], 150)
+      it "fails on overlong varint" $ do
+        -- 7 bits per byte = max 9 bytes in 64-bit word
+        let bs n = B.replicate n 0b10101010
+        FB.readVarintProtobuf `shouldParse`     B.snoc (bs 8) 0b01010101
+        FB.readVarintProtobuf `shouldParseFail` B.snoc (bs 9) 0b01010101
 
     describe "anyCString" $ do
       prop "parses arbitrary null-terminated bytestrings" $

@@ -111,5 +111,9 @@ leWord8# :: Word8# -> Word8# -> Int#
 leWord8# w1# w2# = leWord# w1# w2#
 eqWord8# :: Word8# -> Word8# -> Int#
 eqWord8# w1# w2# = eqWord# w1# w2#
+geWord8# :: Word8# -> Word8# -> Int#
+geWord8# w1# w2# = geWord# w1# w2#
+andWord8# :: Word8# -> Word8# -> Word8#
+andWord8# w1# w2# = andWord# w1# w2#
 
 #endif
