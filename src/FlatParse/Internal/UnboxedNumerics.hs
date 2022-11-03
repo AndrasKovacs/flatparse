@@ -99,21 +99,33 @@ word8ToWord''# = extendWord8#
 
 #endif
 
-#if !MIN_VERSION_base(4,13,0)
--- GHC <8.8
-
+#if MIN_VERSION_base(4,12,0) && !MIN_VERSION_base(4,13,0)
+-- GHC 8.6.x
 type Word8# = Word#
 narrowWord8# :: Word# -> Word8#
 narrowWord8# = narrow8Word#
+{-# inline narrowWord8# #-}
 extendWord8# :: Word# -> Word8#
 extendWord8# w# = w#
+{-# inline extendWord8# #-}
 leWord8# :: Word8# -> Word8# -> Int#
 leWord8# w1# w2# = leWord# w1# w2#
+{-# inline leWord8# #-}
 eqWord8# :: Word8# -> Word8# -> Int#
 eqWord8# w1# w2# = eqWord# w1# w2#
+{-# inline eqWord8# #-}
 geWord8# :: Word8# -> Word8# -> Int#
 geWord8# w1# w2# = geWord# w1# w2#
+{-# inline geWord8# #-}
 andWord8# :: Word8# -> Word8# -> Word8#
-andWord8# w1# w2# = andWord# w1# w2#
+andWord8# = and#
+{-# inline andWord8# #-}
+#endif
 
+#if MIN_VERSION_base(4,13,0) && !MIN_VERSION_base(4,16,0)
+-- GHC 8.8.x, 8.10.x, 9.0.x
+andWord8# :: Word8# -> Word8# -> Word8#
+andWord8# w1# w2# =
+    wordToWord8''# (and# (word8ToWord''# w1#) (word8ToWord''# w2#))
+{-# inline andWord8# #-}
 #endif
