@@ -80,6 +80,8 @@ module FlatParse.Stateful (
   , isLatinLetter
   , FlatParse.Stateful.readInt
   , FlatParse.Stateful.readIntHex
+  , FlatParse.Stateful.readWord
+  , FlatParse.Stateful.readWordHex
   , FlatParse.Stateful.readInteger
   , anyCString
 
@@ -708,8 +710,8 @@ anyCharASCII_ :: Parser r e ()
 anyCharASCII_ = () <$ anyCharASCII
 {-# inline anyCharASCII_ #-}
 
--- | Read an `Int` from the input, as a non-empty digit sequence. The `Int` may
---   overflow in the result.
+-- | Read an `Int` from the input, as a non-empty digit sequence.
+-- Fails on overflow.
 readInt :: Parser r e Int
 readInt = Parser \fp r eob s n -> case FlatParse.Internal.readInt eob s of
   (# (##) | #)        -> Fail#
@@ -717,12 +719,28 @@ readInt = Parser \fp r eob s n -> case FlatParse.Internal.readInt eob s of
 {-# inline readInt #-}
 
 -- | Read an `Int` from the input, as a non-empty case-insensitive ASCII
---   hexadecimal digit sequence. The `Int` may overflow in the result.
+--   hexadecimal digit sequence.
+-- Fails on overflow.
 readIntHex :: Parser r e Int
 readIntHex = Parser \fp r eob s n -> case FlatParse.Internal.readIntHex eob s of
   (# (##) | #)        -> Fail#
   (# | (# i, s' #) #) -> OK# (I# i) s' n
 {-# inline readIntHex #-}
+
+-- | Read a `Word` from the input, as a non-empty digit sequence.
+-- Fails on overflow.
+readWord :: Parser r e Int
+readWord = Parser \fp r eob s n -> case FlatParse.Internal.readInt eob s of
+  (# (##) | #)        -> Fail#
+  (# | (# i, s' #) #) -> OK# (I# i) s' n
+{-# inline readWord #-}
+
+readWordHex :: Parser r e Word
+readWordHex = Parser $ \fp r eob s n ->
+  case FlatParse.Internal.readWordHex eob s of
+    (# | (# w, s' #) #) -> OK# (W# w) s' n
+    (# (# #) | #)       -> Fail#
+{-# inline readWordHex #-}
 
 -- | Read an `Integer` from the input, as a non-empty digit sequence.
 readInteger :: Parser r e Integer
@@ -730,7 +748,6 @@ readInteger = Parser \fp r eob s n -> case FlatParse.Internal.readInteger fp eob
   (# (##) | #)        -> Fail#
   (# | (# i, s' #) #) -> OK# i s' n
 {-# inline readInteger #-}
-
 
 --------------------------------------------------------------------------------
 

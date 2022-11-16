@@ -78,6 +78,8 @@ module FlatParse.Basic (
   , FlatParse.Internal.isLatinLetter
   , FlatParse.Basic.readInt
   , FlatParse.Basic.readIntHex
+  , FlatParse.Basic.readWord
+  , FlatParse.Basic.readWordHex
   , FlatParse.Basic.readInteger
   , anyCString
 
@@ -687,7 +689,7 @@ anyCharASCII_ = () <$ anyCharASCII
 {-# inline anyCharASCII_ #-}
 
 -- | Read a non-negative `Int` from the input, as a non-empty digit sequence.
--- The `Int` may overflow in the result.
+-- Fails on overflow.
 readInt :: Parser e Int
 readInt = Parser \fp eob s -> case FlatParse.Internal.readInt eob s of
   (# (##) | #)        -> Fail#
@@ -695,12 +697,29 @@ readInt = Parser \fp eob s -> case FlatParse.Internal.readInt eob s of
 {-# inline readInt #-}
 
 -- | Read an `Int` from the input, as a non-empty case-insensitive ASCII
---   hexadecimal digit sequence. The `Int` may overflow in the result.
+--   hexadecimal digit sequence.
+-- Fails on overflow.
 readIntHex :: Parser e Int
-readIntHex = Parser \fp eob s -> case FlatParse.Internal.readIntHex eob s of
+readIntHex = Parser $ \fp eob s ->
+  case FlatParse.Internal.readIntHex eob s of
+    (# | (# i, s' #) #) -> OK# (I# i) s'
+    (# (# #) | #)       -> Fail#
+{-# inline readIntHex #-}
+
+-- | Read a `Word` from the input, as a non-empty digit sequence.
+-- Fails on overflow.
+readWord :: Parser e Int
+readWord = Parser \fp eob s -> case FlatParse.Internal.readInt eob s of
   (# (##) | #)        -> Fail#
   (# | (# n, s' #) #) -> OK# (I# n) s'
-{-# inline readIntHex #-}
+{-# inline readWord #-}
+
+readWordHex :: Parser e Word
+readWordHex = Parser $ \_fp eob s ->
+  case FlatParse.Internal.readWordHex eob s of
+    (# | (# n, s' #) #) -> OK# (W# n) s'
+    (# (# #) | #)       -> Fail#
+{-# inline readWordHex #-}
 
 -- | Read a non-negative `Integer` from the input, as a non-empty digit
 -- sequence.
