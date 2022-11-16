@@ -400,8 +400,14 @@ basicSpec = describe "FlatParse.Basic" $ do
         property $
           \(NonNegative i) -> FB.readInt `shouldParseWith` (FB.packUTF8 (show i), i)
 
+      it "fails on reading an integer out of bounds" $
+        property $
+          \(NonNegative (i :: Int)) -> let i' = fromIntegral i + fromIntegral (maxBound :: Int) + 1
+                                        in FB.readInt `shouldParseFail` FB.packUTF8 (show i')
       it "fails on non-integers" $ FB.readInt `shouldParseFail` "foo"
-      it "fails on negative integers" $ FB.readInt `shouldParseFail` "-5"
+      it "fails on negative integers" $
+        property $
+          \(Negative i) -> FB.readInt `shouldParseFail` (FB.packUTF8 (show i))
       it "fails on FB.empty input" $ FB.readInt `shouldParseFail` ""
 
     describe "readIntHex" $ do
@@ -416,6 +422,20 @@ basicSpec = describe "FlatParse.Basic" $ do
       it "fails on non-integers" $ FB.readIntHex `shouldParseFail` "quux"
       it "fails on negative integers" $ FB.readIntHex `shouldParseFail` "-5"
       it "fails on FB.empty input" $ FB.readIntHex `shouldParseFail` ""
+
+    describe "readWord" $ do
+      it "round-trips on non-negative Words" $
+        property $
+          \(NonNegative i) -> FB.readWord `shouldParseWith` (FB.packUTF8 (show i), i)
+      it "fails on reading an wordeger out of bounds" $
+        property $
+          \(NonNegative (i :: Word)) -> let i' = fromIntegral i + fromIntegral (maxBound :: Word) + 1
+                                        in FB.readWord `shouldParseFail` FB.packUTF8 (show i')
+      it "fails on non-wordegers" $ FB.readWord `shouldParseFail` "foo"
+      it "fails on negative wordegers" $
+        property $
+          \(Negative i) -> FB.readWord `shouldParseFail` (FB.packUTF8 (show i))
+      it "fails on empty input" $ FB.readWord `shouldParseFail` ""
 
     describe "readInteger" $ do
       it "round-trips on non-negative Integers" $

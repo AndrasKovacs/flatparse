@@ -1,8 +1,8 @@
 {-# language UnboxedTuples #-}
-
 module FlatParse.Internal where
 
 import FlatParse.Internal.UnboxedNumerics
+
 
 import Data.Bits
 import Data.Char
@@ -59,53 +59,115 @@ mul10 :: Int# -> Int#
 mul10 n = uncheckedIShiftL# n 3# +# uncheckedIShiftL# n 1#
 {-# inline mul10 #-}
 
-readInt' :: Int# -> Addr# -> Addr# -> (# Int#, Addr# #)
-readInt' acc s end = case eqAddr# s end of
-  1# -> (# acc, s #)
-  _  -> case indexWord8OffAddr''# s 0# of
-    w | 1# <- leWord8# (wordToWord8''# 0x30##) w, 1# <- leWord8# w (wordToWord8''# 0x39##) ->
-      readInt' (mul10 acc +# (word2Int# (word8ToWord''# w) -# 0x30#)) (plusAddr# s 1#) end
-    _ -> (# acc, s #)
-
-
--- | Read an `Int` from the input, as a non-empty digit sequence. The `Int` may
---   overflow in the result.
-readInt :: Addr# -> Addr# -> (# (##) | (# Int#, Addr# #) #)
-readInt eob s = case readInt' 0# s eob of
-  (# n, s' #) | 1# <- eqAddr# s s' -> (# (##) | #)
-              | otherwise          -> (# | (# n, s' #) #)
-{-# inline readInt #-}
-
-readIntHex' :: Int# -> Addr# -> Addr# -> (# Int#, Addr# #)
-readIntHex' acc s end = case eqAddr# s end of
-  1# -> (# acc, s #)
+readWordHex_ :: Word# -> Addr# -> Addr# -> (# (##) | (# Word#, Addr# #) #)
+readWordHex_ acc eob s = case eqAddr# s eob of
+  1# -> (# | (# acc, s #) #)
   _  -> case indexWord8OffAddr''# s 0# of
     w | 1# <- leWord8# (wordToWord8''# 0x30##) w
       , 1# <- leWord8# w (wordToWord8''# 0x39##)
-      -> readIntHex' (uncheckedIShiftL# acc 4# +# (word2Int# (word8ToWord''# w) -# 0x30#)) (plusAddr# s 1#) end
-
+      -> case timesWord2# acc 16## of
+          (# 0##, r #) -> case addWordC# r (word8ToWord''# w `minusWord#` 0x30##) of
+            (# q, 0# #) -> readWordHex_ q eob (s `plusAddr#` 1#)
+            _           -> (# (##) | #)
+          _             -> (# (##) | #)
       | 1# <- leWord8# (wordToWord8''# 0x41##) w
       , 1# <- leWord8# w (wordToWord8''# 0x46##)
-      -> readIntHex' (uncheckedIShiftL# acc 4# +# (word2Int# (word8ToWord''# w) -# 0x37#)) (plusAddr# s 1#) end
-
+      -> case timesWord2# acc 16## of
+          (# 0##, r #) -> case addWordC# r (word8ToWord''# w `minusWord#` 0x37##) of
+            (# q, 0# #) -> readWordHex_ q eob (s `plusAddr#` 1#)
+            _           -> (# (##) | #)
+          _             -> (# (##) | #)
       | 1# <- leWord8# (wordToWord8''# 0x61##) w
       , 1# <- leWord8# w (wordToWord8''# 0x66##)
-      -> readIntHex' (uncheckedIShiftL# acc 4# +# (word2Int# (word8ToWord''# w) -# 0x57#)) (plusAddr# s 1#) end
+      -> case timesWord2# acc 16## of
+
+          (# 0##, r #) -> case addWordC# r (word8ToWord''# w `minusWord#` 0x57##) of
+            (# q, 0# #) -> readWordHex_ q eob (s `plusAddr#` 1#)
+            _           -> (# (##) | #)
+          _             -> (# (##) | #)
+    _ -> (# | (# acc, s #) #)
+
+-- | Read a `Word` from the input, as a non-empty ASCII encoded hexadecimal digit sequence. Fails on overflow
+readWordHex :: Addr# -> Addr# -> (# (##) | (# Word#, Addr# #) #)
+readWordHex eob s = case readWordHex_ 0## eob s of
+    (# | (# n, s' #) #) | 0# <- eqAddr# s s'
+                        -> (# | (# n, s' #) #)
+    _                   -> (# (# #) | #)
+{-# inline readWordHex #-}
+
+-- | Read an `Int` from the input, as a non-empty ASCII encoded hexadecimal digit sequence. Fails on overflow.
+readIntHex :: Addr# -> Addr# -> (# (##) | (# Int#, Addr# #) #)
+readIntHex eob s = case readWordHex_ 0## eob s of
+    (# | (# n, s' #) #) | 0# <- eqAddr# s s'
+                        , 1# <- leWord# n (int2Word# (unI maxBound))
+                        -> (# | (# word2Int# n, s' #) #)
+
+                        | otherwise
+                        -> (# (##) | #)
+    (# (##) | #)        -> (# (##) | #)
+
+readWord_ :: Word# -> Addr# -> Addr# -> (# (##) | (# Word#, Addr# #) #)
+readWord_ acc eob s = case eqAddr# s eob of
+  1# -> (# | (# acc, s #) #)
+  _  -> case indexWord8OffAddr''# s 0# of
+    w | 1# <- leWord8# (wordToWord8''# 0x30##) w
+      , 1# <- leWord8# w (wordToWord8''# 0x39##)
+      -> case timesWord2# acc 10## of
+          (# 0##, r #) -> case addWordC# r (word8ToWord''# w `minusWord#` 0x30##) of
+            (# q, 0# #) -> readWord_ q eob (s `plusAddr#` 1#)
+            _           -> (# (##) | #)
+          _             -> (# (##) | #)
+    _ -> (# | (# acc, s #) #)
+
+-- | Read an `Int` from the input, as a non-empty digit sequence. Fails on overflow.
+readWord :: Addr# -> Addr# -> (# (##) | (# Word#, Addr# #) #)
+readWord eob s = case readWord_ 0## eob s of
+    (# | (# n, s' #) #) | 0# <- eqAddr# s s'
+                        -> (# | (# n, s' #) #)
+    _                   -> (# (# #) | #)
+{-# inline readWord #-}
+
+
+-- | Read an `Int` from the input, as a non-empty digit sequence. Fails on overflow.
+readInt :: Addr# -> Addr# -> (# (##) | (# Int#, Addr# #) #)
+readInt eob s = case readWord_ 0## eob s of
+    (# | (# n, s' #) #) | 0# <- eqAddr# s s'
+                        , 1# <- leWord# n (int2Word# (unI maxBound))
+                        -> (# | (# word2Int# n, s' #) #)
+    _                   -> (# (##) | #)
+{-# inline readInt #-}
+
+unI :: Int -> Int#
+unI (I# i) = i
+{-# inline unI #-}
+
+-- | Read a `Word` from the input, as a non-empty ASCII encoded hexadecimal digit sequence. May overflow.
+readIntOverflow_ :: Int# -> Addr# -> Addr# -> (# Int#, Addr# #)
+readIntOverflow_ acc eob s = case eqAddr# s eob of
+  1# -> (# acc, s #)
+  _  -> case indexWord8OffAddr''# s 0# of
+    w | 1# <- leWord8# (wordToWord8''# 0x30##) w, 1# <- leWord8# w (wordToWord8''# 0x39##) ->
+      readIntOverflow_ (mul10 acc +# (word2Int# (word8ToWord''# w) -# 0x30#)) eob (plusAddr# s 1#)
     _ -> (# acc, s #)
 
--- | Read an `Int` from the input, as a non-empty case-insensitive ASCII
---   hexadecimal digit sequence. The `Int` may overflow in the result.
-{-# INLINE readIntHex #-}
-readIntHex :: Addr# -> Addr# -> (# (##) | (# Int#, Addr# #) #)
-readIntHex eob s = case readIntHex' 0# s eob of
-    (# n, s' #) | 1# <- eqAddr# s s' -> (# (##) | #)
-                | otherwise          -> (# | (# n, s' #) #)
+-- | Read an `Int` from the input, as a non-empty digit sequence. May overflow.
+readIntOverflow :: Addr# -> Addr# -> (# (##) | (# Int#, Addr# #) #)
+readIntOverflow eob s = case readIntOverflow_ 0# eob s of
+    (# n, s' #) | 0# <- eqAddr# s s'
+                -> (# | (# n, s' #) #)
+
+                | otherwise
+                -> (# (##) | #)
+{-# inline readIntOverflow #-}
 
 -- | Read an `Integer` from the input, as a non-empty digit sequence.
 readInteger :: ForeignPtrContents -> Addr# -> Addr# -> (# (##) | (# Integer, Addr# #) #)
-readInteger fp eob s = case readInt' 0# s eob of
+readInteger fp eob s = case readIntOverflow_ 0# eob s of
   (# n, s' #)
     | 1# <- eqAddr# s s'            -> (# (##) | #)
+
+    -- Simple heuristic, 18 digits correspond to somewhere between 2^59 and 2^60, which is
+    -- well inside the 'IS' constructor.
     | 1# <- minusAddr# s' s <=# 18# -> (# | (# shortInteger n, s' #) #)
     | otherwise -> case BC8.readInteger (B.PS (ForeignPtr s fp) 0 (I# (minusAddr# s' s))) of
         Nothing     -> (# (##) | #)
