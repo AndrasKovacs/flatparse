@@ -26,6 +26,15 @@ module FlatParse.Basic (
   -- * Running parsers
   , runParser
   , runParserS
+  , runParserIO
+  , runParserST
+
+  -- * Embedding parser types
+  , unsafeEmbedIOinST
+  , unsafeEmbedSTinIO
+  , embedSTinPure
+  , unsafeEmbedIOinPure
+  , unsafeDupableEmbedIOinPure
 
   -- * Errors and failures
   , failed
@@ -305,15 +314,23 @@ instance Functor (Result e) where
 unsafeParserToParser :: ParserT st e a -> ParserT su e a
 unsafeParserToParser (ParserT p) = ParserT (unsafeCoerce p)
 
+-- | Equivalent of 'unsafeIOToST'. Same caveats apply
 unsafeEmbedIOinST :: ParserIO e a -> ParserT s e a
 unsafeEmbedIOinST = unsafeParserToParser
 
-unsafeEmbedSTinPure :: ParserT s e a -> Parser e a
-unsafeEmbedSTinPure = unsafeParserToParser
+-- | Equivalent of 'unsafeSTToIO'. Same caveats apply
+unsafeEmbedSTinIO :: ParserT s e a -> ParserIO e a
+unsafeEmbedSTinIO = unsafeParserToParser
 
+-- | Equivalent of 'runST'
+embedSTinPure :: (forall s. ParserT s e a) -> Parser e a
+embedSTinPure p = p
+
+-- | Equivalent of 'unsafePerformIO'. Same caveats apply.
 unsafeEmbedIOinPure :: ParserIO e a -> Parser e a
 unsafeEmbedIOinPure p = unsafeDupableEmbedIOinPure (liftIO noDuplicate >> p)
 
+-- | Equivalent of 'unsafeDupablePerformIO'. Same caveats apply.
 unsafeDupableEmbedIOinPure :: ParserIO e a -> Parser e a
 unsafeDupableEmbedIOinPure = unsafeParserToParser
 
