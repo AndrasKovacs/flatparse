@@ -311,16 +311,18 @@ instance Functor (Result e) where
   (<$) _ r        = unsafeCoerce# r
   {-# inline (<$) #-}
 
-unsafeParserToParser :: ParserT st e a -> ParserT su e a
-unsafeParserToParser (ParserT p) = ParserT (unsafeCoerce p)
+-- | Switch out the underlying state token type. This is a notoriously unsafe
+-- thing to do and should not be exposed to users.
+reallyUnsafeStateCoerce :: ParserT st e a -> ParserT su e a
+reallyUnsafeStateCoerce (ParserT p) = ParserT (unsafeCoerce p)
 
 -- | Equivalent of 'unsafeIOToST'. Same caveats apply
 unsafeEmbedIOinST :: ParserIO e a -> ParserT s e a
-unsafeEmbedIOinST = unsafeParserToParser
+unsafeEmbedIOinST = reallyUnsafeStateCoerce
 
 -- | Equivalent of 'unsafeSTToIO'. Same caveats apply
 unsafeEmbedSTinIO :: ParserT s e a -> ParserIO e a
-unsafeEmbedSTinIO = unsafeParserToParser
+unsafeEmbedSTinIO = reallyUnsafeStateCoerce
 
 -- | Equivalent of 'runST'
 embedSTinPure :: (forall s. ParserT s e a) -> Parser e a
@@ -332,7 +334,7 @@ unsafeEmbedIOinPure p = unsafeDupableEmbedIOinPure (liftIO noDuplicate >> p)
 
 -- | Equivalent of 'unsafeDupablePerformIO'. Same caveats apply.
 unsafeDupableEmbedIOinPure :: ParserIO e a -> Parser e a
-unsafeDupableEmbedIOinPure = unsafeParserToParser
+unsafeDupableEmbedIOinPure = reallyUnsafeStateCoerce
 
 
 --------------------------------------------------------------------------------
@@ -519,7 +521,7 @@ byteString (B.PS (ForeignPtr bs fcontent) _ (I# len)) =
         _  -> OK# rw () s
 
   -- We roundtrip through ParserIO in order to use touch#
-  in unsafeParserToParser $
+  in reallyUnsafeStateCoerce $
        ParserT \fp eob s rw -> case len <=# minusAddr# eob s of
          1# -> case go64 bs (plusAddr# bs len) s rw of
                  (# rw', res #) -> case touch# fcontent rw' of
