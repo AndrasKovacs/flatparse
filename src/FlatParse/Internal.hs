@@ -1,4 +1,7 @@
-{-# language UnboxedTuples, BinaryLiterals #-}
+{-# LANGUAGE UnboxedTuples #-}
+{-# LANGUAGE BinaryLiterals #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE KindSignatures #-}
 
 module FlatParse.Internal where
 
@@ -389,3 +392,13 @@ ensureBytes = go 0 where
 
 compileTrie :: [(Int, String)] -> Trie' (Rule, Int, Maybe Int)
 compileTrie = ensureBytes . fallbacks . pathify . mindepths . listToTrie
+
+-- These type aliases are used as parameters to ParserT
+type IOMode = State# RealWorld
+type PureMode = Proxy# ()
+type STMode s = State# s
+
+#if !MIN_VERSION_base(4,17,0)
+type ZeroBitRep = 'TupleRep ('[] :: [RuntimeRep])
+type ZeroBitType = TYPE ZeroBitRep
+#endif
