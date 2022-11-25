@@ -394,8 +394,9 @@ compileTrie :: [(Int, String)] -> Trie' (Rule, Int, Maybe Int)
 compileTrie = ensureBytes . fallbacks . pathify . mindepths . listToTrie
 
 -- These type aliases are used as parameters to ParserT
+data Pure
 type IOMode = State# RealWorld
-type PureMode = Proxy# ()
+type PureMode = Proxy# Pure
 type STMode s = State# s
 
 #if !MIN_VERSION_base(4,17,0)

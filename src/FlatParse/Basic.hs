@@ -34,7 +34,6 @@ module FlatParse.Basic (
   , unsafeEmbedSTinIO
   , embedSTinPure
   , unsafeEmbedIOinPure
-  , unsafeDupableEmbedIOinPure
 
   -- * Errors and failures
   , failed
@@ -248,7 +247,6 @@ type Parser = ParserT PureMode
 type ParserIO = ParserT IOMode
 type ParserST s = ParserT (STMode s)
 
-
 instance Functor (ParserT st e) where
   fmap f (ParserT g) = ParserT \fp eob s st -> case g fp eob s st of
     OK# st' a s -> OK# st' (f $! a) s
@@ -315,27 +313,33 @@ instance Functor (Result e) where
 -- thing to do and should not be exposed to users.
 reallyUnsafeStateCoerce :: ParserT st e a -> ParserT su e a
 reallyUnsafeStateCoerce (ParserT p) = ParserT (unsafeCoerce p)
+{-# inline reallyUnsafeStateCoerce #-}
 
 -- | Equivalent of 'unsafeIOToST'. Same caveats apply
 unsafeEmbedIOinST :: ParserIO e a -> ParserT s e a
 unsafeEmbedIOinST = reallyUnsafeStateCoerce
+{-# inline unsafeEmbedIOinST #-}
 
 -- | Equivalent of 'unsafeSTToIO'. Same caveats apply
-unsafeEmbedSTinIO :: ParserT s e a -> ParserIO e a
+unsafeEmbedSTinIO :: ParserT st e a -> ParserIO e a
 unsafeEmbedSTinIO = reallyUnsafeStateCoerce
+{-# inline unsafeEmbedSTinIO #-}
 
 -- | Equivalent of 'runST'
-embedSTinPure :: (forall s. ParserT s e a) -> Parser e a
+embedSTinPure :: (forall st. ParserT st e a) -> Parser e a
 embedSTinPure p = p
+{-# inline embedSTinPure #-}
 
--- | Equivalent of 'unsafePerformIO'. Same caveats apply.
+-- | Embed a 'ParserIO' in a 'Parser'.
 unsafeEmbedIOinPure :: ParserIO e a -> Parser e a
-unsafeEmbedIOinPure p = unsafeDupableEmbedIOinPure (liftIO noDuplicate >> p)
+unsafeEmbedIOinPure p = reallyUnsafeStateCoerce (liftIO noDuplicate >> p)
+{-# inline unsafeEmbedIOinPure #-}
 
--- | Equivalent of 'unsafeDupablePerformIO'. Same caveats apply.
-unsafeDupableEmbedIOinPure :: ParserIO e a -> Parser e a
-unsafeDupableEmbedIOinPure = reallyUnsafeStateCoerce
-
+-- | Embed an IO action in a 'Parser'. This is safer than 'unsafePerformIO' because
+-- it will sequenced correctly with respect to the surrounding actions, and its execution is guaranteed. This is useful to embed debugging actions into the parser
+unsafeLiftIO :: IO a -> Parser e a
+unsafeLiftIO = unsafeEmbedIOinPure . liftIO
+{-# inline unsafeLiftIO #-}
 
 --------------------------------------------------------------------------------
 
@@ -345,12 +349,18 @@ runParser (ParserT f) b@(B.PS (ForeignPtr _ fp) _ (I# len)) = unsafePerformIO $
   B.unsafeUseAsCString b \(Ptr buf) -> do
     let end = plusAddr# buf len
     pure case f fp end buf proxy# of
-      OK# _ a s ->  let offset = minusAddr# s buf
-                      in OK a (B.drop (I# offset) b)
+      OK# _st a s -> let offset = minusAddr# s buf
+                     in OK a (B.drop (I# offset) b)
 
-      Err# _ e ->  Err e
-      Fail# _  ->  Fail
-{-# inlinable runParser #-}
+      Err# _st e -> Err e
+      Fail# _st  -> Fail
+
+{-# noinline runParser #-}
+-- We must mark this unline because we directly pass proxy# in here.
+-- Without it, in a situation where a realWorld# is expected say because we embed
+-- an IO or ST parser inside, or if we depend on noDuplicate#/touch#, this risks floating
+-- the token out. That would break the IO sequencing and in case of ST/IO allow
+-- the simplifier to do things like aliasing mutable buffers.
 
 -- | Run an ST based parser
 runParserST :: (forall s. ParserST s e a) -> B.ByteString -> Result e a
