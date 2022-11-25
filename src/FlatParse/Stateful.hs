@@ -345,7 +345,7 @@ unsafeLiftIO = unsafeEmbedIOinPure . liftIO
 --------------------------------------------------------------------------------
 
 -- | Run a parser. The `Int` argument is the initial state.
-runParser :: ParserT (Proxy# ()) r e a -> r -> Int -> B.ByteString -> Result e a
+runParser :: Parser r e a -> r -> Int -> B.ByteString -> Result e a
 runParser (ParserT f) !r (I# n) b@(B.PS (ForeignPtr _ fp) _ (I# len)) = unsafeDupablePerformIO $
   B.unsafeUseAsCString b \(Ptr buf) -> do
     let end = plusAddr# buf len
