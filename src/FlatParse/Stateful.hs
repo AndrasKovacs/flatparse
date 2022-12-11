@@ -193,10 +193,9 @@ import Data.Map (Map)
 import GHC.Exts
 import GHC.Word
 import GHC.Int
-import GHC.IO (noDuplicate, IO(..))
+import GHC.IO (IO(..))
 import Language.Haskell.TH
 import System.IO.Unsafe
-import Unsafe.Coerce (unsafeCoerce)
 import GHC.ForeignPtr
 
 import qualified Data.ByteString as B
@@ -505,7 +504,7 @@ bytes bytes = do
 
 -- | Parse a given `B.ByteString`. If the bytestring is statically known, consider using 'bytes' instead.
 byteString :: B.ByteString -> ParserT st r e ()
-byteString (B.PS (ForeignPtr bs fcontents) _ (I# len)) =
+byteString (B.PS (ForeignPtr bs fcontent) _ (I# len)) =
 
   let go64 :: Addr# -> Addr# -> Addr# -> Int# -> State# RealWorld -> Res# (State# RealWorld) e ()
       go64 bs bsend s n rw =
@@ -523,12 +522,16 @@ byteString (B.PS (ForeignPtr bs fcontents) _ (I# len)) =
           _  -> Fail# rw
         _  -> OK# rw () s n
 
-  in reallyUnsafeStateCoerce $
-    ParserT \fp !r eob s n rw -> case len <=# minusAddr# eob s of
-       1# -> case go64 bs (plusAddr# bs len) s n rw of
-               (# rw', res #) -> case touch# fcontents rw' of
-                 rw'' -> (# rw'', res #)
-       _  -> Fail# rw
+      go :: Addr# -> Addr# -> Addr# -> Int# -> State# RealWorld -> Res# (State# RealWorld) e ()
+      go bs bsend s n rw = case go64 bs bsend s n rw of
+        (# rw', res #) -> case touch# fcontent rw' of
+          rw'' -> (# rw'', res #)
+
+  in ParserT \fp !r eob s n st ->
+      case len <=# minusAddr# eob s of
+           1# -> case runRW# (go bs (plusAddr# bs len) s n) of
+             (# rw, a #) -> (# st, a #)
+           _  -> Fail# st
 {-# inline byteString #-}
 
 -- | Parse a UTF-8 string literal. This is a template function, you can use it as @$(string "foo")@,

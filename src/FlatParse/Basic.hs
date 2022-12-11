@@ -191,14 +191,13 @@ import Data.List (sortBy)
 import Data.Map (Map)
 import Data.Ord (comparing)
 import Data.Word
-import GHC.IO (noDuplicate, IO(..))
+import GHC.IO (IO(..))
 import GHC.Exts
 import GHC.Word
 import GHC.Int
 import GHC.ForeignPtr
 import Language.Haskell.TH
 import System.IO.Unsafe
-import Unsafe.Coerce (unsafeCoerce)
 
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Unsafe as B
@@ -497,14 +496,16 @@ byteString (B.PS (ForeignPtr bs fcontent) _ (I# len)) =
           _  -> Fail# rw
         _  -> OK# rw () s
 
-      go rw = case len <=# minusAddr# eob s of
-           1# -> case go64 bs (plusAddr# bs len) s rw of
-                   (# rw', res #) -> case touch# fcontent rw' of
-                     rw'' -> (# rw'', (# st, res #) #)
-           _  -> (# rw, Fail# st #)
+      go :: Addr# -> Addr# -> Addr# -> State# RealWorld -> Res# (State# RealWorld) e ()
+      go bs bsend s rw = case go64 bs bsend s rw of
+        (# rw', res #) -> case touch# fcontent rw' of
+          rw'' -> (# rw'', res #)
+
   in ParserT \fp eob s st ->
-       case runRW# go of
-         (# _, a #) -> a
+      case len <=# minusAddr# eob s of
+           1# -> case runRW# (go bs (plusAddr# bs len) s) of
+             (# rw, a #) -> (# st, a #)
+           _  -> Fail# st
 {-# inline byteString #-}
 
 -- | Parse a UTF-8 string literal. This is a template function, you can use it as @$(string "foo")@,
