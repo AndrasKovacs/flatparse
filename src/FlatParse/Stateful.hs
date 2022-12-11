@@ -305,36 +305,12 @@ instance Functor (Result e) where
   (<$) _ r          = unsafeCoerce# r
   {-# inline (<$) #-}
 
--- | Switch out the underlying state token type. This is a notoriously unsafe
--- thing to do and should not be exposed to users.
-reallyUnsafeStateCoerce :: ParserT st r e a -> ParserT su r e a
-reallyUnsafeStateCoerce (ParserT p) = ParserT (unsafeCoerce p)
-{-# inline reallyUnsafeStateCoerce #-}
-
--- | Equivalent of 'unsafeIOToST'. Same caveats apply
-unsafeEmbedIOinST :: ParserIO r e a -> ParserT s r e a
-unsafeEmbedIOinST = reallyUnsafeStateCoerce
-{-# inline unsafeEmbedIOinST #-}
-
--- | Equivalent of 'unsafeSTToIO'. Same caveats apply
-unsafeEmbedSTinIO :: ParserT st r e a -> ParserIO r e a
-unsafeEmbedSTinIO = reallyUnsafeStateCoerce
-{-# inline unsafeEmbedSTinIO #-}
-
--- | Equivalent of 'runST'
-embedSTinPure :: (forall st. ParserT st r e a) -> Parser r e a
-embedSTinPure p = p
-{-# inline embedSTinPure #-}
-
--- | Embed a 'ParserIO' in a 'Parser'.
-unsafeEmbedIOinPure :: ParserIO r e a -> Parser r e a
-unsafeEmbedIOinPure p = reallyUnsafeStateCoerce (liftIO noDuplicate >> p)
-{-# inline unsafeEmbedIOinPure #-}
-
--- | Embed an IO action in a 'Parser'. This is safer than 'unsafePerformIO' because
--- it will sequenced correctly with respect to the surrounding actions, and its execution is guaranteed. This is useful to embed debugging actions into the parser
-unsafeLiftIO :: IO a -> Parser r e a
-unsafeLiftIO = unsafeEmbedIOinPure . liftIO
+-- | Embed an IO action in a 'ParserT'. This is slightly safer than 'unsafePerformIO' because
+-- it will sequenced correctly with respect to the surrounding actions, and its execution is guaranteed.
+unsafeLiftIO :: IO a -> ParserT st r e a
+unsafeLiftIO io = ParserT \fp !r eob s n st ->
+                   let !a = unsafePerformIO io
+                   in OK# st a s n
 {-# inline unsafeLiftIO #-}
 
 --------------------------------------------------------------------------------
