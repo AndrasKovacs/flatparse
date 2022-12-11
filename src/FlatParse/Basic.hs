@@ -325,7 +325,9 @@ runParser (ParserT f) b@(B.PS (ForeignPtr _ fp) _ (I# len)) = unsafePerformIO $
 
       Err# _st e -> Err e
       Fail# _st  -> Fail
-{-# inlinable runParser #-}
+{-# noinline runParser #-}
+-- We mark this as noinline to allow power users to safely do unsafe state token coercions.
+-- Details are discussed in https://github.com/AndrasKovacs/flatparse/pull/34#issuecomment-1326999390
 
 -- | Run an ST based parser
 runParserST :: (forall s. ParserST s e a) -> B.ByteString -> Result e a
