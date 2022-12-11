@@ -26,12 +26,6 @@ module FlatParse.Stateful (
   , runParserIO
   , runParserST
 
-  -- * Embedding parser types
-  , unsafeEmbedIOinST
-  , unsafeEmbedSTinIO
-  , embedSTinPure
-  , unsafeEmbedIOinPure
-
   -- * Actions on the state and the environment
   , get
   , put
@@ -187,6 +181,7 @@ module FlatParse.Stateful (
   , scan64#
   , scanAny8#
   , scanBytes#
+  , unsafeLiftIO
 
   ) where
 
@@ -355,12 +350,7 @@ runParser (ParserT f) !r (I# n) b@(B.PS (ForeignPtr _ fp) _ (I# len)) = unsafeDu
 
       Err# _st e ->  Err e
       Fail# _st  ->  Fail
-{-# noinline runParser #-}
--- We must mark this unline because we directly pass proxy# in here.
--- Without it, in a situation where a realWorld# is expected say because we embed
--- an IO or ST parser inside, or if we depend on noDuplicate#/touch#, this risks floating
--- the token out. That would break the IO sequencing and in case of ST/IO allow
--- the simplifier to do things like aliasing mutable buffers.
+{-# inlinable runParser #-}
 
 -- | Run an ST based parser
 runParserST :: (forall s. ParserST s r e a) -> r -> Int -> B.ByteString -> Result e a
