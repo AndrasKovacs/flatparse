@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.0.
+-- This file has been generated from package.yaml by hpack version 0.35.1.
 --
 -- see: https://github.com/sol/hpack
 
@@ -44,6 +44,11 @@ flag llvm
 library
   exposed-modules:
       FlatParse.Basic
+      FlatParse.Basic.Integers
+      FlatParse.Basic.Parser
+      FlatParse.Common.Assorted
+      FlatParse.Common.GHCExts
+      FlatParse.Common.Parser
       FlatParse.Examples.BasicLambda.Lexer
       FlatParse.Examples.BasicLambda.Parser
       FlatParse.Internal

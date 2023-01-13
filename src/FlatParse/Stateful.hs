@@ -64,21 +64,6 @@ module FlatParse.Stateful (
   , satisfyASCII_
   , fusedSatisfy
   , fusedSatisfy_
-  , anyWord8
-  , anyWord8_
-  , anyWord16
-  , anyWord16_
-  , anyWord32
-  , anyWord32_
-  , anyWord64
-  , anyWord64_
-  , anyWord
-  , anyWord_
-  , anyInt8
-  , anyInt16
-  , anyInt32
-  , anyInt64
-  , anyInt
   , anyChar
   , anyChar_
   , anyCharASCII
@@ -92,20 +77,6 @@ module FlatParse.Stateful (
   , FlatParse.Stateful.readWordHex
   , FlatParse.Stateful.readInteger
   , anyCString
-
-  -- ** Explicit-endianness machine integers
-  , anyWord16le
-  , anyWord16be
-  , anyWord32le
-  , anyWord32be
-  , anyWord64le
-  , anyWord64be
-  , anyInt16le
-  , anyInt16be
-  , anyInt32le
-  , anyInt32be
-  , anyInt64le
-  , anyInt64be
 
   -- * Combinators
   , (<|>)
@@ -156,16 +127,6 @@ module FlatParse.Stateful (
   , takeBs#
   , atSkip#
 
-  -- *** Machine integer continuation parsers
-  , withAnyWord8#
-  , withAnyWord16#
-  , withAnyWord32#
-  , withAnyWord64#
-  , withAnyInt8#
-  , withAnyInt16#
-  , withAnyInt32#
-  , withAnyInt64#
-
   -- ** Location & address primitives
   , setBack#
   , withAddr#
@@ -192,7 +153,6 @@ import Data.Foldable
 import Data.Map (Map)
 import GHC.Exts
 import GHC.Word
-import GHC.Int
 import GHC.IO (IO(..))
 import Language.Haskell.TH
 import System.IO.Unsafe
@@ -511,7 +471,11 @@ byteString (B.PS (ForeignPtr bs fcontent) _ (I# len)) =
         let bs' = plusAddr# bs 8# in
         case gtAddr# bs' bsend of
           1# -> go8 bs bsend s n rw
+#if MIN_VERSION_base(4,17,0)
+          _  -> case eqWord64# (indexWord64OffAddr# bs 0#) (indexWord64OffAddr# s 0#) of
+#else
           _  -> case eqWord# (indexWord64OffAddr# bs 0#) (indexWord64OffAddr# s 0#) of
+#endif
             1# -> go64 bs' bsend (plusAddr# s 8#) n rw
             _  -> Fail# rw
 
@@ -1064,10 +1028,14 @@ scan32# (W32# c) = ParserT \fp !r eob s n st ->
 
 -- | Unsafely read eight concrete bytes from the input. It's not checked that the input has
 --   enough bytes.
-scan64# :: Word -> ParserT st r e ()
-scan64# (W# c) = ParserT \fp !r eob s n st ->
+scan64# :: Word64 -> ParserT st r e ()
+scan64# (W64# c) = ParserT \fp !r eob s n st ->
   case indexWord64OffAddr# s 0# of
+#if MIN_VERSION_base(4,17,0)
+    c' -> case eqWord64# c c' of
+#else
     c' -> case eqWord# c c' of
+#endif
       1# -> OK# st () (plusAddr# s 8#) n
       _  -> Fail# st
 {-# inline scan64# #-}
@@ -1208,207 +1176,6 @@ genSwitchTrie' postAction cases fallback =
       !m    =  M.fromList ((Nothing, maybe (VarE 'failed) id fallback) : branches)
       !trie = compileTrie strings
   in (m , trie)
-
---------------------------------------------------------------------------------
-
-withAnyWord8# :: (Word8'# -> ParserT st r e a) -> ParserT st r e a
-withAnyWord8# p = ParserT \fp !r eob buf n st -> case eqAddr# eob buf of
-  1# -> Fail# st
-  _  -> case indexWord8OffAddr# buf 0# of
-    w# -> runParserT# (p w#) fp r eob (plusAddr# buf 1#) n st
-{-# inline withAnyWord8# #-}
-
-withAnyWord16# :: (Word16'# -> ParserT st r e a) -> ParserT st r e a
-withAnyWord16# p = ParserT \fp !r eob buf n st -> case 2# <=# minusAddr# eob buf of
-  0# -> Fail# st
-  _  -> case indexWord16OffAddr# buf 0# of
-    w# -> runParserT# (p w#) fp r eob (plusAddr# buf 2#) n st
-{-# inline withAnyWord16# #-}
-
-withAnyWord32# :: (Word32'# -> ParserT st r e a) -> ParserT st r e a
-withAnyWord32# p = ParserT \fp !r eob buf n st -> case 4# <=# minusAddr# eob buf of
-  0# -> Fail# st
-  _  -> case indexWord32OffAddr# buf 0# of
-    w# -> runParserT# (p w#) fp r eob (plusAddr# buf 4#) n st
-{-# inline withAnyWord32# #-}
-
-withAnyWord64# :: (Word# -> ParserT st r e a) -> ParserT st r e a
-withAnyWord64# p = ParserT \fp !r eob buf n st -> case 8# <=# minusAddr# eob buf of
-  0# -> Fail# st
-  _  -> case indexWordOffAddr# buf 0# of
-    w# -> runParserT# (p w#) fp r eob (plusAddr# buf 8#) n st
-{-# inline withAnyWord64# #-}
-
-withAnyInt8# :: (Int8'# -> ParserT st r e a) -> ParserT st r e a
-withAnyInt8# p = ParserT \fp !r eob buf n st -> case eqAddr# eob buf of
-  1# -> Fail# st
-  _  -> case indexInt8OffAddr# buf 0# of
-    i# -> runParserT# (p i#) fp r eob (plusAddr# buf 1#) n st
-{-# inline withAnyInt8# #-}
-
-withAnyInt16# :: (Int16'# -> ParserT st r e a) -> ParserT st r e a
-withAnyInt16# p = ParserT \fp !r eob buf n st -> case 2# <=# minusAddr# eob buf of
-  0# -> Fail# st
-  _  -> case indexInt16OffAddr# buf 0# of
-    i# -> runParserT# (p i#) fp r eob (plusAddr# buf 2#) n st
-{-# inline withAnyInt16# #-}
-
-withAnyInt32# :: (Int32'# -> ParserT st r e a) -> ParserT st r e a
-withAnyInt32# p = ParserT \fp !r eob buf n st -> case 4# <=# minusAddr# eob buf of
-  0# -> Fail# st
-  _  -> case indexInt32OffAddr# buf 0# of
-    i# -> runParserT# (p i#) fp r eob (plusAddr# buf 4#) n st
-{-# inline withAnyInt32# #-}
-
-withAnyInt64# :: (Int# -> ParserT st r e a) -> ParserT st r e a
-withAnyInt64# p = ParserT \fp !r eob buf n st -> case 8# <=# minusAddr# eob buf of
-  0# -> Fail# st
-  _  -> case indexInt64OffAddr# buf 0# of
-    i# -> runParserT# (p i#) fp r eob (plusAddr# buf 8#) n st
-{-# inline withAnyInt64# #-}
-
---------------------------------------------------------------------------------
-
--- | Parse any 'Word8' (byte).
-anyWord8 :: ParserT st r e Word8
-anyWord8 = withAnyWord8# (\w# -> pure (W8# w#))
-{-# inline anyWord8 #-}
-
--- | Skip any 'Word8' (byte).
-anyWord8_ :: ParserT st r e ()
-anyWord8_ = () <$ anyWord8
-{-# inline anyWord8_ #-}
-
--- | Parse any 'Word16'.
-anyWord16 :: ParserT st r e Word16
-anyWord16 = withAnyWord16# (\w# -> pure (W16# w#))
-{-# inline anyWord16 #-}
-
--- | Skip any 'Word16'.
-anyWord16_ :: ParserT st r e ()
-anyWord16_ = () <$ anyWord16
-{-# inline anyWord16_ #-}
-
--- | Parse any 'Word32'.
-anyWord32 :: ParserT st r e Word32
-anyWord32 = withAnyWord32# (\w# -> pure (W32# w#))
-{-# inline anyWord32 #-}
-
--- | Skip any 'Word32'.
-anyWord32_ :: ParserT st r e ()
-anyWord32_ = () <$ anyWord32
-{-# inline anyWord32_ #-}
-
--- | Parse any 'Word64'.
-anyWord64 :: ParserT st r e Word64
-anyWord64 = withAnyWord64# (\w# -> pure (W64# w#))
-{-# inline anyWord64 #-}
-
--- | Skip any 'Word64'.
-anyWord64_ :: ParserT st r e ()
-anyWord64_ = () <$ anyWord64
-{-# inline anyWord64_ #-}
-
--- | Parse any 'Word'.
-anyWord :: ParserT st r e Word
-anyWord = withAnyWord64# (\w# -> pure (W# w#))
-{-# inline anyWord #-}
-
--- | Skip any 'Word'.
-anyWord_ :: ParserT st r e ()
-anyWord_ = () <$ anyWord
-{-# inline anyWord_ #-}
-
---------------------------------------------------------------------------------
-
--- | Parse any 'Int8'.
-anyInt8 :: ParserT st r e Int8
-anyInt8 = withAnyInt8# (\i# -> pure (I8# i#))
-{-# inline anyInt8 #-}
-
--- | Parse any 'Int16'.
-anyInt16 :: ParserT st r e Int16
-anyInt16 = withAnyInt16# (\i# -> pure (I16# i#))
-{-# inline anyInt16 #-}
-
--- | Parse any 'Int32'.
-anyInt32 :: ParserT st r e Int32
-anyInt32 = withAnyInt32# (\i# -> pure (I32# i#))
-{-# inline anyInt32 #-}
-
--- | Parse any 'Int64'.
-anyInt64 :: ParserT st r e Int64
-anyInt64 = withAnyInt64# (\i# -> pure (I64# i#))
-{-# inline anyInt64 #-}
-
--- | Parse any 'Int'.
-anyInt :: ParserT st r e Int
-anyInt = withAnyInt64# (\i# -> pure (I# i#))
-{-# inline anyInt #-}
-
---------------------------------------------------------------------------------
-
--- | Parse any 'Word16' (little-endian).
-anyWord16le :: ParserT st r e Word16
-anyWord16le = anyWord16
-{-# inline anyWord16le #-}
-
--- | Parse any 'Word16' (big-endian).
-anyWord16be :: ParserT st r e Word16
-anyWord16be = withAnyWord16# (\w# -> pure (W16# (byteSwap16'# w#)))
-{-# inline anyWord16be #-}
-
--- | Parse any 'Word32' (little-endian).
-anyWord32le :: ParserT st r e Word32
-anyWord32le = anyWord32
-{-# inline anyWord32le #-}
-
--- | Parse any 'Word32' (big-endian).
-anyWord32be :: ParserT st r e Word32
-anyWord32be = withAnyWord32# (\w# -> pure (W32# (byteSwap32'# w#)))
-{-# inline anyWord32be #-}
-
--- | Parse any 'Word64' (little-endian).
-anyWord64le :: ParserT st r e Word64
-anyWord64le = anyWord64
-{-# inline anyWord64le #-}
-
--- | Parse any 'Word64' (big-endian).
-anyWord64be :: ParserT st r e Word64
-anyWord64be = withAnyWord64# (\w# -> pure (W64# (byteSwap# w#)))
-{-# inline anyWord64be #-}
-
---------------------------------------------------------------------------------
-
--- | Parse any 'Int16' (little-endian).
-anyInt16le :: ParserT st r e Int16
-anyInt16le = anyInt16
-{-# inline anyInt16le #-}
-
--- | Parse any 'Int16' (big-endian).
-anyInt16be :: ParserT st r e Int16
-anyInt16be = withAnyWord16# (\w# -> pure (I16# (word16ToInt16# (byteSwap16'# w#))))
-{-# inline anyInt16be #-}
-
--- | Parse any 'Int32' (little-endian).
-anyInt32le :: ParserT st r e Int32
-anyInt32le = anyInt32
-{-# inline anyInt32le #-}
-
--- | Parse any 'Int32' (big-endian).
-anyInt32be :: ParserT st r e Int32
-anyInt32be = withAnyWord32# (\w# -> pure (I32# (word32ToInt32# (byteSwap32'# w#))))
-{-# inline anyInt32be #-}
-
--- | Parse any 'Int64' (little-endian).
-anyInt64le :: ParserT st r e Int64
-anyInt64le = anyInt64
-{-# inline anyInt64le #-}
-
--- | Parse any 'Int64' (big-endian).
-anyInt64be :: ParserT st r e Int64
-anyInt64be = withAnyWord64# (\w# -> pure (I64# (word2Int# (byteSwap# w#))))
-{-# inline anyInt64be #-}
 
 --------------------------------------------------------------------------------
 
