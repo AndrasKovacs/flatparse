@@ -5,7 +5,7 @@
 {-# LANGUAGE DataKinds #-} -- needed for manual ZeroBitType def (unsure why)
 {-# LANGUAGE FlexibleInstances #-}
 
-module FlatParse.Basic.Parser
+module FlatParse.Stateful.Parser
   (
   -- * Parser & result types
     ParserT(..)
@@ -19,7 +19,7 @@ module FlatParse.Basic.Parser
   , type ResI#
   ) where
 
-import FlatParse.Common.GHCExts ( Addr#, unsafeCoerce#, ZeroBitType )
+import FlatParse.Common.GHCExts ( Addr#, unsafeCoerce#, ZeroBitType, Int# )
 import FlatParse.Common.Parser
 
 import GHC.ForeignPtr ( ForeignPtrContents )
@@ -29,64 +29,64 @@ import Control.Monad ( MonadPlus(..) )
 import Control.Monad.IO.Class ( MonadIO(..) )
 import GHC.IO ( IO(IO) )
 
--- | @ParserT st e a@ has an error type @e@ and a return type @a@.
+-- | @ParserT st r e a@ has a reader environment @r@, error type @e@ and a return type @a@.
 --
 -- TODO explain state token here
-newtype ParserT (st :: ZeroBitType) e a =
-    ParserT { runParserT# :: ForeignPtrContents -> Addr# -> Addr# -> st -> Res# st e a }
+newtype ParserT (st :: ZeroBitType) r e a =
+    ParserT { runParserT# :: ForeignPtrContents -> r -> Addr# -> Addr# -> Int# -> st -> Res# st e a }
 
 type Parser     = ParserT PureMode
 type ParserIO   = ParserT IOMode
 type ParserST s = ParserT (STMode s)
 
-instance MonadIO (ParserT IOMode e) where
-  liftIO (IO a) = ParserT \fp eob s rw ->
-    case a rw of (# rw', a #) -> OK# rw' a s
+instance MonadIO (ParserT IOMode r e) where
+  liftIO (IO a) = ParserT \fp !r eob s n rw ->
+    case a rw of (# rw', a #) -> OK# rw' a s n
 
-instance Functor (ParserT st e) where
-  fmap f (ParserT g) = ParserT \fp eob s st -> case g fp eob s st of
-    OK# st' a s -> OK# st' (f $! a) s
-    x           -> unsafeCoerce# x
+instance Functor (ParserT st r e) where
+  fmap f (ParserT g) = ParserT \fp !r eob s n st -> case g fp r eob s n st of
+    OK# st' a s n -> OK# st' (f $! a) s n
+    x             -> unsafeCoerce# x
   {-# inline fmap #-}
 
-  (<$) a' (ParserT g) = ParserT \fp eob s st -> case g fp eob s st of
-    OK# st' _a s -> OK# st' a' s
-    x           -> unsafeCoerce# x
+  (<$) a' (ParserT g) = ParserT \fp !r eob s n st -> case g fp r eob s n st of
+    OK# st' _a s n -> OK# st' a' s n
+    x              -> unsafeCoerce# x
   {-# inline (<$) #-}
 
-instance Applicative (ParserT st e) where
-  pure a = ParserT \fp eob s st -> OK# st a s
+instance Applicative (ParserT st r e) where
+  pure a = ParserT \_fp !_r _eob s n st -> OK# st a s n
   {-# inline pure #-}
-  ParserT ff <*> ParserT fa = ParserT \fp eob s st -> case ff fp eob s st of
-    OK# st' f s -> case fa fp eob s st' of
-      OK# st'' a s -> OK# st'' (f $! a) s
-      x            -> unsafeCoerce# x
-    x           -> unsafeCoerce# x
+  ParserT ff <*> ParserT fa = ParserT \fp !r eob s n st -> case ff fp r eob s n st of
+    OK# st' f s n -> case fa fp r eob s n st' of
+      OK# st'' a s n -> OK# st'' (f $! a) s n
+      x              -> unsafeCoerce# x
+    x             -> unsafeCoerce# x
   {-# inline (<*>) #-}
   -- TODO v rewrite simpler like *> ??
-  ParserT fa <* ParserT fb = ParserT \fp eob s st -> case fa fp eob s st of
-    OK# st' a s -> case fb fp eob s st' of
-      OK# st'' _b s -> OK# st'' a s
-      x             -> unsafeCoerce# x
-    x           -> unsafeCoerce# x
+  ParserT fa <* ParserT fb = ParserT \fp !r eob s n st -> case fa fp r eob s n st of
+    OK# st' a s n -> case fb fp r eob s n st' of
+      OK# st'' _b s n -> OK# st'' a s n
+      x               -> unsafeCoerce# x
+    x             -> unsafeCoerce# x
   {-# inline (<*) #-}
-  ParserT fa *> ParserT fb = ParserT \fp eob s st -> case fa fp eob s st of
-    OK# st' _a s -> fb fp eob s st'
-    x            -> unsafeCoerce# x
+  ParserT fa *> ParserT fb = ParserT \fp !r eob s n st -> case fa fp r eob s n st of
+    OK# st' _a s n -> fb fp r eob s n st'
+    x              -> unsafeCoerce# x
   {-# inline (*>) #-}
 
-instance Monad (ParserT st e) where
+instance Monad (ParserT st r e) where
   return = pure
   {-# inline return #-}
-  ParserT fa >>= f = ParserT \fp eob s st -> case fa fp eob s st of
-    OK# st' a s -> runParserT# (f a) fp eob s st'
-    x           -> unsafeCoerce# x
+  ParserT fa >>= f = ParserT \fp !r eob s n st -> case fa fp r eob s n st of
+    OK# st' a s n -> runParserT# (f a) fp r eob s n st'
+    x             -> unsafeCoerce# x
   {-# inline (>>=) #-}
   (>>) = (*>)
   {-# inline (>>) #-}
 
 -- | By default, parser choice `(<|>)` arbitrarily backtracks on parser failure.
-instance Control.Applicative.Alternative (ParserT st e) where
+instance Control.Applicative.Alternative (ParserT st r e) where
   -- TODO 2023-01-13 raehik: consider redoing? strange setup
   --empty = ParserT \fp eob s st -> Fail#
   empty = failed
@@ -99,15 +99,15 @@ instance Control.Applicative.Alternative (ParserT st e) where
 
 -- | The failing parser. By default, parser choice `(<|>)` arbitrarily backtracks
 --   on parser failure.
-failed :: ParserT st e a
-failed = ParserT \fp eob s st -> Fail# st
+failed :: ParserT st r e a
+failed = ParserT \_fp !_r _eob _s _n st -> Fail# st
 {-# inline failed #-}
 
 infixr 6 <|>
-(<|>) :: ParserT st e a -> ParserT st e a -> ParserT st e a
-(<|>) (ParserT f) (ParserT g) = ParserT \fp eob s st ->
-  case f fp eob s st of
-    Fail# st' -> g fp eob s st'
+(<|>) :: ParserT st r e a -> ParserT st r e a -> ParserT st r e a
+(<|>) (ParserT f) (ParserT g) = ParserT \fp !r eob s n st ->
+  case f fp r eob s n st of
+    Fail# st' -> g fp r eob s n st'
     x         -> x
 {-# inline[1] (<|>) #-}
 
@@ -117,7 +117,7 @@ infixr 6 <|>
 
 #-}
 
-instance MonadPlus (ParserT st e) where
+instance MonadPlus (ParserT st r e) where
   mzero = Control.Applicative.empty
   {-# inline mzero #-}
   mplus = (<|>)
@@ -135,16 +135,16 @@ type Res# (st :: ZeroBitType) e a =
 -- | Primitive parser result.
 type ResI# e a =
   (#
-    (# a, Addr# #)
+    (# a, Addr#, Int# #)
   | (# #)
   | (# e #)
   #)
 
 -- | 'Res#' constructor for a successful parse.
---   Contains the return value and a pointer to the rest of the input buffer,
---   plus a state token.
-pattern OK# :: (st :: ZeroBitType) -> a -> Addr# -> Res# st e a
-pattern OK# st a s = (# st, (# (# a, s #) | | #) #)
+--   Contains the return value, a pointer to the rest of the input buffer, and
+--   the next 'Int' state, plus a state token.
+pattern OK# :: (st :: ZeroBitType) -> a -> Addr# -> Int# -> Res# st e a
+pattern OK# st a s n = (# st, (# (# a, s, n #) | | #) #)
 
 -- | 'Res#' constructor for recoverable failure.
 --   Contains only a state token.

@@ -394,6 +394,7 @@ compileTrie :: [(Int, String)] -> Trie' (Rule, Int, Maybe Int)
 compileTrie = ensureBytes . fallbacks . pathify . mindepths . listToTrie
 
 -- These type aliases are used as parameters to ParserT
+{-
 data Pure
 type IOMode = State# RealWorld
 type PureMode = Proxy# Pure
@@ -403,3 +404,4 @@ type STMode s = State# s
 type ZeroBitRep = 'TupleRep ('[] :: [RuntimeRep])
 type ZeroBitType = TYPE ZeroBitRep
 #endif
+-}

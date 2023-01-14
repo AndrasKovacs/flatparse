@@ -4,7 +4,6 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE FlexibleInstances #-}
 
-
 {-|
 This module implements a `Parser` supporting a custom reader environment, custom
 error types and an `Int` state.
@@ -51,7 +50,6 @@ module FlatParse.Stateful (
   , takeBs
   , takeRestBs
   , char
-  , byte
   , bytes
   , byteString
   , string
@@ -136,7 +134,6 @@ module FlatParse.Stateful (
 
   -- ** Unsafe
   , anyCStringUnsafe
-  , scan8#
   , scan16#
   , scan32#
   , scan64#
@@ -144,11 +141,13 @@ module FlatParse.Stateful (
   , scanBytes#
   , unsafeLiftIO
 
+  -- * TODO
+  , module FlatParse.Stateful.Integers
+
   ) where
 
 import qualified Control.Applicative as Base
 import Control.Monad
-import Control.Monad.IO.Class (MonadIO(..))
 import Data.Foldable
 import Data.Map (Map)
 import GHC.Exts
@@ -168,86 +167,8 @@ import FlatParse.Internal.UnboxedNumerics
 
 import qualified FlatParse.Basic as Basic
 
---------------------------------------------------------------------------------
-
--- | Primitive result of a parser. Possible results are given by `OK#`, `Err#` and `Fail#`
---   pattern synonyms.
-type ResI# e a =
-  (#
-    (# a, Addr#, Int# #)
-  | (# #)
-  | (# e #)
-  #)
-
-type Res# (st :: ZeroBitType) e a =
-  (# st, ResI# e a #)
-
--- | Contains return value, pointer to the rest of the input buffer and the nex `Int`
---   state.
-pattern OK# :: (st :: ZeroBitType) -> a -> Addr# -> Int# -> Res# st e a
-pattern OK# st a s n = (# st, (# (# a, s, n #) | | #) #)
-
--- | Constructor for errors which are by default non-recoverable.
-pattern Err# :: (st :: ZeroBitType) -> e -> Res# st e a
-pattern Err# st e = (# st, (# | | (# e #) #) #)
-
--- | Constructor for recoverable failure.
-pattern Fail# :: (st :: ZeroBitType) -> Res# st e a
-pattern Fail# st = (# st, (# | (# #) | #) #)
-{-# complete OK#, Err#, Fail# #-}
-
--- | @Parser r e a@ has a reader environment @r@, error type @e@ and a return type @a@.
-newtype ParserT (st :: ZeroBitType) r e a = ParserT {runParserT# :: ForeignPtrContents -> r -> Addr# -> Addr# -> Int# -> st -> Res# st e a}
-
-type Parser = ParserT PureMode
-type ParserIO = ParserT IOMode
-type ParserST s = ParserT (STMode s)
-
-instance Functor (ParserT st r e) where
-  fmap f (ParserT g) = ParserT \fp !r eob s n st -> case g fp r eob s n st of
-    OK# st' a s n -> let !b = f a in OK# st' b s n
-    x             -> unsafeCoerce# x
-  {-# inline fmap #-}
-
-  (<$) a' (ParserT g) = ParserT \fp !r eob s n st -> case g fp r eob s n st of
-    OK# st' a s n -> OK# st' a' s n
-    x             -> unsafeCoerce# x
-  {-# inline (<$) #-}
-
-instance Applicative (ParserT st r e) where
-  pure a = ParserT \fp !r eob s n st -> OK# st a s n
-  {-# inline pure #-}
-  ParserT ff <*> ParserT fa = ParserT \fp !r eob s n st -> case ff fp r eob s n st of
-    OK# st' f s n -> case fa fp r eob s n st' of
-      OK# st'' a s n  -> let !b = f a in OK# st'' b s n
-      x               -> unsafeCoerce# x
-    x -> unsafeCoerce# x
-  {-# inline (<*>) #-}
-  ParserT fa <* ParserT fb = ParserT \fp !r eob s n st -> case fa fp r eob s n st of
-    OK# st' a s n   -> case fb fp r eob s n st' of
-      OK# st'' b s n -> OK# st'' a s n
-      x -> unsafeCoerce# x
-    x -> unsafeCoerce# x
-  {-# inline (<*) #-}
-  ParserT fa *> ParserT fb = ParserT \fp !r eob s n st -> case fa fp r eob s n st of
-    OK# st' a s n -> fb fp r eob s n st'
-    x             -> unsafeCoerce# x
-  {-# inline (*>) #-}
-
-instance Monad (ParserT st r e) where
-  return = pure
-  {-# inline return #-}
-  ParserT fa >>= f = ParserT \fp !r eob s n st -> case fa fp r eob s n st of
-    OK# st' a s n -> runParserT# (f a) fp r eob s n st'
-    x             -> unsafeCoerce# x
-  {-# inline (>>=) #-}
-  (>>) = (*>)
-  {-# inline (>>) #-}
-
-instance MonadIO (ParserT IOMode r e) where
-  liftIO (IO a) = ParserT \fp !r eob s n rw ->
-    case a rw of
-      (# rw', a #) -> OK# rw' a s n
+import FlatParse.Stateful.Parser
+import FlatParse.Stateful.Integers
 
 -- | Higher-level boxed data type for parsing results.
 data Result e a =
@@ -344,12 +265,6 @@ local f (ParserT g) = ParserT \fp !r eob s n st -> let !r' = f r in g fp r' eob 
 
 --------------------------------------------------------------------------------
 
--- | The failing parser. By default, parser choice `(<|>)` arbitrarily backtracks
---   on parser failure.
-failed :: ParserT st r e a
-failed = ParserT \fp !r eob s n st -> Fail# st
-{-# inline failed #-}
-
 -- | Throw a parsing error. By default, parser choice `(<|>)` can't backtrack
 --   on parser error. Use `try` to convert an error to a recoverable failure.
 err :: e -> ParserT st r e a
@@ -434,7 +349,7 @@ takeBs (I# n#) = ParserT \fp !r eob s n st -> case n# <=# minusAddr# eob s of
   1# -> -- have to runtime check for negative values, because they cause a hang
     case n# >=# 0# of
       1# -> OK# st (B.PS (ForeignPtr s fp) 0 (I# n#)) (plusAddr# s n#) n
-      _  -> error "FlatParse.Basic.take: negative integer"
+      _  -> error "FlatParse.Stateful.take: negative integer"
   _  -> Fail# st
 {-# inline takeBs #-}
 
@@ -449,11 +364,6 @@ takeRestBs = ParserT \fp !r eob s n st ->
 --   @$(char \'x\')@, for example, and the splice in this case has type @Parser r e ()@.
 char :: Char -> Q Exp
 char c = string [c]
-
--- | Read a byte.
-byte :: Word8 -> ParserT st r e ()
-byte w = ensureBytes# 1 >> scan8# w
-{-# inline byte #-}
 
 -- | Read a sequence of bytes. This is a template function, you can use it as @$(bytes [3, 4, 5])@,
 --   for example, and the splice has type @Parser r e ()@. For a non-TH variant see 'byteString'.
@@ -769,34 +679,6 @@ readInteger = ParserT \fp r eob s n st -> case FlatParse.Internal.readInteger fp
 
 --------------------------------------------------------------------------------
 
--- | Choose between two parsers. If the first parser fails, try the second one, but if the first one
---   throws an error, propagate the error.
-infixr 6 <|>
-(<|>) :: ParserT st r e a -> ParserT st r e a -> ParserT st r e a
-(<|>) (ParserT f) (ParserT g) = ParserT \fp !r eob s n st ->
-  case f fp r eob s n st of
-    Fail# st' -> g fp r eob s n st'
-    x        -> x
-{-# inline[1] (<|>) #-}
-
-instance Base.Alternative (ParserT st r e) where
-  empty = failed
-  {-# inline empty #-}
-  (<|>) = (<|>)
-  {-# inline (Base.<|>) #-}
-
-instance MonadPlus (ParserT st r e) where
-  mzero = failed
-  {-# inline mzero #-}
-  mplus = (<|>)
-  {-# inline mplus #-}
-
-{-# RULES
-
-"flatparse/reassoc-alt" forall l m r. (l <|> m) <|> r = l <|> (m <|> r)
-
-#-}
-
 -- | Branch on a parser: if the first argument succeeds, continue with the second, else with the third.
 --   This can produce slightly more efficient code than `(<|>)`. Moreover, `ḃranch` does not
 --   backtrack from the true/false cases.
@@ -882,7 +764,7 @@ isolate (I# n#) p = ParserT \fp !r eob s n st ->
               1# -> OK# st' a s'' n'
               _  -> Fail# st' -- isolated segment wasn't fully consumed
             r -> r
-          _  -> error "FlatParse.Basic.isolate: negative integer"
+          _  -> error "FlatParse.Stateful.isolate: negative integer"
         _  -> Fail# st -- you tried to isolate more than we have left
 {-# inline isolate #-}
 
@@ -996,16 +878,6 @@ ensureBytes# (I# len) = ParserT \fp !r eob s n st ->
     _  -> Fail# st
 {-# inline ensureBytes# #-}
 
--- | Unsafely read a concrete byte from the input. It's not checked that the input has
---   enough bytes.
-scan8# :: Word8 -> ParserT st r e ()
-scan8# (W8# c) = ParserT \fp !r eob s n st ->
-  case indexWord8OffAddr# s 0# of
-    c' -> case eqWord8'# c c' of
-      1# -> OK# st () (plusAddr# s 1#) n
-      _  -> Fail# st
-{-# inline scan8# #-}
-
 -- | Unsafely read two concrete bytes from the input. It's not checked that the input has
 --   enough bytes.
 scan16# :: Word16 -> ParserT st r e ()
@@ -1078,12 +950,12 @@ scanBytes# bytes = do
             go (a:b:c:d:ws) = let !w = packBytes [a, b, c, d] in [| scan32# w >> $(go ws) |]
             go (a:b:[])     = let !w = packBytes [a, b]       in [| scan16# w |]
             go (a:b:ws)     = let !w = packBytes [a, b]       in [| scan16# w >> $(go ws) |]
-            go (a:[])       = [| scan8# a |]
+            go (a:[])       = [| word8Unsafe a |]
             go []           = [| pure () |]
     _  -> case leading of
 
       []              -> scanw8s
-      [a]             -> [| scan8# a >> $scanw8s |]
+      [a]             -> [| word8Unsafe a >> $scanw8s |]
       ws@[a, b]       -> let !w = packBytes ws in [| scan16# w >> $scanw8s |]
       ws@[a, b, c, d] -> let !w = packBytes ws in [| scan32# w >> $scanw8s |]
       ws              -> let !w = packBytes ws
@@ -1187,7 +1059,7 @@ atSkip# :: Int# -> ParserT st r e a -> ParserT st r e a
 atSkip# os# (ParserT p) = ParserT \fp !r eob s n st -> case os# <=# minusAddr# eob s of
   1# -> case os# >=# 0# of
     1# -> p fp r eob (plusAddr# s os#) n st
-    _  -> error "FlatParse.Basic.atSkip#: negative integer"
+    _  -> error "FlatParse.Stateful.atSkip#: negative integer"
   _  -> Fail# st
 {-# inline atSkip# #-}
 
@@ -1199,7 +1071,7 @@ takeBs# n# = ParserT \fp !r eob s n st -> case n# <=# minusAddr# eob s of
   1# -> -- have to runtime check for negative values, because they cause a hang
     case n# >=# 0# of
       1# -> OK# st (B.PS (ForeignPtr s fp) 0 (I# n#)) (plusAddr# s n#) n
-      _  -> error "FlatParse.Basic.takeBs: negative integer"
+      _  -> error "FlatParse.Stateful.takeBs: negative integer"
   _  -> Fail# st
 {-# inline takeBs# #-}
 
@@ -1286,5 +1158,5 @@ anyCStringUnsafe = ParserT \fp !r eob s n st ->
               s'# = plusAddr# s (n# +# 1#)
            in OK# st (B.PS (ForeignPtr s fp) 0 (I# n#)) s'# n
 #else
-anyCStringUnsafe = error "Flatparse.Basic.anyCStringUnsafe: requires GHC 9.0 / base-4.15, not available on this compiler"
+anyCStringUnsafe = error "Flatparse.Stateful.anyCStringUnsafe: requires GHC 9.0 / base-4.15, not available on this compiler"
 #endif

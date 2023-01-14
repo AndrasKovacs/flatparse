@@ -17,6 +17,8 @@ import Data.Int
 import Data.Bits
 import Test.QuickCheck.Instances.ByteString()
 
+import GHC.Int ( Int(I#) )
+
 main :: IO ()
 main = hspec $ do
   basicSpec
@@ -92,10 +94,10 @@ basicSpec = describe "FlatParse.Basic" $ do
       it "fails at end of file" $ $(FB.char 'a') `shouldParseFail` ""
 
     describe "byte" $ do
-      it "succeeds on that byte" $ FB.byte 0x61 `shouldParse` "\x61"
-      it "succeeds on high bytes" $ FB.byte 0xfe `shouldParse` "\xfe"
-      it "fails on the wrong byte" $ FB.byte 0x61 `shouldParseFail` "\x62"
-      it "fails on end of file" $ FB.byte 0x61 `shouldParseFail` ""
+      it "succeeds on that byte" $ FB.word8 0x61 `shouldParse` "\x61"
+      it "succeeds on high bytes" $ FB.word8 0xfe `shouldParse` "\xfe"
+      it "fails on the wrong byte" $ FB.word8 0x61 `shouldParseFail` "\x62"
+      it "fails on end of file" $ FB.word8 0x61 `shouldParseFail` ""
 
     describe "bytes" $ do
       it "succeeds on those bytes" $
@@ -681,7 +683,7 @@ basicSpec = describe "FlatParse.Basic" $ do
       -- use Int#/Int64# directly because Word8# -> Int# is annoying on old GHCs
       let bs = B.pack [ 0x09, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
                       , 0xFF, 0x31, 0x32, 0x33, 0x00, 0xFF]
-          p = FB.withAddr# $ \addr# -> FB.withAnyInt64# $ \os# ->
+          p = FB.withAddr# $ \addr# -> FB.withAnyInt $ \(I# os#) ->
                   FB.lookaheadFromAddr# addr# $ FB.atSkip# os# $ FB.anyCString
       p `shouldParsePartialWith` (bs, "123")
 

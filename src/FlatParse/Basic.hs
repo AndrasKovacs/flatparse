@@ -48,7 +48,6 @@ module FlatParse.Basic (
   , takeRestBs
   , skip
   , char
-  , byte
   , bytes
   , byteString
   , string
@@ -171,10 +170,6 @@ import FlatParse.Internal.UnboxedNumerics
 import FlatParse.Basic.Parser
 import FlatParse.Basic.Integers
 
-type Parser = ParserT PureMode
-type ParserIO = ParserT IOMode
-type ParserST s = ParserT (STMode s)
-
 -- | Higher-level boxed data type for parsing results.
 data Result e a =
     OK a !(B.ByteString)  -- ^ Contains return value and unconsumed input.
@@ -242,12 +237,6 @@ runParserS pa s = runParser pa (packUTF8 s)
 
 
 --------------------------------------------------------------------------------
-
--- | The failing parser. By default, parser choice `(<|>)` arbitrarily backtracks
---   on parser failure.
-failed :: ParserT st e a
-failed = ParserT \fp eob s st -> Fail# st
-{-# inline failed #-}
 
 -- | Throw a parsing error. By default, parser choice `(<|>)` can't backtrack
 --   on parser error. Use `try` to convert an error to a recoverable failure.
@@ -350,11 +339,6 @@ skip (I# os#) = atSkip# os# (pure ())
 --   @$(char \'x\')@, for example, and the splice in this case has type @Parser e ()@.
 char :: Char -> Q Exp
 char c = string [c]
-
--- | Read a `Word8`.
-byte :: Word8 -> ParserT st e ()
-byte w = ensureBytes# 1 >> word8Unsafe w
-{-# inline byte #-}
 
 -- | Read a sequence of bytes. This is a template function, you can use it as @$(bytes [3, 4, 5])@,
 --   for example, and the splice has type @Parser e ()@. For a non-TH variant see 'byteString'.
@@ -700,16 +684,6 @@ readVarintProtobuf = ParserT \fp eob s st ->
 {-# inline readVarintProtobuf #-}
 
 --------------------------------------------------------------------------------
-
--- | Choose between two parsers. If the first parser fails, try the second one, but if the first one
---   throws an error, propagate the error.
-infixr 6 <|>
-(<|>) :: ParserT st e a -> ParserT st e a -> ParserT st e a
-(<|>) (ParserT f) (ParserT g) = ParserT \fp eob s st ->
-  case f fp eob s st of
-    Fail# st' -> g fp eob s st'
-    x         -> x
-{-# inline[1] (<|>) #-}
 
 -- | Branch on a parser: if the first argument succeeds, continue with the second, else with the third.
 --   This can produce slightly more efficient code than `(<|>)`. Moreover, `ḃranch` does not

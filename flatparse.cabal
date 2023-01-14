@@ -54,6 +54,8 @@ library
       FlatParse.Internal
       FlatParse.Internal.UnboxedNumerics
       FlatParse.Stateful
+      FlatParse.Stateful.Integers
+      FlatParse.Stateful.Parser
   other-modules:
       Paths_flatparse
   hs-source-dirs:
