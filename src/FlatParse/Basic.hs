@@ -44,8 +44,6 @@ module FlatParse.Basic (
 
   -- * Basic lexing and parsing
   , eof
-  , takeBs
-  , takeRestBs
   , skip
   , char
   , bytes
@@ -121,13 +119,12 @@ module FlatParse.Basic (
   , ensureBytes#
 
   -- ** Unboxed arguments
-  , takeBs#
   , atSkip#
 
   -- ** Location & address primitives
   , setBack#
   , withAddr#
-  , takeBsOffAddr#
+  , takeOffAddr#
   , lookaheadFromAddr#
   , atAddr#
 
@@ -142,8 +139,11 @@ module FlatParse.Basic (
 
   -- * TODO
   , module FlatParse.Basic.Integers
+  , take
 
   ) where
+
+import Prelude hiding ( take )
 
 import qualified Control.Applicative as Base
 import Control.Monad
@@ -169,6 +169,8 @@ import FlatParse.Internal.UnboxedNumerics
 
 import FlatParse.Basic.Parser
 import FlatParse.Basic.Integers
+import FlatParse.Basic.Addr
+import FlatParse.Basic.Base
 
 -- | Higher-level boxed data type for parsing results.
 data Result e a =
@@ -235,105 +237,14 @@ runParserIO (ParserT f) b@(B.PS (ForeignPtr _ fp) _ (I# len)) = do
 runParserS :: Parser e a -> String -> Result e a
 runParserS pa s = runParser pa (packUTF8 s)
 
-
 --------------------------------------------------------------------------------
-
--- | Throw a parsing error. By default, parser choice `(<|>)` can't backtrack
---   on parser error. Use `try` to convert an error to a recoverable failure.
-err :: e -> ParserT st e a
-err e = ParserT \fp eob s st -> Err# st e
-{-# inline err #-}
-
--- | Save the parsing state, then run a parser, then restore the state.
-lookahead :: ParserT st e a -> ParserT st e a
-lookahead (ParserT f) = ParserT \fp eob s st ->
-  case f fp eob s st of
-    OK# st' a _ -> OK# st' a s
-    x           -> x
-{-# inline lookahead #-}
-
--- | Convert a parsing failure to a success.
-fails :: ParserT st e a -> ParserT st e ()
-fails (ParserT f) = ParserT \fp eob s st ->
-  case f fp eob s st of
-    OK# st' _ _ -> Fail# st'
-    Fail# st'   -> OK# st' () s
-    Err# st' e  -> Err# st' e
-{-# inline fails #-}
-
--- | Convert a parsing error into failure.
-try :: ParserT st e a -> ParserT st e a
-try (ParserT f) = ParserT \fp eob s st -> case f fp eob s st of
-  Err# st' _ -> Fail# st'
-  x          -> x
-{-# inline try #-}
 
 -- | Convert a parsing failure to a `Maybe`. If possible, use `withOption` instead.
 optional :: ParserT st e a -> ParserT st e (Maybe a)
 optional p = (Just <$> p) <|> pure Nothing
 {-# inline optional #-}
 
--- | Convert a parsing failure to a `()`.
-optional_ :: ParserT st e a -> ParserT st e ()
-optional_ p = (() <$ p) <|> pure ()
-{-# inline optional_ #-}
-
--- | CPS'd version of `optional`. This is usually more efficient, since it gets rid of the
---   extra `Maybe` allocation.
-withOption :: ParserT st e a -> (a -> ParserT st e b) -> ParserT st e b -> ParserT st e b
-withOption (ParserT f) just (ParserT nothing) = ParserT \fp eob s st -> case f fp eob s st of
-  OK# st' a s -> runParserT# (just a) fp eob s st'
-  Fail# st'   -> nothing fp eob s st'
-  Err# st' e  -> Err# st' e
-{-# inline withOption #-}
-
--- | Convert a parsing failure to an error.
-cut :: ParserT st e a -> e -> ParserT st e a
-cut (ParserT f) e = ParserT \fp eob s st -> case f fp eob s st of
-  Fail# st' -> Err# st' e
-  x         -> x
-{-# inline cut #-}
-
--- | Run the parser, if we get a failure, throw the given error, but if we get an error, merge the
---   inner and the newly given errors using the @e -> e -> e@ function. This can be useful for
---   implementing parsing errors which may propagate hints or accummulate contextual information.
-cutting :: ParserT st e a -> e -> (e -> e -> e) -> ParserT st e a
-cutting (ParserT f) e merge = ParserT \fp eob s st -> case f fp eob s st of
-  Fail# st'   -> Err# st' e
-  Err# st' e' -> Err# st' $! merge e' e
-  x           -> x
-{-# inline cutting #-}
-
 --------------------------------------------------------------------------------
-
-
--- | Succeed if the input is empty.
-eof :: ParserT st e ()
-eof = ParserT \fp eob s st -> case eqAddr# eob s of
-  1# -> OK# st () s
-  _  -> Fail# st
-{-# inline eof #-}
-
--- | Read the given number of bytes as a 'ByteString'.
---
--- Throws a runtime error if given a negative integer.
-takeBs :: Int -> ParserT st e B.ByteString
-takeBs (I# n#) = takeBs# n#
-{-# inline takeBs #-}
-
--- | Consume the rest of the input. May return the empty bytestring.
-takeRestBs :: ParserT st e B.ByteString
-takeRestBs = ParserT \fp eob s st ->
-  let n# = minusAddr# eob s
-  in  OK# st (B.PS (ForeignPtr s fp) 0 (I# n#)) eob
-{-# inline takeRestBs #-}
-
--- | Skip forward @n@ bytes. Fails if fewer than @n@ bytes are available.
---
--- Throws a runtime error if given a negative integer.
-skip :: Int -> ParserT st e ()
-skip (I# os#) = atSkip# os# (pure ())
-{-# inline skip #-}
 
 -- | Parse a UTF-8 character literal. This is a template function, you can use it as
 --   @$(char \'x\')@, for example, and the splice in this case has type @Parser e ()@.
@@ -685,37 +596,6 @@ readVarintProtobuf = ParserT \fp eob s st ->
 
 --------------------------------------------------------------------------------
 
--- | Branch on a parser: if the first argument succeeds, continue with the second, else with the third.
---   This can produce slightly more efficient code than `(<|>)`. Moreover, `ḃranch` does not
---   backtrack from the true/false cases.
-branch :: ParserT st e a -> ParserT st e b -> ParserT st e b -> ParserT st e b
-branch pa pt pf = ParserT \fp eob s st -> case runParserT# pa fp eob s st of
-  OK# st' _ s -> runParserT# pt fp eob s st'
-  Fail# st'  -> runParserT# pf fp eob s st'
-  Err# st' e  -> Err# st' e
-{-# inline branch #-}
-
--- | An analogue of the list `foldl` function: first parse a @b@, then parse zero or more @a@-s,
---   and combine the results in a left-nested way by the @b -> a -> b@ function. Note: this is not
---   the usual `chainl` function from the parsec libraries!
-chainl :: (b -> a -> b) -> ParserT st e b -> ParserT st e a -> ParserT st e b
-chainl f start elem = start >>= go where
-  go b = do {!a <- elem; go $! f b a} <|> pure b
-{-# inline chainl #-}
-
--- | An analogue of the list `foldr` function: parse zero or more @a@-s, terminated by a @b@, and
---   combine the results in a right-nested way using the @a -> b -> b@ function. Note: this is not
---   the usual `chainr` function from the parsec libraries!
-chainr :: (a -> b -> b) -> ParserT st e a -> ParserT st e b -> ParserT st e b
-chainr f (ParserT elem) (ParserT end) = ParserT go where
-  go fp eob s st = case elem fp eob s st of
-    OK# st' a s -> case go fp eob s st' of
-      OK# st'' b s -> let !b' = f a b in OK# st'' b' s
-      x       -> x
-    Fail# st' -> end fp eob s st'
-    Err# st' e -> Err# st' e
-{-# inline chainr #-}
-
 -- | Run a parser zero or more times, collect the results in a list. Note: for optimal performance,
 --   try to avoid this. Often it is possible to get rid of the intermediate list by using a
 --   combinator or a custom parser.
@@ -729,51 +609,12 @@ many (ParserT f) = ParserT go where
     Err# st' e -> Err# st' e
 {-# inline many #-}
 
--- | Skip a parser zero or more times.
-many_ :: ParserT st e a -> ParserT st e ()
-many_ (ParserT f) = ParserT go where
-  go fp eob s st = case f fp eob s st of
-    OK# st' a s -> go fp eob s st'
-    Fail# st'   -> OK# st' () s
-    Err# st' e  -> Err# st' e
-{-# inline many_ #-}
-
 -- | Run a parser one or more times, collect the results in a list. Note: for optimal performance,
 --   try to avoid this. Often it is possible to get rid of the intermediate list by using a
 --   combinator or a custom parser.
 some :: ParserT st e a -> ParserT st e [a]
 some p = (:) <$> p <*> many p
 {-# inline some #-}
-
--- | Skip a parser one or more times.
-some_ :: ParserT st e a -> ParserT st e ()
-some_ pa = pa >> many_ pa
-{-# inline some_ #-}
-
--- | Succeed if the first parser succeeds and the second one fails.
-notFollowedBy :: ParserT st e a -> ParserT st e b -> ParserT st e a
-notFollowedBy p1 p2 = p1 <* fails p2
-{-# inline notFollowedBy #-}
-
--- | @isolate n p@ runs the parser @p@ isolated to the next @n@ bytes. All
---   isolated bytes must be consumed.
---
--- Throws a runtime error if given a negative integer.
-isolate :: Int -> ParserT st e a -> ParserT st e a
-isolate (I# n#) p = ParserT \fp eob s st ->
-  let s' = plusAddr# s n#
-  in  case n# <=# minusAddr# eob s of
-        1# -> case n# >=# 0# of
-          1# -> case runParserT# p fp s' s st of
-            OK# st' a s'' -> case eqAddr# s' s'' of
-              1# -> OK# st' a s''
-              _  -> Fail# st' -- isolated segment wasn't fully consumed
-            Fail# st' -> Fail# st'
-            Err# st' e -> Err# st' e
-          _  -> error "FlatParse.Basic.isolate: negative integer"
-        _  -> Fail# st -- you tried to isolate more than we have left
-{-# inline isolate #-}
-
 
 --------------------------------------------------------------------------------
 
@@ -921,22 +762,22 @@ traceLine :: ParserT st e String
 traceLine = lookahead takeLine
 
 -- | Take the rest of the input as a `String`. Assumes UTF-8 encoding.
-takeRest :: ParserT st e String
-takeRest = branch eof (pure "") do
+takeRestString :: ParserT st e String
+takeRestString = branch eof (pure "") do
   c <- anyChar
-  cs <- takeRest
+  cs <- takeRestString
   pure (c:cs)
 
 -- | Get the rest of the input as a `String`, but restore the parsing state. Assumes UTF-8 encoding.
 --   This can be used for debugging.
 traceRest :: ParserT st e String
-traceRest = lookahead takeRest
+traceRest = lookahead takeRestString
 
 --------------------------------------------------------------------------------
 
 -- | Convert an UTF-8-coded `B.ByteString` to a `String`.
 unpackUTF8 :: B.ByteString -> String
-unpackUTF8 str = case runParser takeRest str of
+unpackUTF8 str = case runParser takeRestString str of
   OK a _ -> a
   _      -> error "unpackUTF8: invalid encoding"
 
@@ -1118,73 +959,6 @@ genSwitchTrie' postAction cases fallback =
       !m    = M.fromList ((Nothing, maybe (VarE 'failed) id fallback) : branches)
       !trie = compileTrie strings
   in (m , trie)
-
---------------------------------------------------------------------------------
-
--- | Skip forward @n@ bytes and run the given parser. Fails if fewer than @n@
---   bytes are available.
---
--- Throws a runtime error if given a negative integer.
-atSkip# :: Int# -> ParserT st e a -> ParserT st e a
-atSkip# os# (ParserT p) = ParserT \fp eob s -> case os# <=# minusAddr# eob s of
-  1# -> case os# >=# 0# of
-    1# -> p fp eob (plusAddr# s os#)
-    _  -> error "FlatParse.Basic.atSkip#: negative integer"
-  _  -> Fail#
-{-# inline atSkip# #-}
-
--- | Read the given number of bytes as a 'ByteString'.
---
--- Throws a runtime error if given a negative integer.
-takeBs# :: Int# -> ParserT st e B.ByteString
-takeBs# n# = ParserT \fp eob s st -> case n# <=# minusAddr# eob s of
-  1# -> -- have to runtime check for negative values, because they cause a hang
-    case n# >=# 0# of
-      1# -> OK# st (B.PS (ForeignPtr s fp) 0 (I# n#)) (plusAddr# s n#)
-      _  -> error "FlatParse.Basic.takeBs: negative integer"
-  _  -> Fail# st
-{-# inline takeBs# #-}
-
---------------------------------------------------------------------------------
-
--- | Run a parser, passing it the current address the parser is at.
---
--- Useful for parsing offset-based data tables. For example, you may use this to
--- save the base address to use together with various 0-indexed offsets.
-withAddr# :: (Addr# -> ParserT st e a) -> ParserT st e a
-withAddr# p = ParserT \fp eob s -> runParserT# (p s) fp eob s
-{-# inline withAddr# #-}
-
--- | @takeBsOffAddr# addr# offset# len#@ moves to @addr#@, skips @offset#@
---   bytes, reads @len#@ bytes into a 'ByteString', and restores the original
---   address.
---
--- The 'Addr#' should be from 'withAddr#'.
---
--- Useful for parsing offset-based data tables. For example, you may use this
--- together with 'withAddr#' to jump to an offset in your input and read some
--- data.
-takeBsOffAddr# :: Addr# -> Int# -> Int# -> ParserT st e B.ByteString
-takeBsOffAddr# addr# offset# len# =
-    lookaheadFromAddr# addr# $ atSkip# offset# $ takeBs# len#
-{-# inline takeBsOffAddr# #-}
-
--- | 'lookahead', but specify the address to lookahead from.
---
--- The 'Addr#' should be from 'withAddr#'.
-lookaheadFromAddr# :: Addr# -> ParserT st e a -> ParserT st e a
-lookaheadFromAddr# s = lookahead . atAddr# s
-{-# inline lookaheadFromAddr# #-}
-
--- | Run a parser at the given address.
---
--- The 'Addr#' should be from 'withAddr#'.
---
--- This is a highly internal function -- you likely want 'lookaheadFromAddr#',
--- which will reset the address after running the parser.
-atAddr# :: Addr# -> ParserT st e a -> ParserT st e a
-atAddr# s (ParserT p) = ParserT \fp eob _ -> p fp eob s
-{-# inline atAddr# #-}
 
 --------------------------------------------------------------------------------
 

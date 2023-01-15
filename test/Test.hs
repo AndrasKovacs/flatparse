@@ -604,12 +604,12 @@ basicSpec = describe "FlatParse.Basic" $ do
         FB.readInt `FB.notFollowedBy` $(FB.char '.') `shouldParseFail` "123.0"
 
     describe "isolate" $ do
-      prop "isolate takeRestBs is identity" $ do
+      prop "isolate takeRest is identity" $ do
         \(bs :: ByteString) ->
-          FB.isolate (B.length bs) FB.takeRestBs `shouldParseWith` (bs, bs)
-      prop "isolate takeBs length is identity" $ do
+          FB.isolate (B.length bs) FB.takeRest `shouldParseWith` (bs, bs)
+      prop "isolate take length is identity" $ do
         \(bs :: ByteString) ->
-          FB.isolate (B.length bs) (FB.takeBs (B.length bs)) `shouldParseWith` (bs, bs)
+          FB.isolate (B.length bs) (FB.take (B.length bs)) `shouldParseWith` (bs, bs)
 
   describe "Positions and spans" $ do
     describe "Pos Ord instance" $ do
