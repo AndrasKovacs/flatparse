@@ -63,7 +63,6 @@ instance Applicative (ParserT st e) where
       x            -> unsafeCoerce# x
     x           -> unsafeCoerce# x
   {-# inline (<*>) #-}
-  -- TODO v rewrite simpler like *> ??
   ParserT fa <* ParserT fb = ParserT \fp eob s st -> case fa fp eob s st of
     OK# st' a s -> case fb fp eob s st' of
       OK# st'' _b s -> OK# st'' a s

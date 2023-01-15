@@ -79,9 +79,9 @@ module FlatParse.Basic (
   , chainl
   , chainr
   , many
-  , many_
+  , skipMany
   , some
-  , some_
+  , skipSome
   , notFollowedBy
   , isolate
 

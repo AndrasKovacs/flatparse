@@ -49,7 +49,7 @@ data Tm
 --   keyword.
 ident :: Parser Name
 ident = token $ byteStringOf $
-  withSpan (identStartChar *> many_ identChar) (\_ span -> fails (isKeyword span))
+  withSpan (identStartChar *> skipMany identChar) (\_ span -> fails (isKeyword span))
 
 -- | Parse an identifier, throw a precise error on failure.
 ident' :: Parser Name

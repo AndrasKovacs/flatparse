@@ -18,8 +18,8 @@ module FlatParse.Basic.Base
   , branch
   , chainl
   , chainr
-  , many_
-  , some_
+  , skipMany
+  , skipSome
   , notFollowedBy
   , isolate
   , isolateUnsafe#
@@ -174,20 +174,6 @@ branch pa pt pf = ParserT \fp eob s st -> case runParserT# pa fp eob s st of
   Err#  st' e   -> Err# st' e
 {-# inline branch #-}
 
--- | Skip a parser zero or more times.
-many_ :: ParserT st e a -> ParserT st e ()
-many_ (ParserT f) = ParserT go where
-  go fp eob s st = case f fp eob s st of
-    OK#   st' a s -> go fp eob s st'
-    Fail# st'     -> OK#  st' () s
-    Err#  st' e   -> Err# st' e
-{-# inline many_ #-}
-
--- | Skip a parser one or more times.
-some_ :: ParserT st e a -> ParserT st e ()
-some_ pa = pa >> many_ pa
-{-# inline some_ #-}
-
 -- | Succeed if the first parser succeeds and the second one fails.
 notFollowedBy :: ParserT st e a -> ParserT st e b -> ParserT st e a
 notFollowedBy p1 p2 = p1 <* fails p2
@@ -280,3 +266,27 @@ withPosInt# n# f = case n# >=# 0# of
   1# -> f n#
   _  -> error "FlatParse.Basic.Internal.withPosInt#: negative integer"
 {-# inline withPosInt# #-}
+
+--------------------------------------------------------------------------------
+
+-- | Skip a parser zero or more times.
+--
+-- TODO identical to one from parser-combinators
+skipMany :: ParserT st e a -> ParserT st e ()
+skipMany p = go
+  where go = (p *> go) <|> pure ()
+{-
+skipMany (ParserT f) = ParserT go where
+  go fp eob s st = case f fp eob s st of
+    OK#   st' a s -> go fp eob s st'
+    Fail# st'     -> OK#  st' () s
+    Err#  st' e   -> Err# st' e
+-}
+{-# inline skipMany #-}
+
+-- | Skip a parser one or more times.
+--
+-- TODO identical to one from parser-combinators
+skipSome :: ParserT st e a -> ParserT st e ()
+skipSome p = p *> skipMany p
+{-# inline skipSome #-}
