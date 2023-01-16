@@ -194,8 +194,8 @@ string str = bytes (Common.strToBytes str)
 --   for example, and the splice has type @Parser e ()@. For a non-TH variant see 'byteString'.
 bytes :: [Word] -> Q Exp
 bytes bs = do
-  let !(I# len) = length bs
-  [| withEnsure# len (\_ -> $(bytesUnsafe bs)) |]
+  let !len = length bs
+  [| withEnsure len (\_ -> $(bytesUnsafe bs)) |]
 
 -- | Read a non-negative `Int` from the input, as a non-empty digit sequence.
 -- The `Int` may overflow in the result.

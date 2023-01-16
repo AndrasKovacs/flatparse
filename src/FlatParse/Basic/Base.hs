@@ -28,6 +28,7 @@ module FlatParse.Basic.Base
   , ensure
   , ensure#
   , withEnsure#
+  , withEnsure
   , withEnsure1
 
   -- * Primitive byte-wise parsers
@@ -268,6 +269,11 @@ withEnsure# n# f = ParserT \fp eob s st ->
       1# -> runParserT# (f n#) fp eob s st
       _  -> Fail# st
 {-# inline withEnsure# #-}
+
+-- | Assert that there are at least @n#@ bytes remaining (CPS).
+withEnsure :: Int -> (Int -> ParserT st e r) -> ParserT st e r
+withEnsure (I# n#) f = withEnsure# n# (\n -> f (I# n))
+{-# inline withEnsure #-}
 
 -- | Assert that there is at least 1 byte remaining (CPS).
 withEnsure1 :: ParserT st e r -> ParserT st e r
