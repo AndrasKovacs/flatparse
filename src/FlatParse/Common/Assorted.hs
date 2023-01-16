@@ -7,13 +7,19 @@ module FlatParse.Common.Assorted
   , isDigit, isLatinLetter, isGreekLetter
 
   -- * UTF conversions
-  , packUTF8, charToBytes, strToBytes, packBytes, splitBytes, derefChar8#
+  , packUTF8, charToBytes, strToBytes, packBytes, splitBytes
+
+  -- * Shortcuts
+  , derefChar8#
 
   -- * Boxed integer coercions
   -- $boxed-integer-coercion
   , word16ToInt16
   , word32ToInt32
   , word64ToInt64
+
+  -- * TODO
+  , withPosInt#
   ) where
 
 import Data.Bits
@@ -92,7 +98,7 @@ strToBytes = concatMap charToBytes
 
 packBytes :: [Word] -> Word
 packBytes = fst . foldl' go (0, 0) where
-  go (acc, shift) w | shift == 64 = error "packWords: too many bytes"
+  go (acc, shift) w | shift == 64 = error "packBytes: too many bytes"
   go (acc, shift) w = (unsafeShiftL (fromIntegral w) shift .|. acc, shift+8)
 
 -- TODO chunks into 8-bytes for 64-bit performance
@@ -131,3 +137,13 @@ word32ToInt32 = fromIntegral
 word64ToInt64 :: Word64 -> Int64
 word64ToInt64 = fromIntegral
 {-# inline word64ToInt64 #-}
+
+-- | Assert for the given 'Int#' that @n >= 0@, and pass it on to the given
+--   function.
+--
+-- Throws a runtime error if given a negative integer.
+withPosInt# :: Int# -> (Int# -> r) -> r
+withPosInt# n# f = case n# >=# 0# of
+  1# -> f n#
+  _  -> error "FlatParse.Basic.Base.withPosInt#: negative integer"
+{-# inline withPosInt# #-}

@@ -127,7 +127,7 @@ instance MonadPlus (ParserT st r e) where
 
 -- | Primitive parser result wrapped with a state token.
 --
--- You should not manipulate values of this type directly. Use the
+-- You should rarely need to manipulate values of this type directly. Use the
 -- provided bidirectional pattern synonyms 'OK#', 'Fail#' and 'Err#'.
 type Res# (st :: ZeroBitType) e a =
   (# st, ResI# e a #)

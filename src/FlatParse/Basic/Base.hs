@@ -24,6 +24,12 @@ module FlatParse.Basic.Base
   , isolate
   , isolateUnsafe#
 
+  -- TODO
+  , ensure
+  , ensure#
+  , withEnsure#
+  , withEnsure1
+
   -- * Primitive byte-wise parsers
   , eof
   , take
@@ -40,6 +46,7 @@ module FlatParse.Basic.Base
 import Prelude hiding ( take )
 
 import FlatParse.Basic.Parser
+import qualified FlatParse.Common.Assorted as Common
 
 import GHC.Exts
 import qualified Data.ByteString as B
@@ -123,7 +130,7 @@ lookahead (ParserT f) = ParserT \fp eob s st ->
 --
 -- Throws a runtime error if given a negative integer.
 isolate :: Int -> ParserT st e a -> ParserT st e a
-isolate (I# n#) p = withPosInt# n# (\n'# -> isolateUnsafe# n'# p)
+isolate (I# n#) p = Common.withPosInt# n# (\n'# -> isolateUnsafe# n'# p)
 {-# inline isolate #-}
 
 -- | @isolate n p@ runs the parser @p@ isolated to the next @n@ bytes. All
@@ -193,7 +200,7 @@ take (I# n#) = take# n#
 --
 -- Throws a runtime error if given a negative integer.
 take# :: Int# -> ParserT st e B.ByteString
-take# n# = withPosInt# n# takeUnsafe#
+take# n# = Common.withPosInt# n# takeUnsafe#
 {-# inline take# #-}
 
 -- | Read @n@ bytes as a 'ByteString'. Fails if newer than @n@ bytes are
@@ -232,7 +239,7 @@ skip# os# = atSkip# os# (pure ())
 --
 -- Throws a runtime error if given a negative integer.
 atSkip# :: Int# -> ParserT st e a -> ParserT st e a
-atSkip# os# p = withPosInt# os# (\n# -> atSkipUnsafe# n# p)
+atSkip# os# p = Common.withPosInt# os# (\n# -> atSkipUnsafe# n# p)
 {-# inline atSkip# #-}
 
 -- | Skip forward @n@ bytes and run the given parser. Fails if fewer than @n@
@@ -254,18 +261,31 @@ skipBack# (I# i) = ParserT \fp eob s st ->
     OK# st () (plusAddr# s (negateInt# i))
 {-# inline skipBack# #-}
 
---------------------------------------------------------------------------------
--- Helpers for common internal operations
+-- | Assert that there are at least @n#@ bytes remaining (CPS).
+withEnsure# :: Int# -> (Int# -> ParserT st e r) -> ParserT st e r
+withEnsure# n# f = ParserT \fp eob s st ->
+    case n# <=# minusAddr# eob s of
+      1# -> runParserT# (f n#) fp eob s st
+      _  -> Fail# st
+{-# inline withEnsure# #-}
 
--- | Assert for the given 'Int#' that @n >= 0@, and pass it on to the given
---   function.
---
--- Throws a runtime error if given a negative integer.
-withPosInt# :: Int# -> (Int# -> a) -> a
-withPosInt# n# f = case n# >=# 0# of
-  1# -> f n#
-  _  -> error "FlatParse.Basic.Internal.withPosInt#: negative integer"
-{-# inline withPosInt# #-}
+-- | Assert that there is at least 1 byte remaining (CPS).
+withEnsure1 :: ParserT st e r -> ParserT st e r
+withEnsure1 f = ParserT \fp eob s st ->
+    case eqAddr# eob s of
+      1# -> Fail# st
+      _  -> runParserT# f fp eob s st
+{-# inline withEnsure1 #-}
+
+-- | Assert that there are at least @n#@ bytes remaining.
+ensure# :: Int# -> ParserT st e ()
+ensure# n# = withEnsure# n# (\_ -> pure ())
+{-# inline ensure# #-}
+
+-- | Assert that there are at least @n@ bytes remaining.
+ensure :: Int -> ParserT st e ()
+ensure (I# n#) = ensure# n#
+{-# inline ensure #-}
 
 --------------------------------------------------------------------------------
 

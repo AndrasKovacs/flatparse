@@ -169,6 +169,8 @@ import qualified FlatParse.Basic as Basic
 
 import FlatParse.Stateful.Parser
 import FlatParse.Stateful.Integers
+import FlatParse.Common.Position
+import FlatParse.Common.Assorted ( derefChar8# )
 
 -- | Higher-level boxed data type for parsing results.
 data Result e a =

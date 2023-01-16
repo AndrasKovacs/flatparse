@@ -7,6 +7,8 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import qualified Data.Char
 import qualified FlatParse.Basic as FB
+import FlatParse.Basic ( word8Unsafe, withEnsure#, word16Unsafe, word32Unsafe )
+import qualified FlatParse.Common.Strings as FB
 -- import qualified FlatParse.Stateful as FS
 import Test.HUnit
 import Test.Hspec
@@ -18,6 +20,8 @@ import Data.Bits
 import Test.QuickCheck.Instances.ByteString()
 
 import GHC.Int ( Int(I#) )
+
+import qualified Data.ByteString.UTF8 as UTF8
 
 main :: IO ()
 main = hspec $ do
@@ -89,7 +93,7 @@ basicSpec = describe "FlatParse.Basic" $ do
 
     describe "char" $ do
       it "succeeds on that char" $ $(FB.char 'a') `shouldParse` "a"
-      it "succeeds on multibyte char" $ $(FB.char 'ȩ') `shouldParse` FB.packUTF8 "ȩ"
+      it "succeeds on multibyte char" $ $(FB.char 'ȩ') `shouldParse` UTF8.fromString "ȩ"
       it "fails on the wrong char" $ $(FB.char 'a') `shouldParseFail` "b"
       it "fails at end of file" $ $(FB.char 'a') `shouldParseFail` ""
 
@@ -123,7 +127,7 @@ basicSpec = describe "FlatParse.Basic" $ do
     describe "string" $ do
       it "succeeds on the right string" $ $(FB.string "foo") `shouldParse` "foo"
       it "succeeds with multibyte chars" $
-        $(FB.string "foȩ") `shouldParse` FB.packUTF8 "foȩ"
+        $(FB.string "foȩ") `shouldParse` UTF8.fromString "foȩ"
       it "fails on the wrong string" $ $(FB.string "foo") `shouldParseFail` "bar"
       it "fails when out of space" $ $(FB.string "foo") `shouldParseFail` "fo"
 
@@ -285,8 +289,8 @@ basicSpec = describe "FlatParse.Basic" $ do
         let chars = "$¢€𐍈" :: [Char]
         sequence_
           [ if a == b
-              then FB.satisfy (== a) `shouldParseWith` (FB.packUTF8 (pure b), b)
-              else FB.satisfy (== a) `shouldParseFail` FB.packUTF8 (pure b)
+              then FB.satisfy (== a) `shouldParseWith` (UTF8.fromString (pure b), b)
+              else FB.satisfy (== a) `shouldParseFail` UTF8.fromString (pure b)
             | a <- chars,
               b <- chars
           ]
@@ -296,41 +300,41 @@ basicSpec = describe "FlatParse.Basic" $ do
       it "fails at end of file" $
         FB.satisfy (== 'a') `shouldParseFail` ""
 
-    describe "satisfyASCII" $ do
+    describe "satisfyAscii" $ do
       it "succeeds on the right char" $
-        FB.satisfyASCII (== 'a') `shouldParseWith` ("a", 'a')
+        FB.satisfyAscii (== 'a') `shouldParseWith` ("a", 'a')
       it "fails on the wrong char" $
-        FB.satisfyASCII (== 'a') `shouldParseFail` "b"
+        FB.satisfyAscii (== 'a') `shouldParseFail` "b"
 
       it "fails on the wrong multi-byte char" $
-        -- The specification for FB.satisfyASCII requires that the predicate
+        -- The specification for FB.satisfyAscii requires that the predicate
         -- return False for non-ASCII characters, but multi-byte chars are
         -- still allowed in the input.
-        FB.satisfyASCII (== 'a') `shouldParseFail` FB.packUTF8 "ȩ"
+        FB.satisfyAscii (== 'a') `shouldParseFail` UTF8.fromString "ȩ"
 
       it "fails at end of file" $
-        FB.satisfyASCII (== 'a') `shouldParseFail` ""
+        FB.satisfyAscii (== 'a') `shouldParseFail` ""
 
-    describe "satisfyASCII_" $ do
+    describe "satisfyAscii_" $ do
       it "succeeds on the right char" $
-        FB.satisfyASCII_ (== 'a') `shouldParseWith` ("a", ())
+        FB.satisfyAscii_ (== 'a') `shouldParseWith` ("a", ())
       it "fails on the wrong char" $
-        FB.satisfyASCII_ (== 'a') `shouldParseFail` "b"
+        FB.satisfyAscii_ (== 'a') `shouldParseFail` "b"
       it "fails on the wrong multi-byte char" $
-        FB.satisfyASCII_ (== 'a') `shouldParseFail` FB.packUTF8 "ȩ"
+        FB.satisfyAscii_ (== 'a') `shouldParseFail` UTF8.fromString "ȩ"
       it "fails at end of file" $
-        FB.satisfyASCII_ (== 'a') `shouldParseFail` ""
+        FB.satisfyAscii_ (== 'a') `shouldParseFail` ""
 
     describe "fusedSatisfy" $ do
       it "correctly routes chars based on length" $ do
         FB.fusedSatisfy (== '$') (const False) (const False) (const False)
-          `shouldParse` FB.packUTF8 "$"
+          `shouldParse` UTF8.fromString "$"
         FB.fusedSatisfy (const False) (== '¢') (const False) (const False)
-          `shouldParse` FB.packUTF8 "¢"
+          `shouldParse` UTF8.fromString "¢"
         FB.fusedSatisfy (const False) (const False) (== '€') (const False)
-          `shouldParse` FB.packUTF8 "€"
+          `shouldParse` UTF8.fromString "€"
         FB.fusedSatisfy (const False) (const False) (const False) (== '𐍈')
-          `shouldParse` FB.packUTF8 "𐍈"
+          `shouldParse` UTF8.fromString "𐍈"
 
       it "fails on FB.empty input" $
         FB.fusedSatisfy (const True) (const True) (const True) (const True)
@@ -361,65 +365,65 @@ basicSpec = describe "FlatParse.Basic" $ do
       it "fails on FB.empty input" $ FB.anyWord `shouldParseFail` ""
 
     describe "anyChar" $ do
-      it "reads 1-byte char" $ FB.anyChar `shouldParseWith` (FB.packUTF8 "$", '$')
-      it "reads 2-byte char" $ FB.anyChar `shouldParseWith` (FB.packUTF8 "¢", '¢')
-      it "reads 3-byte char" $ FB.anyChar `shouldParseWith` (FB.packUTF8 "€", '€')
-      it "reads 4-byte char" $ FB.anyChar `shouldParseWith` (FB.packUTF8 "𐍈", '𐍈')
+      it "reads 1-byte char" $ FB.anyChar `shouldParseWith` (UTF8.fromString "$", '$')
+      it "reads 2-byte char" $ FB.anyChar `shouldParseWith` (UTF8.fromString "¢", '¢')
+      it "reads 3-byte char" $ FB.anyChar `shouldParseWith` (UTF8.fromString "€", '€')
+      it "reads 4-byte char" $ FB.anyChar `shouldParseWith` (UTF8.fromString "𐍈", '𐍈')
       it "fails on FB.empty input" $ FB.anyChar `shouldParseFail` ""
 
     describe "anyChar_" $ do
-      it "reads 1-byte char" $ FB.anyChar_ `shouldParseWith` (FB.packUTF8 "$", ())
-      it "reads 2-byte char" $ FB.anyChar_ `shouldParseWith` (FB.packUTF8 "¢", ())
-      it "reads 3-byte char" $ FB.anyChar_ `shouldParseWith` (FB.packUTF8 "€", ())
-      it "reads 4-byte char" $ FB.anyChar_ `shouldParseWith` (FB.packUTF8 "𐍈", ())
+      it "reads 1-byte char" $ FB.anyChar_ `shouldParseWith` (UTF8.fromString "$", ())
+      it "reads 2-byte char" $ FB.anyChar_ `shouldParseWith` (UTF8.fromString "¢", ())
+      it "reads 3-byte char" $ FB.anyChar_ `shouldParseWith` (UTF8.fromString "€", ())
+      it "reads 4-byte char" $ FB.anyChar_ `shouldParseWith` (UTF8.fromString "𐍈", ())
       it "fails on empty input" $ FB.anyChar_ `shouldParseFail` ""
 
-    describe "anyCharASCII" $ do
-      it "reads ASCII char" $ FB.anyCharASCII `shouldParseWith` (FB.packUTF8 "$", '$')
-      it "fails on non-ASCII char" $ FB.anyCharASCII `shouldParseFail` FB.packUTF8 "¢"
-      it "fails on empty input" $ FB.anyCharASCII `shouldParseFail` ""
+    describe "anyAsciiChar" $ do
+      it "reads ASCII char" $ FB.anyAsciiChar `shouldParseWith` (UTF8.fromString "$", '$')
+      it "fails on non-ASCII char" $ FB.anyAsciiChar `shouldParseFail` UTF8.fromString "¢"
+      it "fails on empty input" $ FB.anyAsciiChar `shouldParseFail` ""
 
-    describe "anyCharASCII_" $ do
-      it "reads ASCII char" $ FB.anyCharASCII_ `shouldParseWith` (FB.packUTF8 "$", ())
+    describe "anyAsciiChar_" $ do
+      it "reads ASCII char" $ FB.anyAsciiChar_ `shouldParseWith` (UTF8.fromString "$", ())
       it "fails on non-ASCII char" $
-        FB.anyCharASCII_ `shouldParseFail` FB.packUTF8 "¢"
-      it "fails on empty input" $ FB.anyCharASCII_ `shouldParseFail` ""
+        FB.anyAsciiChar_ `shouldParseFail` UTF8.fromString "¢"
+      it "fails on empty input" $ FB.anyAsciiChar_ `shouldParseFail` ""
 
     describe "isDigit" $ do
       it "agrees with Data.Char" $
         property $
           \c -> FB.isDigit c === Data.Char.isDigit c
 
-    describe "isLatinLetter" $ do
+    describe "isAsciiLetter" $ do
       it "agrees with Data.Char" $
         property $
           \c ->
-            FB.isLatinLetter c
+            FB.isAsciiLetter c
               === (Data.Char.isAsciiUpper c || Data.Char.isAsciiLower c)
 
     describe "readInt" $ do
       it "round-trips on non-negative Ints" $
         property $
-          \(NonNegative i) -> FB.readInt `shouldParseWith` (FB.packUTF8 (show i), i)
+          \(NonNegative i) -> FB.readInt `shouldParseWith` (UTF8.fromString (show i), i)
 
       it "fails on reading an integer out of bounds" $
         property $
           \(NonNegative (i :: Int)) -> let i' = fromIntegral i + fromIntegral (maxBound :: Int) + 1
-                                        in FB.readInt `shouldParseFail` FB.packUTF8 (show i')
+                                        in FB.readInt `shouldParseFail` UTF8.fromString (show i')
       it "fails on non-integers" $ FB.readInt `shouldParseFail` "foo"
       it "fails on negative integers" $
         property $
-          \(Negative i) -> FB.readInt `shouldParseFail` (FB.packUTF8 (show i))
+          \(Negative i) -> FB.readInt `shouldParseFail` (UTF8.fromString (show i))
       it "fails on FB.empty input" $ FB.readInt `shouldParseFail` ""
 
     describe "readIntHex" $ do
       it "round-trips on non-negative Ints, lowercase" $
         property $
-          \(NonNegative i) -> FB.readIntHex `shouldParseWith` (FB.packUTF8 (showHex i ""), i)
+          \(NonNegative i) -> FB.readIntHex `shouldParseWith` (UTF8.fromString (showHex i ""), i)
 
       it "round-trips on non-negative Ints, uppercase" $
         property $
-          \(NonNegative i) -> FB.readIntHex `shouldParseWith` (FB.packUTF8 (Data.Char.toUpper <$> showHex i ""), i)
+          \(NonNegative i) -> FB.readIntHex `shouldParseWith` (UTF8.fromString (Data.Char.toUpper <$> showHex i ""), i)
 
       it "fails on non-integers" $ FB.readIntHex `shouldParseFail` "quux"
       it "fails on negative integers" $ FB.readIntHex `shouldParseFail` "-5"
@@ -428,22 +432,22 @@ basicSpec = describe "FlatParse.Basic" $ do
     describe "readWord" $ do
       it "round-trips on non-negative Words" $
         property $
-          \(NonNegative i) -> FB.readWord `shouldParseWith` (FB.packUTF8 (show i), i)
+          \(NonNegative i) -> FB.readWord `shouldParseWith` (UTF8.fromString (show i), i)
       it "fails on reading an wordeger out of bounds" $
         property $
           \(NonNegative (i :: Word)) -> let i' = fromIntegral i + fromIntegral (maxBound :: Word) + 1
-                                        in FB.readWord `shouldParseFail` FB.packUTF8 (show i')
+                                        in FB.readWord `shouldParseFail` UTF8.fromString (show i')
       it "fails on non-wordegers" $ FB.readWord `shouldParseFail` "foo"
       it "fails on negative wordegers" $
         property $
-          \(Negative i) -> FB.readWord `shouldParseFail` (FB.packUTF8 (show i))
+          \(Negative i) -> FB.readWord `shouldParseFail` (UTF8.fromString (show i))
       it "fails on empty input" $ FB.readWord `shouldParseFail` ""
 
     describe "readInteger" $ do
       it "round-trips on non-negative Integers" $
         property $
           \(NonNegative i) ->
-            FB.readInteger `shouldParseWith` (FB.packUTF8 (show i), i)
+            FB.readInteger `shouldParseWith` (UTF8.fromString (show i), i)
 
       it "fails on non-integers" $ FB.readInteger `shouldParseFail` "foo"
       it "fails on negative integers" $ FB.readInteger `shouldParseFail` "-5"
@@ -565,35 +569,35 @@ basicSpec = describe "FlatParse.Basic" $ do
 
     describe "many" $ do
       it "parses many chars" $
-        FB.many (FB.satisfy FB.isLatinLetter) `shouldParseWith` ("abc", "abc")
+        FB.many (FB.satisfy FB.isAsciiLetter) `shouldParseWith` ("abc", "abc")
       it "accepts FB.empty input" $
-        FB.many (FB.satisfy FB.isLatinLetter) `shouldParseWith` ("", "")
+        FB.many (FB.satisfy FB.isAsciiLetter) `shouldParseWith` ("", "")
       it "is greedy" $
         (FB.many (FB.satisfy FB.isDigit) *> FB.satisfy FB.isDigit) `shouldParseFail` "123"
 
-    describe "many_" $ do
+    describe "skipMany" $ do
       it "parses many chars" $
-        FB.many_ (FB.satisfy FB.isLatinLetter) `shouldParseWith` ("abc", ())
+        FB.skipMany (FB.satisfy FB.isAsciiLetter) `shouldParseWith` ("abc", ())
       it "accepts FB.empty input" $
-        FB.many_ (FB.satisfy FB.isLatinLetter) `shouldParseWith` ("", ())
+        FB.skipMany (FB.satisfy FB.isAsciiLetter) `shouldParseWith` ("", ())
       it "is greedy" $
-        (FB.many_ (FB.satisfy FB.isDigit) *> FB.satisfy FB.isDigit) `shouldParseFail` "123"
+        (FB.skipMany (FB.satisfy FB.isDigit) *> FB.satisfy FB.isDigit) `shouldParseFail` "123"
 
     describe "some" $ do
       it "parses some chars" $
-        FB.some (FB.satisfy FB.isLatinLetter) `shouldParseWith` ("abc", "abc")
+        FB.some (FB.satisfy FB.isAsciiLetter) `shouldParseWith` ("abc", "abc")
       it "rejects FB.empty input" $
-        FB.some (FB.satisfy FB.isLatinLetter) `shouldParseFail` ""
+        FB.some (FB.satisfy FB.isAsciiLetter) `shouldParseFail` ""
       it "is greedy" $
         (FB.some (FB.satisfy FB.isDigit) *> FB.satisfy FB.isDigit) `shouldParseFail` "123"
 
-    describe "some_" $ do
+    describe "skipSome" $ do
       it "parses some chars" $
-        FB.some_ (FB.satisfy FB.isLatinLetter) `shouldParseWith` ("abc", ())
+        FB.skipSome (FB.satisfy FB.isAsciiLetter) `shouldParseWith` ("abc", ())
       it "rejects FB.empty input" $
-        FB.some_ (FB.satisfy FB.isLatinLetter) `shouldParseFail` ""
+        FB.skipSome (FB.satisfy FB.isAsciiLetter) `shouldParseFail` ""
       it "is greedy" $
-        (FB.some_ (FB.satisfy FB.isDigit) *> FB.satisfy FB.isDigit) `shouldParseFail` "123"
+        (FB.skipSome (FB.satisfy FB.isDigit) *> FB.satisfy FB.isDigit) `shouldParseFail` "123"
 
     describe "notFollowedBy" $ do
       it "succeeds when it should" $
