@@ -7,7 +7,7 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import qualified Data.Char
 import qualified FlatParse.Basic as FB
-import FlatParse.Basic ( word8Unsafe, withEnsure#, word16Unsafe, word32Unsafe )
+import FlatParse.Basic ( word8Unsafe, withEnsure, word16Unsafe, word32Unsafe )
 import qualified FlatParse.Common.Strings as FB
 -- import qualified FlatParse.Stateful as FS
 import Test.HUnit

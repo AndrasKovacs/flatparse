@@ -2,47 +2,7 @@
 
 -- | Basic parser building blocks.
 
-module FlatParse.Basic.Base
-  (
-  -- * Errors and failures
-    err
-  , try
-  , fails
-  , cut
-  , cutting
-  , optional_
-  , withOption
-
-  -- * Primitive combinators
-  , lookahead
-  , branch
-  , chainl
-  , chainr
-  , skipMany
-  , skipSome
-  , notFollowedBy
-  , isolate
-  , isolateUnsafe#
-
-  -- TODO
-  , ensure
-  , ensure#
-  , withEnsure#
-  , withEnsure
-  , withEnsure1
-
-  -- * Primitive byte-wise parsers
-  , eof
-  , take
-  , take#
-  , takeUnsafe#
-  , takeRest
-  , skip
-  , atSkip#
-  , atSkipUnsafe#
-  , skipBack#
-
-  ) where
+module FlatParse.Basic.Base where
 
 import Prelude hiding ( take )
 
@@ -263,34 +223,36 @@ skipBack# (I# i) = ParserT \fp eob s st ->
 {-# inline skipBack# #-}
 
 -- | Assert that there are at least @n#@ bytes remaining (CPS).
-withEnsure# :: Int# -> (Int# -> ParserT st e r) -> ParserT st e r
+--
+-- TODO 2023-01-17 raehik: faster to check 1# first??
+withEnsure# :: Int# -> ParserT st e r -> ParserT st e r
 withEnsure# n# f = ParserT \fp eob s st ->
     case n# <=# minusAddr# eob s of
-      1# -> runParserT# (f n#) fp eob s st
-      _  -> Fail# st
+      0# -> Fail# st
+      _  -> runParserT# f fp eob s st
 {-# inline withEnsure# #-}
 
 -- | Assert that there are at least @n#@ bytes remaining (CPS).
-withEnsure :: Int -> (Int -> ParserT st e r) -> ParserT st e r
-withEnsure (I# n#) f = withEnsure# n# (\n -> f (I# n))
+withEnsure :: Int -> ParserT st e r -> ParserT st e r
+withEnsure = Common.withIntUnwrap# withEnsure#
 {-# inline withEnsure #-}
 
 -- | Assert that there is at least 1 byte remaining (CPS).
 withEnsure1 :: ParserT st e r -> ParserT st e r
 withEnsure1 f = ParserT \fp eob s st ->
     case eqAddr# eob s of
-      1# -> Fail# st
-      _  -> runParserT# f fp eob s st
+      0# -> runParserT# f fp eob s st
+      _  -> Fail# st
 {-# inline withEnsure1 #-}
 
 -- | Assert that there are at least @n#@ bytes remaining.
 ensure# :: Int# -> ParserT st e ()
-ensure# n# = withEnsure# n# (\_ -> pure ())
+ensure# n# = withEnsure# n# (pure ())
 {-# inline ensure# #-}
 
 -- | Assert that there are at least @n@ bytes remaining.
 ensure :: Int -> ParserT st e ()
-ensure (I# n#) = ensure# n#
+ensure = Common.withIntUnwrap# ensure#
 {-# inline ensure #-}
 
 --------------------------------------------------------------------------------

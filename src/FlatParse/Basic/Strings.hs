@@ -195,7 +195,7 @@ string str = bytes (Common.strToBytes str)
 bytes :: [Word] -> Q Exp
 bytes bs = do
   let !len = length bs
-  [| withEnsure len (\_ -> $(bytesUnsafe bs)) |]
+  [| withEnsure len $(bytesUnsafe bs) |]
 
 -- | Read a non-negative `Int` from the input, as a non-empty digit sequence.
 -- The `Int` may overflow in the result.

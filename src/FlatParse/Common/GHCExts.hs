@@ -1,3 +1,5 @@
+-- | 'GHC.Exts' compatibility wrapper.
+
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE DataKinds #-} -- needed for manual ZeroBitType def (unsure why)
 
@@ -9,7 +11,12 @@ module FlatParse.Common.GHCExts
 import GHC.Exts
 
 #if !MIN_VERSION_base(4,17,0)
--- TODO 2023-01-13 raehik: document: which GHC version, why?
+{-
+GHC 9.4 clarified the story for types without runtime representations. These
+type synonyms are defined and used to simplify certain internal definitions
+(e.g. 'State#'). They are nicer than using the "expanded" type, so we define
+them here for older compilers.
+-}
 type ZeroBitRep = 'TupleRep ('[] :: [RuntimeRep])
 type ZeroBitType = TYPE ZeroBitRep
 #endif

@@ -41,6 +41,7 @@ module FlatParse.Basic.Integers
   ) where
 
 import FlatParse.Basic.Parser
+import FlatParse.Basic.Base ( withEnsure# )
 
 import FlatParse.Common.Assorted ( word16ToInt16, word32ToInt32, word64ToInt64 )
 
@@ -60,10 +61,8 @@ import Control.Applicative ( Alternative(empty) )
 -- parsing.
 withAnySized#
     :: Int# -> (Addr# -> Int# -> a) -> (a -> ParserT st e r) -> ParserT st e r
-withAnySized# size# indexOffAddr p = ParserT \fp eob buf st ->
-    case size# <=# minusAddr# eob buf of
-      0# -> Fail# st
-      _  -> runParserT# (withAnySizedUnsafe# size# indexOffAddr p) fp eob buf st
+withAnySized# size# indexOffAddr p =
+    withEnsure# size# (withAnySizedUnsafe# size# indexOffAddr p)
 {-# inline withAnySized# #-}
 
 -- | Unsafe helper for defining CPS parsers for types of a constant byte size
@@ -76,6 +75,7 @@ withAnySized# size# indexOffAddr p = ParserT \fp eob buf st ->
 withAnySizedUnsafe#
     :: Int# -> (Addr# -> Int# -> a) -> (a -> ParserT st e r) -> ParserT st e r
 withAnySizedUnsafe# size# indexOffAddr p = ParserT \fp eob buf st ->
+-- TODO force? i.e. @let !a, !buf'@ ?
   let a    = indexOffAddr buf 0#
       buf' = plusAddr# buf size#
   in  runParserT# (p a) fp eob buf' st

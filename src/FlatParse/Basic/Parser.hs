@@ -7,16 +7,19 @@
 
 module FlatParse.Basic.Parser
   (
-  -- * Parser & result types
+  -- * Parser
     ParserT(..)
+  , Parser, ParserIO, ParserST
+
+  -- ** Result
   , type Res#
   , pattern OK#, pattern Err#, pattern Fail#
 
-  -- * TODO
-  , failed, (<|>), Parser, ParserIO, ParserST
-
-  -- ** Internal
+  -- *** Internal
   , type ResI#
+
+  -- * TODO
+  , failed, (<|>)
   ) where
 
 import FlatParse.Common.GHCExts ( Addr#, unsafeCoerce#, ZeroBitType )
@@ -29,9 +32,10 @@ import Control.Monad ( MonadPlus(..) )
 import Control.Monad.IO.Class ( MonadIO(..) )
 import GHC.IO ( IO(IO) )
 
--- | @ParserT st e a@ has an error type @e@ and a return type @a@.
+-- | @ParserT st e a@ is a parser with a state token type @st@, an error type
+--   @e@ and a return type @a@.
 --
--- TODO explain state token here
+-- See "FlatParse.Common.Parser" for a commentary on the state token types.
 newtype ParserT (st :: ZeroBitType) e a =
     ParserT { runParserT# :: ForeignPtrContents -> Addr# -> Addr# -> st -> Res# st e a }
 
@@ -39,7 +43,8 @@ type Parser     = ParserT PureMode
 type ParserIO   = ParserT IOMode
 type ParserST s = ParserT (STMode s)
 
-instance MonadIO (ParserT IOMode e) where
+-- | You may lift IO actions into a 'ParserIO'.
+instance MonadIO (ParserIO e) where
   liftIO (IO a) = ParserT \fp eob s rw ->
     case a rw of (# rw', a #) -> OK# rw' a s
 

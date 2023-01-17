@@ -19,7 +19,7 @@ module FlatParse.Common.Assorted
   , word64ToInt64
 
   -- * TODO
-  , withPosInt#
+  , withPosInt#, withIntUnwrap#
   ) where
 
 import Data.Bits
@@ -147,3 +147,8 @@ withPosInt# n# f = case n# >=# 0# of
   1# -> f n#
   _  -> error "FlatParse.Basic.Base.withPosInt#: negative integer"
 {-# inline withPosInt# #-}
+
+-- | Unwrap the 'Int#' from an 'Int' and apply it to the given function.
+withIntUnwrap# :: (Int# -> r) -> Int -> r
+withIntUnwrap# f (I# i#) = f i#
+{-# inline withIntUnwrap# #-}

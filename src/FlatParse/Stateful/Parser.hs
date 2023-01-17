@@ -7,16 +7,19 @@
 
 module FlatParse.Stateful.Parser
   (
-  -- * Parser & result types
+  -- * Parser
     ParserT(..)
+  , Parser, ParserIO, ParserST
+
+  -- ** Result
   , type Res#
   , pattern OK#, pattern Err#, pattern Fail#
 
-  -- * TODO
-  , failed, (<|>), Parser, ParserIO, ParserST
-
-  -- ** Internal
+  -- *** Internal
   , type ResI#
+
+  -- * TODO
+  , failed, (<|>)
   ) where
 
 import FlatParse.Common.GHCExts ( Addr#, unsafeCoerce#, ZeroBitType, Int# )
@@ -29,9 +32,10 @@ import Control.Monad ( MonadPlus(..) )
 import Control.Monad.IO.Class ( MonadIO(..) )
 import GHC.IO ( IO(IO) )
 
--- | @ParserT st r e a@ has a reader environment @r@, error type @e@ and a return type @a@.
+-- | @ParserT st r e a@ is a parser with a state token type @st@, a reader
+--   environment @r@, an error type @e@ and a return type @a@.
 --
--- TODO explain state token here
+-- See "FlatParse.Common.Parser" for a commentary on the state token types.
 newtype ParserT (st :: ZeroBitType) r e a =
     ParserT { runParserT# :: ForeignPtrContents -> r -> Addr# -> Addr# -> Int# -> st -> Res# st e a }
 
@@ -39,6 +43,7 @@ type Parser     = ParserT PureMode
 type ParserIO   = ParserT IOMode
 type ParserST s = ParserT (STMode s)
 
+-- | You may lift IO actions into a 'ParserIO'.
 instance MonadIO (ParserT IOMode r e) where
   liftIO (IO a) = ParserT \fp !r eob s n rw ->
     case a rw of (# rw', a #) -> OK# rw' a s n
@@ -63,7 +68,6 @@ instance Applicative (ParserT st r e) where
       x              -> unsafeCoerce# x
     x             -> unsafeCoerce# x
   {-# inline (<*>) #-}
-  -- TODO v rewrite simpler like *> ??
   ParserT fa <* ParserT fb = ParserT \fp !r eob s n st -> case fa fp r eob s n st of
     OK# st' a s n -> case fb fp r eob s n st' of
       OK# st'' _b s n -> OK# st'' a s n
