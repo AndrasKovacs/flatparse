@@ -25,6 +25,9 @@ module FlatParse.Basic (
 
   , Control.Applicative.empty
 
+  -- * TODO possibly remove
+  , unpackUTF8
+
   ) where
 
 import Prelude hiding ( take )
@@ -479,12 +482,6 @@ traceRest = lookahead takeRestString
 
 --------------------------------------------------------------------------------
 
--- | Convert an UTF-8-coded `B.ByteString` to a `String`.
-unpackUTF8 :: B.ByteString -> String
-unpackUTF8 str = case runParser takeRestString str of
-  OK a _ -> a
-  _      -> error "unpackUTF8: invalid encoding"
-
 -- | Decrease the current input position by the given number of bytes.
 setBack# :: Int -> ParserT st e ()
 setBack# (I# i) = ParserT \fp eob s st ->
@@ -621,3 +618,11 @@ anyCStringUnsafe = ParserT \fp eob s st ->
 #else
 anyCStringUnsafe = error "Flatparse.Basic.anyCStringUnsafe: requires GHC 9.0 / base-4.15, not available on this compiler"
 #endif
+
+--------------------------------------------------------------------------------
+
+-- | Convert an UTF-8-coded `B.ByteString` to a `String`.
+unpackUTF8 :: B.ByteString -> String
+unpackUTF8 str = case runParser takeRestString str of
+  OK a _ -> a
+  _      -> error "unpackUTF8: invalid encoding"
