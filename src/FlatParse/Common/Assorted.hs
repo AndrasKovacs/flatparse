@@ -117,13 +117,12 @@ word64ToInt64 :: Word64 -> Int64
 word64ToInt64 = fromIntegral
 {-# inline word64ToInt64 #-}
 
--- | Assert for the given 'Int#' that @n >= 0@, and pass it on to the given
---   function.
+-- | Assert for the given 'Int#' that @n >= 0@.
 --
 -- Throws a runtime error if given a negative integer.
-withPosInt# :: Int# -> (Int# -> r) -> r
-withPosInt# n# f = case n# >=# 0# of
-  1# -> f n#
+withPosInt# :: Int# -> r -> r
+withPosInt# n# r = case n# >=# 0# of
+  1# -> r
   _  -> error "FlatParse.Basic.Base.withPosInt#: negative integer"
 {-# inline withPosInt# #-}
 

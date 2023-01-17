@@ -10,143 +10,30 @@ error types and an `Int` state.
 -}
 
 module FlatParse.Stateful (
-  -- * Parser types and constructors
-    type Parser
-  , type Res#
-  , pattern OK#
-  , pattern Fail#
-  , pattern Err#
-  , Result(..)
-  , ParserT(..)
 
-  -- * Running parsers
-  , runParser
-  , runParserS
-  , runParserIO
-  , runParserST
+  -- * TODO
+    module FlatParse.Stateful
+  , module FlatParse.Stateful.Parser
+  , module FlatParse.Stateful.Base
+  , module FlatParse.Stateful.Integers
+  , module FlatParse.Stateful.Strings
+  , module FlatParse.Stateful.Addr
+  , module FlatParse.Common.Position
 
-  -- * Actions on the state and the environment
-  , get
-  , put
-  , modify
-  , ask
-  , local
+  , Control.Applicative.empty
 
-  -- * Errors and failures
-  , failed
-  , Base.empty
-  , err
-  , lookahead
-  , fails
-  , try
-  , optional
-  , optional_
-  , withOption
-  , cut
-  , cutting
-
-  -- * Basic lexing and parsing
-  , eof
-  , takeBs
-  , takeRestBs
-  , char
-  , bytes
-  , byteString
-  , string
-  , switch
-  , switchWithPost
-  , rawSwitchWithPost
-  , satisfy
-  , satisfy_
-  , satisfyASCII
-  , satisfyASCII_
-  , fusedSatisfy
-  , fusedSatisfy_
-  , anyChar
-  , anyChar_
-  , anyCharASCII
-  , anyCharASCII_
-  , isDigit
-  , isGreekLetter
-  , isLatinLetter
-  , FlatParse.Stateful.readInt
-  , FlatParse.Stateful.readIntHex
-  , FlatParse.Stateful.readWord
-  , FlatParse.Stateful.readWordHex
-  , FlatParse.Stateful.readInteger
-  , anyCString
-
-  -- * Combinators
-  , (<|>)
-  , branch
-  , chainl
-  , chainr
-  , many
-  , many_
-  , some
-  , some_
-  , notFollowedBy
-  , isolate
-
-  -- * Positions and spans
-  , Pos(..)
-  , Span(..)
-  , getPos
-  , setPos
-  , endPos
-  , spanOf
-  , withSpan
-  , byteStringOf
-  , withByteString
-  , inSpan
+  -- * TODO possibly remove
+  , packUTF8
 
   -- ** Position and span conversions
   , Basic.validPos
   , Basic.posLineCols
-  , unsafeSpanToByteString
-  , Basic.unsafeSlice
   , Basic.mkPos
-  , Basic.lines
-
-  -- * Getting the rest of the input as a 'String'
-  , takeLine
-  , traceLine
-  , takeRest
-  , traceRest
-
-  -- * `String` conversions
-  , packUTF8
-  , Basic.unpackUTF8
-
-  -- * Internal functions
-  , ensureBytes#
-
-  -- ** Unboxed arguments
-  , takeBs#
-  , atSkip#
-
-  -- ** Location & address primitives
-  , setBack#
-  , withAddr#
-  , takeBsOffAddr#
-  , lookaheadFromAddr#
-  , atAddr#
-
-  -- ** Unsafe
-  , anyCStringUnsafe
-  , scan16#
-  , scan32#
-  , scan64#
-  , scanAny8#
-  , scanBytes#
-  , unsafeLiftIO
-
-  -- * TODO
-  , module FlatParse.Stateful.Integers
+  , Basic.linesUTF8
 
   ) where
 
-import qualified Control.Applicative as Base
+import qualified Control.Applicative
 import Control.Monad
 import Data.Foldable
 import Data.Map (Map)
@@ -163,14 +50,16 @@ import qualified Data.ByteString.Unsafe as B
 import qualified Data.Map.Strict as M
 
 import FlatParse.Internal
-import FlatParse.Internal.UnboxedNumerics
 
-import qualified FlatParse.Basic as Basic
+import qualified FlatParse.Parsers as Basic
 
 import FlatParse.Stateful.Parser
+import FlatParse.Stateful.Base
 import FlatParse.Stateful.Integers
+import FlatParse.Stateful.Strings
+import FlatParse.Stateful.Addr
 import FlatParse.Common.Position
-import FlatParse.Common.Assorted ( derefChar8# )
+import FlatParse.Common.Assorted
 
 -- | Higher-level boxed data type for parsing results.
 data Result e a =
@@ -267,112 +156,12 @@ local f (ParserT g) = ParserT \fp !r eob s n st -> let !r' = f r in g fp r' eob 
 
 --------------------------------------------------------------------------------
 
--- | Throw a parsing error. By default, parser choice `(<|>)` can't backtrack
---   on parser error. Use `try` to convert an error to a recoverable failure.
-err :: e -> ParserT st r e a
-err e = ParserT \fp !r eob s n st -> Err# st e
-{-# inline err #-}
-
--- | Save the parsing state, then run a parser, then restore the state.
-lookahead :: ParserT st r e a -> ParserT st r e a
-lookahead (ParserT f) = ParserT \fp !r eob s n st ->
-  case f fp r eob s n st of
-    OK# st' a _ _ -> OK# st' a s n
-    x             -> x
-{-# inline lookahead #-}
-
--- | Convert a parsing failure to a success.
-fails :: ParserT st r e a -> ParserT st r e ()
-fails (ParserT f) = ParserT \fp !r eob s n st ->
-  case f fp r eob s n st of
-    OK# st' _ _ _ -> Fail# st'
-    Fail# st'     -> OK# st' () s n
-    Err# st' e    -> Err# st' e
-{-# inline fails #-}
-
--- | Convert a parsing error into failure.
-try :: ParserT st r e a -> ParserT st r e a
-try (ParserT f) = ParserT \fp !r eob s n st -> case f fp r eob s n st of
-  Err# st' _ -> Fail# st'
-  x          -> x
-{-# inline try #-}
-
 -- | Convert a parsing failure to a `Maybe`. If possible, use `withOption` instead.
 optional :: ParserT st r e a -> ParserT st r e (Maybe a)
 optional p = (Just <$> p) <|> pure Nothing
 {-# inline optional #-}
 
--- | Convert a parsing failure to a `()`.
-optional_ :: ParserT st r e a -> ParserT st r e ()
-optional_ p = (() <$ p) <|> pure ()
-{-# inline optional_ #-}
-
--- | CPS'd version of `optional`. This is usually more efficient, since it gets rid of the
---   extra `Maybe` allocation.
-withOption :: ParserT st r e a -> (a -> ParserT st r e b) -> ParserT st r e b -> ParserT st r e b
-withOption (ParserT f) just (ParserT nothing) = ParserT \fp !r eob s n st -> case f fp r eob s n st of
-  OK# st' a s n -> runParserT# (just a) fp r eob s n st'
-  Fail# st'     -> nothing fp r eob s n st'
-  Err# st' e    -> Err# st' e
-{-# inline withOption #-}
-
--- | Convert a parsing failure to an error.
-cut :: ParserT st r e a -> e -> ParserT st r e a
-cut (ParserT f) e = ParserT \fp !r eob s n st -> case f fp r eob s n st of
-  Fail# st' -> Err# st' e
-  x         -> x
-{-# inline cut #-}
-
--- | Run the parser, if we get a failure, throw the given error, but if we get an error, merge the
---   inner and the newly given errors using the @e -> e -> e@ function. This can be useful for
---   implementing parsing errors which may propagate hints or accummulate contextual information.
-cutting :: ParserT st r e a -> e -> (e -> e -> e) -> ParserT st r e a
-cutting (ParserT f) e merge = ParserT \fp !r eob s n st -> case f fp r eob s n st of
-  Fail# st'   -> Err# st' e
-  Err# st' e' -> Err# st' $! merge e' e
-  x           -> x
-{-# inline cutting #-}
-
 --------------------------------------------------------------------------------
-
-
--- | Succeed if the input is empty.
-eof :: ParserT st r e ()
-eof = ParserT \fp !r eob s n st -> case eqAddr# eob s of
-  1# -> OK# st () s n
-  _  -> Fail# st
-{-# inline eof #-}
-
--- | Read the given number of bytes as a 'ByteString'.
---
--- Throws a runtime error if given a negative integer.
-takeBs :: Int -> ParserT st r e B.ByteString
-takeBs (I# n#) = ParserT \fp !r eob s n st -> case n# <=# minusAddr# eob s of
-  1# -> -- have to runtime check for negative values, because they cause a hang
-    case n# >=# 0# of
-      1# -> OK# st (B.PS (ForeignPtr s fp) 0 (I# n#)) (plusAddr# s n#) n
-      _  -> error "FlatParse.Stateful.take: negative integer"
-  _  -> Fail# st
-{-# inline takeBs #-}
-
--- | Consume the rest of the input. May return the empty bytestring.
-takeRestBs :: ParserT st r e B.ByteString
-takeRestBs = ParserT \fp !r eob s n st ->
-  let n# = minusAddr# eob s
-  in  OK# st (B.PS (ForeignPtr s fp) 0 (I# n#)) eob n
-{-# inline takeRestBs #-}
-
--- | Parse a UTF-8 character literal. This is a template function, you can use it as
---   @$(char \'x\')@, for example, and the splice in this case has type @Parser r e ()@.
-char :: Char -> Q Exp
-char c = string [c]
-
--- | Read a sequence of bytes. This is a template function, you can use it as @$(bytes [3, 4, 5])@,
---   for example, and the splice has type @Parser r e ()@. For a non-TH variant see 'byteString'.
-bytes :: [Word] -> Q Exp
-bytes bytes = do
-  let !len = length bytes
-  [| ensureBytes# len >> $(scanBytes# bytes) |]
 
 -- | Parse a given `B.ByteString`. If the bytestring is statically known, consider using 'bytes' instead.
 byteString :: B.ByteString -> ParserT st r e ()
@@ -393,7 +182,11 @@ byteString (B.PS (ForeignPtr bs fcontent) _ (I# len)) =
 
       go8 :: Addr# -> Addr# -> Addr# -> Int# -> State# RealWorld -> Res# (State# RealWorld) e ()
       go8 bs bsend s n rw = case ltAddr# bs bsend of
-        1# -> case eqWord8'# (indexWord8OffAddr# bs 0#) (indexWord8OffAddr# s 0#) of
+#if MIN_VERSION_base(4,16,0)
+        1# -> case eqWord8# (indexWord8OffAddr# bs 0#) (indexWord8OffAddr# s 0#) of
+#else
+        1# -> case eqWord# (indexWord8OffAddr# bs 0#) (indexWord8OffAddr# s 0#) of
+#endif
           1# -> go8 (plusAddr# bs 1#) bsend (plusAddr# s 1#) n rw
           _  -> Fail# rw
         _  -> OK# rw () s n
@@ -409,11 +202,6 @@ byteString (B.PS (ForeignPtr bs fcontent) _ (I# len)) =
              (# rw, a #) -> (# st, a #)
            _  -> Fail# st
 {-# inline byteString #-}
-
--- | Parse a UTF-8 string literal. This is a template function, you can use it as @$(string "foo")@,
---   for example, and the splice has type @ParserT st r e ()@.
-string :: String -> Q Exp
-string str = bytes (strToBytes str)
 
 {-|
 This is a template function which makes it possible to branch on a collection of string literals in
@@ -481,20 +269,6 @@ rawSwitchWithPost postAction cases fallback = do
   !fallback <- sequence fallback
   genTrie $! genSwitchTrie' postAction cases fallback
 
--- | Parse a UTF-8 `Char` for which a predicate holds.
-satisfy :: (Char -> Bool) -> ParserT st r e Char
-satisfy f = ParserT \fp !r eob s n st -> case runParserT# anyChar fp r eob s n st of
-  OK# st' c s n | f c -> OK# st' c s n
-  (# st', _ #)        -> Fail# st'
-{-#  inline satisfy #-}
-
--- | Skip a UTF-8 `Char` for which a predicate holds.
-satisfy_ :: (Char -> Bool) -> ParserT st r e ()
-satisfy_ f = ParserT \fp !r eob s n st -> case runParserT# anyChar fp r eob s n st of
-  OK# st' c s n | f c -> OK# st' () s n
-  (# st', _ #)        -> Fail# st'
-{-#  inline satisfy_ #-}
-
 -- | Parse an ASCII `Char` for which a predicate holds. Assumption: the predicate must only return
 --   `True` for ASCII-range characters. Otherwise this function might read a 128-255 range byte,
 --   thereby breaking UTF-8 decoding.
@@ -511,134 +285,6 @@ satisfyASCII f = ParserT \fp !r eob s n st -> case eqAddr# eob s of
 satisfyASCII_ :: (Char -> Bool) -> ParserT st r e ()
 satisfyASCII_ f = () <$ satisfyASCII f
 {-# inline satisfyASCII_ #-}
-
--- | This is a variant of `satisfy` which allows more optimization. We can pick four testing
---   functions for the four cases for the possible number of bytes in the UTF-8 character. So in
---   @fusedSatisfy f1 f2 f3 f4@, if we read a one-byte character, the result is scrutinized with
---   @f1@, for two-bytes, with @f2@, and so on. This can result in dramatic lexing speedups.
---
---   For example, if we want to accept any letter, the naive solution would be to use
---   `Data.Char.isLetter`, but this accesses a large lookup table of Unicode character classes. We
---   can do better with @fusedSatisfy isLatinLetter isLetter isLetter isLetter@, since here the
---   `isLatinLetter` is inlined into the UTF-8 decoding, and it probably handles a great majority of
---   all cases without accessing the character table.
-fusedSatisfy :: (Char -> Bool) -> (Char -> Bool) -> (Char -> Bool) -> (Char -> Bool) -> ParserT st r e Char
-fusedSatisfy f1 f2 f3 f4 = ParserT \fp !r eob buf n st -> case eqAddr# eob buf of
-  1# -> Fail# st
-  _  -> case derefChar8# buf of
-    c1 -> case c1 `leChar#` '\x7F'# of
-      1# | f1 (C# c1) -> OK# st (C# c1) (plusAddr# buf 1#) n
-         | otherwise  -> Fail# st
-      _  -> case eqAddr# eob (plusAddr# buf 1#) of
-        1# -> Fail# st
-        _ -> case indexCharOffAddr# buf 1# of
-          c2 -> case c1 `leChar#` '\xDF'# of
-            1# ->
-              let resc = C# (chr# (((ord# c1 -# 0xC0#) `uncheckedIShiftL#` 6#) `orI#`
-                                   (ord# c2 -# 0x80#)))
-              in case f2 resc of
-                   True -> OK# st resc (plusAddr# buf 2#) n
-                   _    -> Fail# st
-            _ -> case eqAddr# eob (plusAddr# buf 2#) of
-              1# -> Fail# st
-              _  -> case indexCharOffAddr# buf 2# of
-                c3 -> case c1 `leChar#` '\xEF'# of
-                  1# ->
-                    let resc = C# (chr# (((ord# c1 -# 0xE0#) `uncheckedIShiftL#` 12#) `orI#`
-                                         ((ord# c2 -# 0x80#) `uncheckedIShiftL#`  6#) `orI#`
-                                         (ord# c3 -# 0x80#)))
-                    in case f3 resc of
-                         True -> OK# st resc (plusAddr# buf 3#) n
-                         _    -> Fail# st
-                  _ -> case eqAddr# eob (plusAddr# buf 3#) of
-                    1# -> Fail# st
-                    _  -> case indexCharOffAddr# buf 3# of
-                      c4 ->
-                        let resc = C# (chr# (((ord# c1 -# 0xF0#) `uncheckedIShiftL#` 18#) `orI#`
-                                             ((ord# c2 -# 0x80#) `uncheckedIShiftL#` 12#) `orI#`
-                                             ((ord# c3 -# 0x80#) `uncheckedIShiftL#`  6#) `orI#`
-                                              (ord# c4 -# 0x80#)))
-                        in case f4 resc of
-                             True -> OK# st resc (plusAddr# buf 4#) n
-                             _    -> Fail# st
-{-# inline fusedSatisfy #-}
-
--- | Skipping variant of `fusedSatisfy`.
-fusedSatisfy_ :: (Char -> Bool) -> (Char -> Bool) -> (Char -> Bool) -> (Char -> Bool) -> ParserT st r e ()
-fusedSatisfy_ f1 f2 f3 f4 = () <$ fusedSatisfy f1 f2 f3 f4
-{-# inline fusedSatisfy_ #-}
-
--- | Parse any UTF-8-encoded `Char`.
-anyChar :: ParserT st r e Char
-anyChar = ParserT \fp !r eob buf n st -> case eqAddr# eob buf of
-  1# -> Fail# st
-  _  -> case derefChar8# buf of
-    c1 -> case c1 `leChar#` '\x7F'# of
-      1# -> OK# st (C# c1) (plusAddr# buf 1#) n
-      _  -> case eqAddr# eob (plusAddr# buf 1#) of
-        1# -> Fail# st
-        _ -> case indexCharOffAddr# buf 1# of
-          c2 -> case c1 `leChar#` '\xDF'# of
-            1# ->
-              let resc = ((ord# c1 -# 0xC0#) `uncheckedIShiftL#` 6#) `orI#`
-                          (ord# c2 -# 0x80#)
-              in OK# st (C# (chr# resc)) (plusAddr# buf 2#) n
-            _ -> case eqAddr# eob (plusAddr# buf 2#) of
-              1# -> Fail# st
-              _  -> case indexCharOffAddr# buf 2# of
-                c3 -> case c1 `leChar#` '\xEF'# of
-                  1# ->
-                    let resc = ((ord# c1 -# 0xE0#) `uncheckedIShiftL#` 12#) `orI#`
-                               ((ord# c2 -# 0x80#) `uncheckedIShiftL#`  6#) `orI#`
-                                (ord# c3 -# 0x80#)
-                    in OK# st (C# (chr# resc)) (plusAddr# buf 3#) n
-                  _ -> case eqAddr# eob (plusAddr# buf 3#) of
-                    1# -> Fail# st
-                    _  -> case indexCharOffAddr# buf 3# of
-                      c4 ->
-                        let resc = ((ord# c1 -# 0xF0#) `uncheckedIShiftL#` 18#) `orI#`
-                                   ((ord# c2 -# 0x80#) `uncheckedIShiftL#` 12#) `orI#`
-                                   ((ord# c3 -# 0x80#) `uncheckedIShiftL#`  6#) `orI#`
-                                    (ord# c4 -# 0x80#)
-                        in OK# st (C# (chr# resc)) (plusAddr# buf 4#) n
-{-# inline anyChar #-}
-
--- | Skip any UTF-8-encoded `Char`.
-anyChar_ :: ParserT st r e ()
-anyChar_ = ParserT \fp !r eob buf n st -> case eqAddr# eob buf of
-  1# -> Fail# st
-  _  -> case derefChar8# buf of
-    c1 -> case c1 `leChar#` '\x7F'# of
-      1# -> OK# st () (plusAddr# buf 1#) n
-      _  ->
-        let buf' =
-              case c1 `leChar#` '\xDF'# of
-                1# -> plusAddr# buf 2#
-                _  -> case c1 `leChar#` '\xEF'# of
-                    1# -> plusAddr# buf 3#
-                    _ ->  plusAddr# buf 4#
-        in case leAddr# buf' eob of
-             1# -> OK# st () buf' n
-             _  -> Fail# st
-{-# inline anyChar_ #-}
-
-
--- | Parse any `Char` in the ASCII range, fail if the next input character is not in the range.
---   This is more efficient than `anyChar` if we are only working with ASCII.
-anyCharASCII :: ParserT st r e Char
-anyCharASCII = ParserT \fp !r eob buf n st -> case eqAddr# eob buf of
-  1# -> Fail# st
-  _  -> case derefChar8# buf of
-    c1 -> case c1 `leChar#` '\x7F'# of
-      1# -> OK# st (C# c1) (plusAddr# buf 1#) n
-      _  -> Fail# st
-{-# inline anyCharASCII #-}
-
--- | Skip any `Char` in the ASCII range. More efficient than `anyChar_` if we're working only with
---   ASCII.
-anyCharASCII_ :: ParserT st r e ()
-anyCharASCII_ = () <$ anyCharASCII
-{-# inline anyCharASCII_ #-}
 
 -- | Read an `Int` from the input, as a non-empty digit sequence.
 -- Fails on overflow.
@@ -681,37 +327,6 @@ readInteger = ParserT \fp r eob s n st -> case FlatParse.Internal.readInteger fp
 
 --------------------------------------------------------------------------------
 
--- | Branch on a parser: if the first argument succeeds, continue with the second, else with the third.
---   This can produce slightly more efficient code than `(<|>)`. Moreover, `ḃranch` does not
---   backtrack from the true/false cases.
-branch :: ParserT st r e a -> ParserT st r e b -> ParserT st r e b -> ParserT st r e b
-branch pa pt pf = ParserT \fp !r eob s n st -> case runParserT# pa fp r eob s n st of
-  OK# st' _ s n -> runParserT# pt fp r eob s n st'
-  Fail# st'     -> runParserT# pf fp r eob s n st'
-  Err# st' e    -> Err# st' e
-{-# inline branch #-}
-
--- | An analogue of the list `foldl` function: first parse a @b@, then parse zero or more @a@-s,
---   and combine the results in a left-nested way by the @b -> a -> b@ function. Note: this is not
---   the usual `chainl` function from the parsec libraries!
-chainl :: (b -> a -> b) -> ParserT st r e b -> ParserT st r e a -> ParserT st r e b
-chainl f start elem = start >>= go where
-  go b = do {!a <- elem; go $! f b a} <|> pure b
-{-# inline chainl #-}
-
--- | An analogue of the list `foldr` function: parse zero or more @a@-s, terminated by a @b@, and
---   combine the results in a right-nested way using the @a -> b -> b@ function. Note: this is not
---   the usual `chainr` function from the parsec libraries!
-chainr :: (a -> b -> b) -> ParserT st r e a -> ParserT st r e b -> ParserT st r e b
-chainr f (ParserT elem) (ParserT end) = go where
-  go = ParserT \fp !r eob s n st -> case elem fp r eob s n st of
-    OK# st' a s n -> case runParserT# go fp r eob s n st' of
-      OK# st'' b s n -> let !b' = f a b in OK# st'' b' s n
-      x         -> x
-    Fail# st' -> end fp r eob s n st'
-    Err# st' e -> Err# st' e
-{-# inline chainr #-}
-
 -- | Run a parser zero or more times, collect the results in a list. Note: for optimal performance,
 --   try to avoid this. Often it is possible to get rid of the intermediate list by using a
 --   combinator or a custom parser.
@@ -725,50 +340,12 @@ many (ParserT f) = go where
     Err# st' e -> Err# st' e
 {-# inline many #-}
 
--- | Skip a parser zero or more times.
-many_ :: ParserT st r e a -> ParserT st r e ()
-many_ (ParserT f) = go where
-  go = ParserT \fp !r eob s n st -> case f fp r eob s n st of
-    OK# st' a s n -> runParserT# go fp r eob s n st'
-    Fail# st'     -> OK# st' () s n
-    Err# st' e    -> Err# st' e
-{-# inline many_ #-}
-
 -- | Run a parser one or more times, collect the results in a list. Note: for optimal performance,
 --   try to avoid this. Often it is possible to get rid of the intermediate list by using a
 --   combinator or a custom parser.
 some :: ParserT st r e a -> ParserT st r e [a]
 some p = (:) <$> p <*> many p
 {-# inline some #-}
-
--- | Skip a parser one or more times.
-some_ :: ParserT st r e a -> ParserT st r e ()
-some_ pa = pa >> many_ pa
-{-# inline some_ #-}
-
--- | Succeed if the first parser succeeds and the second one fails. The parsing
---   state is restored to the point of the first argument's success.
-notFollowedBy :: ParserT st r e a -> ParserT st r e b -> ParserT st r e a
-notFollowedBy p1 p2 = p1 <* lookahead (fails p2)
-{-# inline notFollowedBy #-}
-
--- | @isolate n p@ runs the parser @p@ isolated to the next @n@ bytes. All
---   isolated bytes must be consumed.
---
--- Throws a runtime error if given a negative integer.
-isolate :: Int -> ParserT st r e a -> ParserT st r e a
-isolate (I# n#) p = ParserT \fp !r eob s n st ->
-  let s' = plusAddr# s n#
-  in  case n# <=# minusAddr# eob s of
-        1# -> case n# >=# 0# of
-          1# -> case runParserT# p fp r s' s n st of
-            OK# st' a s'' n' -> case eqAddr# s' s'' of
-              1# -> OK# st' a s'' n'
-              _  -> Fail# st' -- isolated segment wasn't fully consumed
-            r -> r
-          _  -> error "FlatParse.Stateful.isolate: negative integer"
-        _  -> Fail# st -- you tried to isolate more than we have left
-{-# inline isolate #-}
 
 --------------------------------------------------------------------------------
 
@@ -777,18 +354,14 @@ getPos :: ParserT st r e Pos
 getPos = ParserT \fp !r eob s n st -> OK# st (addrToPos# eob s) s n
 {-# inline getPos #-}
 
--- | Set the input position. Warning: this can result in crashes if the position points outside the
---   current buffer. It is always safe to `setPos` values which came from `getPos` with the current
---   input.
+-- | Set the input position.
+--
+-- Warning: this can result in crashes if the position points outside the
+-- current buffer. It is always safe to 'setPos' values which came from 'getPos'
+-- with the current input.
 setPos :: Pos -> ParserT st r e ()
 setPos s = ParserT \fp !r eob _ n st -> OK# st () (posToAddr# eob s) n
 {-# inline setPos #-}
-
--- | The end of the input.
-endPos :: Pos
-endPos = Pos 0
-{-# inline endPos #-}
-
 
 -- | Return the consumed span of a parser. Use `withSpan` if possible for better efficiency.
 spanOf :: ParserT st r e a -> ParserT st r e Span
@@ -844,91 +417,10 @@ inSpan (Span s eob) (ParserT f) = ParserT \fp !r eob' s' n' st ->
 
 --------------------------------------------------------------------------------
 
--- | Parse the rest of the current line as a `String`. Assumes UTF-8 encoding,
---   throws an error if the encoding is invalid.
-takeLine :: ParserT st r e String
-takeLine = branch eof (pure "") do
-  c <- anyChar
-  case c of
-    '\n' -> pure ""
-    _    -> (c:) <$> takeLine
-
--- | Parse the rest of the current line as a `String`, but restore the parsing state.
---   Assumes UTF-8 encoding. This can be used for debugging.
-traceLine :: ParserT st r e String
-traceLine = lookahead takeLine
-
--- | Take the rest of the input as a `String`. Assumes UTF-8 encoding.
-takeRest :: ParserT st r e String
-takeRest = branch eof (pure "") do
-  c <- anyChar
-  cs <- takeRest
-  pure (c:cs)
-
--- | Get the rest of the input as a `String`, but restore the parsing state. Assumes UTF-8 encoding.
---   This can be used for debugging.
-traceRest :: ParserT st r e String
-traceRest = lookahead takeRest
-
---------------------------------------------------------------------------------
-
--- | Check that the input has at least the given number of bytes.
-ensureBytes# :: Int -> ParserT st r e ()
-ensureBytes# (I# len) = ParserT \fp !r eob s n st ->
-  case len  <=# minusAddr# eob s of
-    1# -> OK# st () s n
-    _  -> Fail# st
-{-# inline ensureBytes# #-}
-
--- | Unsafely read two concrete bytes from the input. It's not checked that the input has
---   enough bytes.
-scan16# :: Word16 -> ParserT st r e ()
-scan16# (W16# c) = ParserT \fp !r eob s n st ->
-  case indexWord16OffAddr# s 0# of
-    c' -> case eqWord16'# c c' of
-      1# -> OK# st () (plusAddr# s 2#) n
-      _  -> Fail# st
-{-# inline scan16# #-}
-
--- | Unsafely read four concrete bytes from the input. It's not checked that the input has
---   enough bytes.
-scan32# :: Word32 -> ParserT st r e ()
-scan32# (W32# c) = ParserT \fp !r eob s n st ->
-  case indexWord32OffAddr# s 0# of
-    c' -> case eqWord32'# c c' of
-      1# -> OK# st () (plusAddr# s 4#) n
-      _  -> Fail# st
-{-# inline scan32# #-}
-
--- | Unsafely read eight concrete bytes from the input. It's not checked that the input has
---   enough bytes.
-scan64# :: Word64 -> ParserT st r e ()
-scan64# (W64# c) = ParserT \fp !r eob s n st ->
-  case indexWord64OffAddr# s 0# of
-#if MIN_VERSION_base(4,17,0)
-    c' -> case eqWord64# c c' of
-#else
-    c' -> case eqWord# c c' of
-#endif
-      1# -> OK# st () (plusAddr# s 8#) n
-      _  -> Fail# st
-{-# inline scan64# #-}
-
 -- | Unsafely read and return a byte from the input. It's not checked that the input is non-empty.
 scanAny8# :: ParserT st r e Word8
 scanAny8# = ParserT \fp !r eob s n st -> OK# st (W8# (indexWord8OffAddr# s 0#)) (plusAddr# s 1#) n
 {-# inline scanAny8# #-}
-
-scanPartial64# :: Int -> Word -> ParserT st r e ()
-scanPartial64# (I# len) (W# w) = ParserT \fp !r eob s n st ->
-  case indexWordOffAddr# s 0# of
-    w' -> case uncheckedIShiftL# (8# -# len) 3# of
-      sh -> case uncheckedShiftL# w' sh of
-        w' -> case uncheckedShiftRL# w' sh of
-          w' -> case eqWord# w w' of
-            1# -> OK# st () (plusAddr# s len) n
-            _  -> Fail# st
-{-# inline scanPartial64# #-}
 
 -- | Decrease the current input position by the given number of bytes.
 setBack# :: Int -> ParserT st r e ()
@@ -984,8 +476,8 @@ genTrie (rules, t) = do
         Nothing -> error ("key not in map: " ++ show k)
         Just a  -> a
 
-  let ensure :: Maybe Int -> Maybe (Q Exp)
-      ensure = fmap (\n -> [| ensureBytes# n |])
+  let ensure' :: Maybe Int -> Maybe (Q Exp)
+      ensure' = fmap (\n -> [| ensure n |])
 
       fallback :: Rule -> Int ->  Q Exp
       fallback rule 0 = pure $ VarE $ fst $ ix branches rule
@@ -1009,12 +501,12 @@ genTrie (rules, t) = do
                               next
                           ++ [Match WildP (NormalB defaultCase) []]))]
 
-              case ensure alloc of
+              case ensure' alloc of
                 Nothing    -> pure cases
                 Just alloc -> [| branch $alloc $(pure cases) $(fallback r n) |]
 
         Path (r, n, alloc) ws t ->
-          case ensure alloc of
+          case ensure' alloc of
             Nothing    -> [| branch $(scanBytes# ws) $(go t) $(fallback r n)|]
             Just alloc -> [| branch ($alloc >> $(scanBytes# ws)) $(go t) $(fallback r n) |]
 
@@ -1053,73 +545,6 @@ genSwitchTrie' postAction cases fallback =
 
 --------------------------------------------------------------------------------
 
--- | Skip forward @n@ bytes and run the given parser. Fails if fewer than @n@
---   bytes are available.
---
--- Throws a runtime error if given a negative integer.
-atSkip# :: Int# -> ParserT st r e a -> ParserT st r e a
-atSkip# os# (ParserT p) = ParserT \fp !r eob s n st -> case os# <=# minusAddr# eob s of
-  1# -> case os# >=# 0# of
-    1# -> p fp r eob (plusAddr# s os#) n st
-    _  -> error "FlatParse.Stateful.atSkip#: negative integer"
-  _  -> Fail# st
-{-# inline atSkip# #-}
-
--- | Read the given number of bytes as a 'ByteString'.
---
--- Throws a runtime error if given a negative integer.
-takeBs# :: Int# -> ParserT st r e B.ByteString
-takeBs# n# = ParserT \fp !r eob s n st -> case n# <=# minusAddr# eob s of
-  1# -> -- have to runtime check for negative values, because they cause a hang
-    case n# >=# 0# of
-      1# -> OK# st (B.PS (ForeignPtr s fp) 0 (I# n#)) (plusAddr# s n#) n
-      _  -> error "FlatParse.Stateful.takeBs: negative integer"
-  _  -> Fail# st
-{-# inline takeBs# #-}
-
---------------------------------------------------------------------------------
-
--- | Run a parser, passing it the current address the parser is at.
---
--- Useful for parsing offset-based data tables. For example, you may use this to
--- save the base address to use together with various 0-indexed offsets.
-withAddr# :: (Addr# -> ParserT st r e a) -> ParserT st r e a
-withAddr# p = ParserT \fp !r eob s n st -> runParserT# (p s) fp r eob s n st
-{-# inline withAddr# #-}
-
--- | @takeBsOffAddr# addr# offset# len#@ moves to @addr#@, skips @offset#@
---   bytes, reads @len#@ bytes into a 'ByteString', and restores the original
---   address.
---
--- The 'Addr#' should be from 'withAddr#'.
---
--- Useful for parsing offset-based data tables. For example, you may use this
--- together with 'withAddr#' to jump to an offset in your input and read some
--- data.
-takeBsOffAddr# :: Addr# -> Int# -> Int# -> ParserT st r e B.ByteString
-takeBsOffAddr# addr# offset# len# =
-    lookaheadFromAddr# addr# $ atSkip# offset# $ takeBs# len#
-{-# inline takeBsOffAddr# #-}
-
--- | 'lookahead', but specify the address to lookahead from.
---
--- The 'Addr#' should be from 'withAddr#'.
-lookaheadFromAddr# :: Addr# -> ParserT st r e a -> ParserT st r e a
-lookaheadFromAddr# s = lookahead . atAddr# s
-{-# inline lookaheadFromAddr# #-}
-
--- | Run a parser at the given address.
---
--- The 'Addr#' should be from 'withAddr#'.
---
--- This is a highly internal function -- you likely want 'lookaheadFromAddr#',
--- which will reset the address after running the parser.
-atAddr# :: Addr# -> ParserT st r e a -> ParserT st r e a
-atAddr# s (ParserT p) = ParserT \fp !r eob _ n -> p fp r eob s n
-{-# inline atAddr# #-}
-
---------------------------------------------------------------------------------
-
 -- | Read a null-terminated bytestring (a C-style string).
 --
 -- Consumes the null terminator.
@@ -1132,8 +557,12 @@ anyCString = ParserT \fp !r eob s n st -> go' fp eob s n st
           1# -> Fail# st
           _  ->
             let s' = plusAddr# s 1#
+#if MIN_VERSION_base(4,16,0)
             -- TODO below is a candidate for improving with ExtendedLiterals!
-            in  case eqWord8# (indexWord8OffAddr''# s 0#) (wordToWord8''# 0##) of
+            in  case eqWord8# (indexWord8OffAddr# s 0#) (wordToWord8# 0##) of
+#else
+            in  case eqWord# (indexWord8OffAddr# s 0#) 0## of
+#endif
                   1# -> OK# st (B.PS (ForeignPtr s0 fp) 0 (I# n#)) s' n
                   _  -> go (n# +# 1#) s' n
 {-# inline anyCString #-}

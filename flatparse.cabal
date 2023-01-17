@@ -59,9 +59,13 @@ library
       FlatParse.Examples.BasicLambda.Parser
       FlatParse.Internal
       FlatParse.Internal.UnboxedNumerics
+      FlatParse.Parsers
       FlatParse.Stateful
+      FlatParse.Stateful.Addr
+      FlatParse.Stateful.Base
       FlatParse.Stateful.Integers
       FlatParse.Stateful.Parser
+      FlatParse.Stateful.Strings
   other-modules:
       Paths_flatparse
   hs-source-dirs:

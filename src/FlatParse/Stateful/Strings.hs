@@ -2,10 +2,10 @@
 
 -- | Parsers and utilities for parsing (UTF-8) 'Char's and 'String's.
 
-module FlatParse.Basic.Strings where
+module FlatParse.Stateful.Strings where
 
-import FlatParse.Basic.Parser
-import FlatParse.Basic.Integers ( word64Unsafe )
+import FlatParse.Stateful.Parser
+import FlatParse.Stateful.Integers ( word64Unsafe )
 
 import FlatParse.Common.GHCExts
 
@@ -13,38 +13,39 @@ import Language.Haskell.TH
 import qualified FlatParse.Common.Numbers as Common
 import qualified FlatParse.Common.Assorted as Common
 
+import Data.Functor ( void )
+
 -- | Parse a UTF-8 `Char` for which a predicate holds.
-satisfy :: (Char -> Bool) -> ParserT st e Char
-satisfy f = ParserT \fp eob s st -> case runParserT# anyChar fp eob s st of
-  OK# st' c s | f c -> OK#   st' c s
-  (# st', _ #)      -> Fail# st'
+satisfy :: (Char -> Bool) -> ParserT st r e Char
+satisfy f = ParserT \fp !r eob s n st ->
+    case runParserT# anyChar fp r eob s n st of
+      OK# st' c s n | f c -> OK#   st' c s n
+      (# st', _ #)        -> Fail# st'
 {-# inline satisfy #-}
 
 -- | Skip a UTF-8 `Char` for which a predicate holds.
-skipSatisfy :: (Char -> Bool) -> ParserT st e ()
-skipSatisfy f = ParserT \fp eob s st -> case runParserT# anyChar fp eob s st of
-  OK# st' c s | f c -> OK#   st' () s
-  (# st', _ #)      -> Fail# st'
-{-#  inline skipSatisfy #-}
+skipSatisfy :: (Char -> Bool) -> ParserT st r e ()
+skipSatisfy = void . satisfy
+{-# inline skipSatisfy #-}
 
 -- | Parse an ASCII `Char` for which a predicate holds. Assumption: the predicate must only return
 --   `True` for ASCII-range characters. Otherwise this function might read a 128-255 range byte,
 --   thereby breaking UTF-8 decoding.
-satisfyAscii :: (Char -> Bool) -> ParserT st e Char
-satisfyAscii f = ParserT \fp eob s st -> case eqAddr# eob s of
+satisfyAscii :: (Char -> Bool) -> ParserT st r e Char
+satisfyAscii f = ParserT \fp !r eob s n st -> case eqAddr# eob s of
   1# -> Fail# st
   _  -> case Common.derefChar8# s of
-    c1 | f (C# c1) -> OK#   st (C# c1) (plusAddr# s 1#)
+    c1 | f (C# c1) -> OK#   st (C# c1) (plusAddr# s 1#) n
        | otherwise -> Fail# st
 {-#  inline satisfyAscii #-}
 
 -- | Skip an ASCII `Char` for which a predicate holds. Assumption: the predicate
 --   must only return `True` for ASCII-range characters.
-satisfyAscii_ :: (Char -> Bool) -> ParserT st e ()
-satisfyAscii_ f = ParserT \fp eob s st -> case eqAddr# eob s of
+satisfyAscii_ :: (Char -> Bool) -> ParserT st r e ()
+satisfyAscii_ f = ParserT \fp !r eob s n st -> case eqAddr# eob s of
   1# -> Fail# st
   _  -> case Common.derefChar8# s of
-    c1 | f (C# c1) -> OK#   st () (plusAddr# s 1#)
+    c1 | f (C# c1) -> OK#   st () (plusAddr# s 1#) n
        | otherwise -> Fail# st
 {-#  inline satisfyAscii_ #-}
 
@@ -58,13 +59,13 @@ satisfyAscii_ f = ParserT \fp eob s st -> case eqAddr# eob s of
 --   can do better with @fusedSatisfy isLatinLetter isLetter isLetter isLetter@, since here the
 --   `isLatinLetter` is inlined into the UTF-8 decoding, and it probably handles a great majority of
 --   all cases without accessing the character table.
-fusedSatisfy :: (Char -> Bool) -> (Char -> Bool) -> (Char -> Bool) -> (Char -> Bool) -> ParserT st e Char
-fusedSatisfy f1 f2 f3 f4 = ParserT \fp eob buf st ->
+fusedSatisfy :: (Char -> Bool) -> (Char -> Bool) -> (Char -> Bool) -> (Char -> Bool) -> ParserT st r e Char
+fusedSatisfy f1 f2 f3 f4 = ParserT \fp !r eob buf n st ->
     case eqAddr# eob buf of
       1# -> Fail# st
       _  -> case Common.derefChar8# buf of
         c1 -> case c1 `leChar#` '\x7F'# of
-          1# | f1 (C# c1) -> OK#   st (C# c1) (plusAddr# buf 1#)
+          1# | f1 (C# c1) -> OK#   st (C# c1) (plusAddr# buf 1#) n
              | otherwise  -> Fail# st
           _  -> case eqAddr# eob (plusAddr# buf 1#) of
             1# -> Fail# st
@@ -74,7 +75,7 @@ fusedSatisfy f1 f2 f3 f4 = ParserT \fp eob buf st ->
                   let resc = C# (chr# (((ord# c1 -# 0xC0#) `uncheckedIShiftL#` 6#) `orI#`
                                        (ord# c2 -# 0x80#)))
                   in case f2 resc of
-                       True -> OK#   st resc (plusAddr# buf 2#)
+                       True -> OK#   st resc (plusAddr# buf 2#) n
                        _    -> Fail# st
                 _ -> case eqAddr# eob (plusAddr# buf 2#) of
                   1# -> Fail# st
@@ -85,7 +86,7 @@ fusedSatisfy f1 f2 f3 f4 = ParserT \fp eob buf st ->
                                              ((ord# c2 -# 0x80#) `uncheckedIShiftL#`  6#) `orI#`
                                              (ord# c3 -# 0x80#)))
                         in case f3 resc of
-                             True -> OK#   st resc (plusAddr# buf 3#)
+                             True -> OK#   st resc (plusAddr# buf 3#) n
                              _    -> Fail# st
                       _ -> case eqAddr# eob (plusAddr# buf 3#) of
                         1# -> Fail# st
@@ -96,22 +97,22 @@ fusedSatisfy f1 f2 f3 f4 = ParserT \fp eob buf st ->
                                                  ((ord# c3 -# 0x80#) `uncheckedIShiftL#`  6#) `orI#`
                                                   (ord# c4 -# 0x80#)))
                             in case f4 resc of
-                                 True -> OK#   st resc (plusAddr# buf 4#)
+                                 True -> OK#   st resc (plusAddr# buf 4#) n
                                  _    -> Fail# st
 {-# inline fusedSatisfy #-}
 
 -- | Skipping variant of `fusedSatisfy`.
-fusedSatisfy_ :: (Char -> Bool) -> (Char -> Bool) -> (Char -> Bool) -> (Char -> Bool) -> Parser e ()
+fusedSatisfy_ :: (Char -> Bool) -> (Char -> Bool) -> (Char -> Bool) -> (Char -> Bool) -> ParserT st r e ()
 fusedSatisfy_ f1 f2 f3 f4 = () <$ fusedSatisfy f1 f2 f3 f4
 {-# inline fusedSatisfy_ #-}
 
 -- | Parse any single Unicode character encoded using UTF-8 as a 'Char'.
-anyChar :: ParserT st e Char
-anyChar = ParserT \fp eob buf st -> case eqAddr# eob buf of
+anyChar :: ParserT st r e Char
+anyChar = ParserT \fp !r eob buf n st -> case eqAddr# eob buf of
   1# -> Fail# st
   _  -> case Common.derefChar8# buf of
     c1 -> case c1 `leChar#` '\x7F'# of
-      1# -> OK# st (C# c1) (plusAddr# buf 1#)
+      1# -> OK# st (C# c1) (plusAddr# buf 1#) n
       _  -> case eqAddr# eob (plusAddr# buf 1#) of
         1# -> Fail# st
         _ -> case indexCharOffAddr# buf 1# of
@@ -119,7 +120,7 @@ anyChar = ParserT \fp eob buf st -> case eqAddr# eob buf of
             1# ->
               let resc = ((ord# c1 -# 0xC0#) `uncheckedIShiftL#` 6#) `orI#`
                           (ord# c2 -# 0x80#)
-              in OK# st (C# (chr# resc)) (plusAddr# buf 2#)
+              in OK# st (C# (chr# resc)) (plusAddr# buf 2#) n
             _ -> case eqAddr# eob (plusAddr# buf 2#) of
               1# -> Fail# st
               _  -> case indexCharOffAddr# buf 2# of
@@ -128,7 +129,7 @@ anyChar = ParserT \fp eob buf st -> case eqAddr# eob buf of
                     let resc = ((ord# c1 -# 0xE0#) `uncheckedIShiftL#` 12#) `orI#`
                                ((ord# c2 -# 0x80#) `uncheckedIShiftL#`  6#) `orI#`
                                 (ord# c3 -# 0x80#)
-                    in OK# st (C# (chr# resc)) (plusAddr# buf 3#)
+                    in OK# st (C# (chr# resc)) (plusAddr# buf 3#) n
                   _ -> case eqAddr# eob (plusAddr# buf 3#) of
                     1# -> Fail# st
                     _  -> case indexCharOffAddr# buf 3# of
@@ -137,16 +138,16 @@ anyChar = ParserT \fp eob buf st -> case eqAddr# eob buf of
                                    ((ord# c2 -# 0x80#) `uncheckedIShiftL#` 12#) `orI#`
                                    ((ord# c3 -# 0x80#) `uncheckedIShiftL#`  6#) `orI#`
                                     (ord# c4 -# 0x80#)
-                        in OK# st (C# (chr# resc)) (plusAddr# buf 4#)
+                        in OK# st (C# (chr# resc)) (plusAddr# buf 4#) n
 {-# inline anyChar #-}
 
 -- | Skip any single Unicode character encoded using UTF-8.
-anyChar_ :: ParserT st e ()
-anyChar_ = ParserT \fp eob buf st -> case eqAddr# eob buf of
+anyChar_ :: ParserT st r e ()
+anyChar_ = ParserT \fp !r eob buf n st -> case eqAddr# eob buf of
   1# -> Fail# st
   _  -> case Common.derefChar8# buf of
     c1 -> case c1 `leChar#` '\x7F'# of
-      1# -> OK# st () (plusAddr# buf 1#)
+      1# -> OK# st () (plusAddr# buf 1#) n
       _  ->
         let buf' =
               case c1 `leChar#` '\xDF'# of
@@ -155,26 +156,27 @@ anyChar_ = ParserT \fp eob buf st -> case eqAddr# eob buf of
                     1# -> plusAddr# buf 3#
                     _ ->  plusAddr# buf 4#
         in case leAddr# buf' eob of
-             1# -> OK#   st () buf'
+             1# -> OK#   st () buf' n
              _  -> Fail# st
 {-# inline anyChar_ #-}
 
 -- | Parse any single ASCII character (a single byte) as a 'Char'.
 --
 -- More efficient than 'anyChar' for ASCII-only input.
-anyAsciiChar :: ParserT st e Char
-anyAsciiChar = ParserT \fp eob buf st -> case eqAddr# eob buf of
+-- TODO withEnsure1
+anyAsciiChar :: ParserT st r e Char
+anyAsciiChar = ParserT \fp !r eob buf n st -> case eqAddr# eob buf of
   1# -> Fail# st
   _  -> case Common.derefChar8# buf of
     c1 -> case c1 `leChar#` '\x7F'# of
-      1# -> OK#   st (C# c1) (plusAddr# buf 1#)
+      1# -> OK#   st (C# c1) (plusAddr# buf 1#) n
       _  -> Fail# st
 {-# inline anyAsciiChar #-}
 
 -- | Skip any single ASCII character (a single byte).
 --
 -- More efficient than 'anyChar_' for ASCII-only input.
-anyAsciiChar_ :: ParserT st e ()
+anyAsciiChar_ :: ParserT st r e ()
 anyAsciiChar_ = () <$ anyAsciiChar
 {-# inline anyAsciiChar_ #-}
 
@@ -197,28 +199,28 @@ bytes bs = do
 
 -- | Read a non-negative `Int` from the input, as a non-empty digit sequence.
 -- The `Int` may overflow in the result.
-anyAsciiDecimalInt :: ParserT st e Int
-anyAsciiDecimalInt = ParserT \fp eob s st ->
+anyAsciiDecimalInt :: ParserT st r e Int
+anyAsciiDecimalInt = ParserT \fp !r eob s n st ->
     case Common.readInt eob s of
-      (# | (# n, s' #) #) -> OK#   st (I# n) s'
+      (# | (# i, s' #) #) -> OK#   st (I# i) s' n
       (# (##) | #)        -> Fail# st
 {-# inline anyAsciiDecimalInt #-}
 
 -- | Read an `Int` from the input, as a non-empty case-insensitive ASCII
 --   hexadecimal digit sequence. The `Int` may overflow in the result.
-anyAsciiHexInt :: ParserT st e Int
-anyAsciiHexInt = ParserT \fp eob s st ->
+anyAsciiHexInt :: ParserT st r e Int
+anyAsciiHexInt = ParserT \fp !r eob s n st ->
     case Common.readIntHex eob s of
-      (# | (# n, s' #) #) -> OK#   st (I# n) s'
+      (# | (# i, s' #) #) -> OK#   st (I# i) s' n
       (# (##) | #)        -> Fail# st
 {-# inline anyAsciiHexInt #-}
 
 -- | Read a non-negative `Integer` from the input, as a non-empty digit
 -- sequence.
-anyAsciiDecimalInteger :: ParserT st e Integer
-anyAsciiDecimalInteger = ParserT \fp eob s st ->
+anyAsciiDecimalInteger :: ParserT st r e Integer
+anyAsciiDecimalInteger = ParserT \fp !r eob s n st ->
     case Common.readInteger fp eob s of
-      (# | (# i, s' #) #) -> OK#   st i s'
+      (# | (# i, s' #) #) -> OK#   st i s' n
       (# (##) | #)        -> Fail# st
 {-# inline anyAsciiDecimalInteger #-}
 
@@ -253,13 +255,13 @@ bytesUnsafe bytes = do
                              !l = length ws
                          in [| scanPartial64# l w >> $scanw8s |]
 
-scanPartial64# :: Int -> Word -> ParserT st e ()
-scanPartial64# (I# len) (W# w) = ParserT \fp eob s st ->
+scanPartial64# :: Int -> Word -> ParserT st r e ()
+scanPartial64# (I# len) (W# w) = ParserT \fp !r eob s n st ->
   case indexWordOffAddr# s 0# of
     w' -> case uncheckedIShiftL# (8# -# len) 3# of
       sh -> case uncheckedShiftL# w' sh of
         w' -> case uncheckedShiftRL# w' sh of
           w' -> case eqWord# w w' of
-            1# -> OK#   st () (plusAddr# s len)
+            1# -> OK#   st () (plusAddr# s len) n
             _  -> Fail# st
 {-# inline scanPartial64# #-}

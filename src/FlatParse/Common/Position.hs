@@ -33,3 +33,8 @@ unsafeSlice (B.PS (ForeignPtr addr fp) (I# start) (I# len))
   let end = addr `plusAddr#` start `plusAddr#` len
   in B.PS (ForeignPtr (plusAddr# end (negateInt# o1)) fp) (I# 0#) (I# (o1 -# o2))
 {-# inline unsafeSlice #-}
+
+-- | The end of the input.
+endPos :: Pos
+endPos = Pos 0
+{-# inline endPos #-}

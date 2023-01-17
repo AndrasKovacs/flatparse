@@ -9,6 +9,7 @@ demonstrates a simple but decently informative implementation of error message p
 module FlatParse.Examples.BasicLambda.Lexer where
 
 import FlatParse.Basic hiding (Parser, runParser, string, char, cut)
+import qualified FlatParse.Parsers as FP
 import FlatParse.Common.Strings
 
 import qualified FlatParse.Basic as FP
@@ -67,8 +68,8 @@ prettyError b e =
   let pos :: Pos
       pos      = case e of Imprecise pos e -> pos
                            Precise pos e   -> pos
-      ls       = FP.lines b
-      (l, c)   = head $ posLineCols b [pos]
+      ls       = FP.linesUTF8 b
+      (l, c)   = head $ FP.posLineCols b [pos]
       line     = if l < length ls then ls !! l else ""
       linum    = show l
       lpad     = map (const ' ') linum

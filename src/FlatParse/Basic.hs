@@ -26,7 +26,7 @@ module FlatParse.Basic (
   , Control.Applicative.empty
 
   -- * TODO possibly remove
-  , unpackUTF8
+  , packUTF8
 
   ) where
 
@@ -35,9 +35,7 @@ import Prelude hiding ( take )
 import qualified Control.Applicative
 import Control.Monad
 import Data.Foldable
-import Data.List (sortBy)
 import Data.Map (Map)
-import Data.Ord (comparing)
 import GHC.IO (IO(..))
 import GHC.Exts
 import GHC.ForeignPtr
@@ -50,7 +48,6 @@ import qualified Data.ByteString.Internal as B
 import qualified Data.Map.Strict as M
 
 import FlatParse.Internal
-import FlatParse.Internal.UnboxedNumerics
 
 import FlatParse.Basic.Parser
 import FlatParse.Basic.Base
@@ -58,6 +55,7 @@ import FlatParse.Basic.Integers
 import FlatParse.Basic.Strings
 import FlatParse.Basic.Addr
 import FlatParse.Common.Position
+import FlatParse.Common.Assorted ( packUTF8 )
 
 -- | Higher-level boxed data type for parsing results.
 data Result e a =
@@ -117,13 +115,6 @@ runParserIO (ParserT f) b@(B.PS (ForeignPtr _ fp) _ (I# len)) = do
       Fail# rw'  ->  (# rw', Fail #)
 {-# inlinable runParserIO #-}
 
-
--- | Run a parser on a `String` input. Reminder: @OverloadedStrings@ for `B.ByteString` does not
---   yield a valid UTF-8 encoding! For non-ASCII `B.ByteString` literal input, use `runParserS` or
---   `packUTF8` for testing.
-runParserS :: Parser e a -> String -> Result e a
-runParserS pa s = runParser pa (packUTF8 s)
-
 --------------------------------------------------------------------------------
 
 -- | Convert a parsing failure to a `Maybe`. If possible, use `withOption` instead.
@@ -152,7 +143,11 @@ byteString (B.PS (ForeignPtr bs fcontent) _ (I# len)) =
 
       go8 :: Addr# -> Addr# -> Addr# -> State# RealWorld -> Res# (State# RealWorld) e ()
       go8 bs bsend s rw = case ltAddr# bs bsend of
-        1# -> case eqWord8'# (indexWord8OffAddr# bs 0#) (indexWord8OffAddr# s 0#) of
+#if MIN_VERSION_base(4,16,0)
+        1# -> case eqWord8# (indexWord8OffAddr# bs 0#) (indexWord8OffAddr# s 0#) of
+#else
+        1# -> case eqWord# (indexWord8OffAddr# bs 0#) (indexWord8OffAddr# s 0#) of
+#endif
           1# -> go8 (plusAddr# bs 1#) bsend (plusAddr# s 1#) rw
           _  -> Fail# rw
         _  -> OK# rw () s
@@ -330,23 +325,20 @@ getPos :: ParserT st e Pos
 getPos = ParserT \fp eob s st -> OK# st (addrToPos# eob s) s
 {-# inline getPos #-}
 
--- | Set the input position. Warning: this can result in crashes if the position points outside the
---   current buffer. It is always safe to `setPos` values which came from `getPos` with the current
---   input.
+-- | Set the input position.
+--
+-- Warning: this can result in crashes if the position points outside the
+-- current buffer. It is always safe to 'setPos' values which came from 'getPos'
+-- with the current input.
 setPos :: Pos -> ParserT st e ()
 setPos s = ParserT \fp eob _ st -> OK# st () (posToAddr# eob s)
 {-# inline setPos #-}
-
--- | The end of the input.
-endPos :: Pos
-endPos = Pos 0
-{-# inline endPos #-}
 
 -- | Return the consumed span of a parser.
 spanOf :: ParserT st e a -> ParserT st e Span
 spanOf (ParserT f) = ParserT \fp eob s st -> case f fp eob s st of
   OK# st' a s' -> OK# st' (Span (addrToPos# eob s) (addrToPos# eob s')) s'
-  x        -> unsafeCoerce# x
+  x            -> unsafeCoerce# x
 {-# inline spanOf #-}
 
 -- | Bind the result together with the span of the result. CPS'd version of `spanOf`
@@ -354,7 +346,7 @@ spanOf (ParserT f) = ParserT \fp eob s st -> case f fp eob s st of
 withSpan :: ParserT st e a -> (a -> Span -> ParserT st e b) -> ParserT st e b
 withSpan (ParserT f) g = ParserT \fp eob s st -> case f fp eob s st of
   OK# st' a s' -> runParserT# (g a (Span (addrToPos# eob s) (addrToPos# eob s'))) fp eob s' st'
-  x        -> unsafeCoerce# x
+  x            -> unsafeCoerce# x
 {-# inline withSpan #-}
 
 -- | Return the `B.ByteString` consumed by a parser. Note: it's more efficient to use `spanOf` and
@@ -387,70 +379,12 @@ inSpan (Span s eob) (ParserT f) = ParserT \fp eob' s' st ->
 
 --------------------------------------------------------------------------------
 
--- | Check whether a `Pos` points into a `B.ByteString`.
-validPos :: B.ByteString -> Pos -> Bool
-validPos str pos =
-  let go = do
-        start <- getPos
-        pure (start <= pos && pos <= endPos)
-  in case runParser go str of
-    OK b _ -> b
-    _      -> error "impossible"
-{-# inline validPos #-}
-
--- | Compute corresponding line and column numbers for each `Pos` in a list. Throw an error
---   on invalid positions. Note: computing lines and columns may traverse the `B.ByteString`,
---   but it traverses it only once regardless of the length of the position list.
-posLineCols :: B.ByteString -> [Pos] -> [(Int, Int)]
-posLineCols str poss =
-  let go !line !col [] = pure []
-      go line col ((i, pos):poss) = do
-        p <- getPos
-        if pos == p then
-          ((i, (line, col)):) <$> go line col poss
-        else do
-          c <- anyChar
-          if '\n' == c then
-            go (line + 1) 0 ((i, pos):poss)
-          else
-            go line (col + 1) ((i, pos):poss)
-
-      sorted :: [(Int, Pos)]
-      sorted = sortBy (comparing snd) (zip [0..] poss)
-
-  in case runParser (go 0 0 sorted) str of
-       OK res _ -> snd <$> sortBy (comparing fst) res
-       _        -> error "invalid position"
-
 -- | Create a `B.ByteString` from a `Span`. The result is invalid if the `Span` points
 --   outside the current buffer, or if the `Span` start is greater than the end position.
 unsafeSpanToByteString :: Span -> ParserT st e B.ByteString
 unsafeSpanToByteString (Span l r) =
   lookahead (setPos l >> byteStringOf (setPos r))
 {-# inline unsafeSpanToByteString #-}
-
--- | Create a `Pos` from a line and column number. Throws an error on out-of-bounds
---   line and column numbers.
-mkPos :: B.ByteString -> (Int, Int) -> Pos
-mkPos str (line', col') =
-  let go line col | line == line' && col == col' = getPos
-      go line col = (do
-        c <- anyChar
-        if c == '\n' then go (line + 1) 0
-                     else go line (col + 1)) <|> error "mkPos: invalid position"
-  in case runParser (go 0 0) str of
-    OK res _ -> res
-    _        -> error "impossible"
-
--- | Break an UTF-8-coded `B.ByteString` to lines. Throws an error on invalid input.
---   This is mostly useful for grabbing specific source lines for displaying error
---   messages.
-lines :: B.ByteString -> [String]
-lines str =
-  let go = ([] <$ eof) <|> ((:) <$> takeLine <*> go)
-  in case runParser go str of
-    OK ls _ -> ls
-    _       -> error "linesUTF8: invalid input"
 
 --------------------------------------------------------------------------------
 
@@ -588,8 +522,12 @@ anyCString = ParserT go'
           1# -> Fail# st
           _  ->
             let s' = plusAddr# s 1#
+#if MIN_VERSION_base(4,16,0)
             -- TODO below is a candidate for improving with ExtendedLiterals!
-            in  case eqWord8# (indexWord8OffAddr''# s 0#) (wordToWord8''# 0##) of
+            in  case eqWord8# (indexWord8OffAddr# s 0#) (wordToWord8# 0##) of
+#else
+            in  case eqWord# (indexWord8OffAddr# s 0#) 0## of
+#endif
                   1# -> OK# st (B.PS (ForeignPtr s0 fp) 0 (I# n#)) s'
                   _  -> go (n# +# 1#) s'
 {-# inline anyCString #-}
@@ -621,8 +559,8 @@ anyCStringUnsafe = error "Flatparse.Basic.anyCStringUnsafe: requires GHC 9.0 / b
 
 --------------------------------------------------------------------------------
 
--- | Convert an UTF-8-coded `B.ByteString` to a `String`.
-unpackUTF8 :: B.ByteString -> String
-unpackUTF8 str = case runParser takeRestString str of
-  OK a _ -> a
-  _      -> error "unpackUTF8: invalid encoding"
+-- | Run a parser on a `String` input. Reminder: @OverloadedStrings@ for `B.ByteString` does not
+--   yield a valid UTF-8 encoding! For non-ASCII `B.ByteString` literal input, use `runParserS` or
+--   `packUTF8` for testing.
+runParserS :: Parser e a -> String -> Result e a
+runParserS pa s = runParser pa (packUTF8 s)

@@ -7,54 +7,16 @@ module FlatParse.Internal where
 
 import FlatParse.Internal.UnboxedNumerics
 
-
-import Data.Bits
-import Data.Char
 import Data.Foldable (foldl')
 import Data.Map (Map)
 import GHC.Exts
 import GHC.ForeignPtr
 
-import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BC8
 import qualified Data.ByteString.Internal as B
 import qualified Data.Map.Strict as M
 
-#if MIN_VERSION_base(4,15,0)
-import GHC.Num.Integer (Integer(..))
-#else
-import GHC.Integer.GMP.Internals (Integer(..))
-#endif
-
--- Compatibility
---------------------------------------------------------------------------------
-
-shortInteger :: Int# -> Integer
-#if MIN_VERSION_base(4,15,0)
-shortInteger = IS
-#else
-shortInteger = S#
-#endif
-{-# inline shortInteger #-}
-
-
--- Char predicates
---------------------------------------------------------------------------------
-
--- | @isDigit c = \'0\' <= c && c <= \'9\'@
-isDigit :: Char -> Bool
-isDigit c = '0' <= c && c <= '9'
-{-# inline isDigit #-}
-
--- | @isLatinLetter c = (\'A\' <= c && c <= \'Z\') || (\'a\' <= c && c <= \'z\')@
-isLatinLetter :: Char -> Bool
-isLatinLetter c = ('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z')
-{-# inline isLatinLetter #-}
-
--- | @isGreekLetter c = (\'Α\' <= c && c <= \'Ω\') || (\'α\' <= c && c <= \'ω\')@
-isGreekLetter :: Char -> Bool
-isGreekLetter c = ('Α' <= c && c <= 'Ω') || ('α' <= c && c <= 'ω')
-{-# inline isGreekLetter #-}
+import FlatParse.Common.Assorted
 
 -- Int(eger) reading
 --------------------------------------------------------------------------------
@@ -229,48 +191,6 @@ toZigzagNative'# w# =
     (w# `uncheckedShiftL#` 1#) `xor#` (w# `uncheckedShiftRL#` 63#)
 {-# inline toZigzagNative'# #-}
 
--- UTF conversions
---------------------------------------------------------------------------------
-
--- | Convert a `String` to an UTF-8-coded `B.ByteString`.
-packUTF8 :: String -> B.ByteString
-packUTF8 str = B.pack $ do
-  c <- str
-  w <- charToBytes c
-  pure (fromIntegral w)
-
-charToBytes :: Char -> [Word]
-charToBytes c'
-    | c <= 0x7f     = [fromIntegral c]
-    | c <= 0x7ff    = [0xc0 .|. y, 0x80 .|. z]
-    | c <= 0xffff   = [0xe0 .|. x, 0x80 .|. y, 0x80 .|. z]
-    | c <= 0x10ffff = [0xf0 .|. w, 0x80 .|. x, 0x80 .|. y, 0x80 .|. z]
-    | otherwise = error "Not a valid Unicode code point"
-  where
-    c = ord c'
-    z = fromIntegral (c                 .&. 0x3f)
-    y = fromIntegral (unsafeShiftR c 6  .&. 0x3f)
-    x = fromIntegral (unsafeShiftR c 12 .&. 0x3f)
-    w = fromIntegral (unsafeShiftR c 18 .&. 0x7)
-
-strToBytes :: String -> [Word]
-strToBytes = concatMap charToBytes
-{-# inline strToBytes #-}
-
-packBytes :: [Word] -> Word
-packBytes = fst . foldl' go (0, 0) where
-  go (acc, shift) w | shift == 64 = error "packWords: too many bytes"
-  go (acc, shift) w = (unsafeShiftL (fromIntegral w) shift .|. acc, shift+8)
-
-splitBytes :: [Word] -> ([Word], [Word])
-splitBytes ws = case quotRem (length ws) 8 of
-  (0, _) -> (ws, [])
-  (_, r) -> (as, chunk8s bs) where
-              (as, bs) = splitAt r ws
-              chunk8s [] = []
-              chunk8s ws = let (as, bs) = splitAt 8 ws in
-                           packBytes as : chunk8s bs
-
 -- Switch trie compilation
 --------------------------------------------------------------------------------
 
@@ -351,16 +271,3 @@ ensureBytes = go 0 where
 
 compileTrie :: [(Int, String)] -> Trie' (Rule, Int, Maybe Int)
 compileTrie = ensureBytes . fallbacks . pathify . mindepths . listToTrie
-
--- These type aliases are used as parameters to ParserT
-{-
-data Pure
-type IOMode = State# RealWorld
-type PureMode = Proxy# Pure
-type STMode s = State# s
-
-#if !MIN_VERSION_base(4,17,0)
-type ZeroBitRep = 'TupleRep ('[] :: [RuntimeRep])
-type ZeroBitType = TYPE ZeroBitRep
-#endif
--}
