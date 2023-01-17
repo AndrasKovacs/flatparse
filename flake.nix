@@ -10,8 +10,8 @@
       imports = [ inputs.haskell-flake.flakeModule ];
       perSystem = { self', pkgs, ... }: {
         haskellProjects.default = {
-          #haskellPackages = pkgs.haskell.packages.ghc944;
-          haskellPackages = pkgs.haskell.packages.ghc925;
+          haskellPackages = pkgs.haskell.packages.ghc944;
+          #haskellPackages = pkgs.haskell.packages.ghc925;
           packages = {
             flatparse.root = ./.;
           };
