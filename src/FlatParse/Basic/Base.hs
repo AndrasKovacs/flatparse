@@ -2,7 +2,50 @@
 
 -- | Basic parser building blocks.
 
-module FlatParse.Basic.Base where
+module FlatParse.Basic.Base
+  (
+  -- * Bytewise
+    eof
+  , take
+  , take#
+  , takeUnsafe#
+  , takeRest
+  , skip
+  , skip#
+  , skipBack
+  , skipBack#
+  , atSkip#
+  , atSkipUnsafe#
+
+  -- * Combinators
+  , branch
+  , notFollowedBy
+  , chainl
+  , chainr
+  , lookahead
+  , ensure
+  , ensure#
+  , withEnsure
+  , withEnsure1
+  , withEnsure#
+  , isolate
+  , isolate#
+  , isolateUnsafe#
+
+  -- ** Non-specific (TODO)
+  , skipMany
+  , skipSome
+
+  -- * Errors and failures
+  , failed
+  , err
+  , fails
+  , cut
+  , cutting
+  , optional
+  , optional_
+  , withOption
+  ) where
 
 import Prelude hiding ( take )
 
@@ -53,6 +96,11 @@ cutting (ParserT f) e merge = ParserT \fp eob s st -> case f fp eob s st of
   Err#  st' e' -> Err# st' $! merge e' e
   x            -> x
 {-# inline cutting #-}
+
+-- | Convert a parsing failure to a `Maybe`. If possible, use `withOption` instead.
+optional :: ParserT st e a -> ParserT st e (Maybe a)
+optional p = (Just <$> p) <|> pure Nothing
+{-# inline optional #-}
 
 -- | Convert a parsing failure to a `()`.
 optional_ :: ParserT st e a -> ParserT st e ()
@@ -152,7 +200,7 @@ chainr f (ParserT elem) (ParserT end) = ParserT go where
 {-# inline chainr #-}
 
 -- | Branch on a parser: if the first argument succeeds, continue with the second, else with the third.
---   This can produce slightly more efficient code than `(<|>)`. Moreover, `ḃranch` does not
+--   This can produce slightly more efficient code than `(<|>)`. Moreover, `branch` does not
 --   backtrack from the true/false cases.
 branch :: ParserT st e a -> ParserT st e b -> ParserT st e b -> ParserT st e b
 branch pa pt pf = ParserT \fp eob s st -> case runParserT# pa fp eob s st of
@@ -295,7 +343,7 @@ atSkipUnsafe# n# (ParserT p) =
 
 -- | Skip a parser zero or more times.
 --
--- TODO identical to one from parser-combinators
+-- TODO identical to one from parser-combinators. confirm core matches
 skipMany :: ParserT st e a -> ParserT st e ()
 skipMany p = go
   where go = (p *> go) <|> pure ()

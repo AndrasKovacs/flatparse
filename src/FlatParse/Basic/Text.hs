@@ -9,6 +9,8 @@ module FlatParse.Basic.Text
   , anyChar, skipAnyChar
   , satisfy, skipSatisfy
   , fusedSatisfy, skipFusedSatisfy
+  , takeLine
+  , takeRestString
 
   -- * ASCII
   , anyAsciiChar, skipAnyAsciiChar
@@ -20,10 +22,14 @@ module FlatParse.Basic.Text
   , anyAsciiDecimalInteger
   , anyAsciiHexWord
   , anyAsciiHexInt
+
+  -- * Debugging parsers
+  , traceLine
+  , traceRest
   ) where
 
 import FlatParse.Basic.Parser
-import FlatParse.Basic.Base ( withEnsure1 )
+import FlatParse.Basic.Base ( withEnsure1, lookahead, eof, branch )
 import FlatParse.Basic.Bytes ( bytes )
 
 import FlatParse.Common.GHCExts
@@ -257,3 +263,31 @@ char c = string [c]
 --   for example, and the splice has type @Parser e ()@.
 string :: String -> Q Exp
 string str = bytes (Common.strToBytes str)
+
+--------------------------------------------------------------------------------
+
+-- | Parse the rest of the current line as a `String`. Assumes UTF-8 encoding,
+--   throws an error if the encoding is invalid.
+takeLine :: ParserT st e String
+takeLine = branch eof (pure "") do
+  c <- anyChar
+  case c of
+    '\n' -> pure ""
+    _    -> (c:) <$> takeLine
+
+-- | Parse the rest of the current line as a `String`, but restore the parsing state.
+--   Assumes UTF-8 encoding. This can be used for debugging.
+traceLine :: ParserT st e String
+traceLine = lookahead takeLine
+
+-- | Take the rest of the input as a `String`. Assumes UTF-8 encoding.
+takeRestString :: ParserT st e String
+takeRestString = branch eof (pure "") do
+  c <- anyChar
+  cs <- takeRestString
+  pure (c:cs)
+
+-- | Get the rest of the input as a `String`, but restore the parsing state. Assumes UTF-8 encoding.
+--   This can be used for debugging.
+traceRest :: ParserT st e String
+traceRest = lookahead takeRestString

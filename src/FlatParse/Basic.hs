@@ -13,18 +13,42 @@ denoted by a @#@ hash suffix.
 -}
 
 module FlatParse.Basic (
+  -- * Parser type
+    module FlatParse.Basic.Parser
 
-  -- * TODO
-    module FlatParse.Basic
-  , module FlatParse.Basic.Parser
+  -- * Running parsers
+  , Result(..)
+  , runParser
+  , runParserS
+  , runParserIO
+  , runParserST
+
+  -- * Parsers
   , module FlatParse.Basic.Base
-  , module FlatParse.Basic.Integers
   , module FlatParse.Basic.Bytes
+
+  -- ** Position
+  , module FlatParse.Common.Position
+  , getPos
+  , setPos
+  , spanOf
+  , withSpan
+  , byteStringOf
+  , withByteString
+  , inSpan
+
+  -- ** Text
   , module FlatParse.Basic.Text
   , module FlatParse.Basic.Switch
-  , module FlatParse.Basic.Addr
-  , module FlatParse.Common.Position
 
+  -- ** Machine integers
+  , module FlatParse.Basic.Integers
+
+  -- * Unsafe
+  , module FlatParse.Basic.Addr
+  , unsafeLiftIO
+
+  -- * TODO
   , Control.Applicative.empty
 
   -- * TODO possibly remove
@@ -112,13 +136,6 @@ runParserIO (ParserT f) b@(B.PS (ForeignPtr _ fp) _ (I# len)) = do
       Err# rw' e ->  (# rw', Err e #)
       Fail# rw'  ->  (# rw', Fail #)
 {-# inlinable runParserIO #-}
-
---------------------------------------------------------------------------------
-
--- | Convert a parsing failure to a `Maybe`. If possible, use `withOption` instead.
-optional :: ParserT st e a -> ParserT st e (Maybe a)
-optional p = (Just <$> p) <|> pure Nothing
-{-# inline optional #-}
 
 --------------------------------------------------------------------------------
 
@@ -251,34 +268,6 @@ unsafeSpanToByteString :: Span -> ParserT st e B.ByteString
 unsafeSpanToByteString (Span l r) =
   lookahead (setPos l >> byteStringOf (setPos r))
 {-# inline unsafeSpanToByteString #-}
-
---------------------------------------------------------------------------------
-
--- | Parse the rest of the current line as a `String`. Assumes UTF-8 encoding,
---   throws an error if the encoding is invalid.
-takeLine :: ParserT st e String
-takeLine = branch eof (pure "") do
-  c <- anyChar
-  case c of
-    '\n' -> pure ""
-    _    -> (c:) <$> takeLine
-
--- | Parse the rest of the current line as a `String`, but restore the parsing state.
---   Assumes UTF-8 encoding. This can be used for debugging.
-traceLine :: ParserT st e String
-traceLine = lookahead takeLine
-
--- | Take the rest of the input as a `String`. Assumes UTF-8 encoding.
-takeRestString :: ParserT st e String
-takeRestString = branch eof (pure "") do
-  c <- anyChar
-  cs <- takeRestString
-  pure (c:cs)
-
--- | Get the rest of the input as a `String`, but restore the parsing state. Assumes UTF-8 encoding.
---   This can be used for debugging.
-traceRest :: ParserT st e String
-traceRest = lookahead takeRestString
 
 --------------------------------------------------------------------------------
 
