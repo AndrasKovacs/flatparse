@@ -46,9 +46,11 @@ library
       FlatParse.Basic
       FlatParse.Basic.Addr
       FlatParse.Basic.Base
+      FlatParse.Basic.Bytes
       FlatParse.Basic.Integers
       FlatParse.Basic.Parser
       FlatParse.Basic.Strings
+      FlatParse.Basic.Switch
       FlatParse.Common.Assorted
       FlatParse.Common.GHCExts
       FlatParse.Common.Numbers

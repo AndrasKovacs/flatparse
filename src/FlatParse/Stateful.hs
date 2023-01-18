@@ -38,7 +38,6 @@ import Control.Monad
 import Data.Foldable
 import Data.Map (Map)
 import GHC.Exts
-import GHC.Word
 import GHC.IO (IO(..))
 import Language.Haskell.TH
 import System.IO.Unsafe
@@ -352,13 +351,7 @@ inSpan (Span s eob) (ParserT f) = ParserT \fp !r eob' s' n' st ->
     x             -> unsafeCoerce# x
 {-# inline inSpan #-}
 
-
 --------------------------------------------------------------------------------
-
--- | Unsafely read and return a byte from the input. It's not checked that the input is non-empty.
-scanAny8# :: ParserT st r e Word8
-scanAny8# = ParserT \fp !r eob s n st -> OK# st (W8# (indexWord8OffAddr# s 0#)) (plusAddr# s 1#) n
-{-# inline scanAny8# #-}
 
 -- | Decrease the current input position by the given number of bytes.
 setBack# :: Int -> ParserT st r e ()
@@ -430,7 +423,7 @@ genTrie (rules, t) = do
               !defaultCase  <- fallback r (n + 1)
 
               let cases = mkDoE $
-                    [BindS (VarP (mkName "c")) (VarE 'scanAny8#),
+                    [BindS (VarP (mkName "c")) (VarE 'anyWord8Unsafe),
                       NoBindS (CaseE (VarE (mkName "c"))
                          (map (\(w, t) ->
                                  Match (LitP (IntegerL (fromIntegral w)))

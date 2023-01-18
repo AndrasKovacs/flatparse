@@ -258,6 +258,13 @@ skip# :: Int# -> ParserT st e ()
 skip# n# = atSkip# n# (pure ())
 {-# inline skip# #-}
 
+-- | Go back @n@ bytes. (Takes a positive integer.)
+--
+-- Extremely unsafe. Makes no checks. Almost certainly a Bad Idea.
+skipBack :: Int -> ParserT st e ()
+skipBack = Common.withIntUnwrap# skipBack#
+{-# inline skipBack #-}
+
 -- | Go back @n#@ bytes. (Takes a positive integer.)
 --
 -- Extremely unsafe. Makes no checks. Almost certainly a Bad Idea.
