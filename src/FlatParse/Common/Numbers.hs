@@ -200,11 +200,9 @@ toZigzagNative'# w# =
 
 -- | protobuf style (LE, redundant, on continues)
 anyVarintProtobuf# :: Addr# -> Addr# -> (# (##) | (# Int#, Addr#, Int# #) #)
-#if !MIN_VERSION_base(4,17,0)
--- TODO implement with older primitives too (a pain)
-anyVarintProtobuf# = error "TODO not supported on this GHC bud"
-#else
--- TODO TEST, might be incorrect
+
+#if MIN_VERSION_base(4,16,0)
+
 anyVarintProtobuf# end# = go 0# 0#
   where
     word8ToInt# :: Word8# -> Int#
@@ -222,6 +220,24 @@ anyVarintProtobuf# end# = go 0# 0#
         in  case w8# `geWord8#` wordToWord8# 0b10000000## of
               1# -> go i'# n'# s'#
               _  -> (# | (# i'#, s'#, n'# #) #)
+
+#else
+
+anyVarintProtobuf# end# = go 0# 0#
+  where
+    go :: Int# -> Int# -> Addr# -> (# (##) | (# Int#, Addr#, Int# #) #)
+    go i# n# s# = case eqAddr# s# end# of
+      1# -> (# (##) | #)
+      _  ->
+        let w8# = indexWord8OffAddr# s# 0#
+            w8'# = word2Int# (w8# `and#` 0b01111111##)
+            i'# = i# `orI#` (w8'# `uncheckedIShiftL#` n#)
+            s'# = s# `plusAddr#` 1#
+            n'# = n# +# 7#
+        in  case w8# `geWord#` 0b10000000## of
+              1# -> go i'# n'# s'#
+              _  -> (# | (# i'#, s'#, n'# #) #)
+
 #endif
 
 --------------------------------------------------------------------------------

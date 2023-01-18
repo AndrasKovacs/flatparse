@@ -26,6 +26,12 @@ module FlatParse.Basic (
   -- * Parsers
   , module FlatParse.Basic.Base
   , module FlatParse.Basic.Bytes
+  , byteString
+  , anyCString
+  , anyVarintProtobuf
+  , Control.Applicative.many
+  , Control.Applicative.some
+  , Control.Applicative.empty
 
   -- ** Position
   , module FlatParse.Common.Position
@@ -45,11 +51,12 @@ module FlatParse.Basic (
   , module FlatParse.Basic.Integers
 
   -- * Unsafe
-  , module FlatParse.Basic.Addr
+  -- ** IO
   , unsafeLiftIO
 
-  -- * TODO
-  , Control.Applicative.empty
+  -- ** Parsers
+  , module FlatParse.Basic.Addr
+  , anyCStringUnsafe
 
   -- * TODO possibly remove
   , Common.packUTF8
@@ -178,28 +185,6 @@ byteString (B.PS (ForeignPtr bs fcontent) _ (I# len)) =
              (# rw, a #) -> (# st, a #)
            _  -> Fail# st
 {-# inline byteString #-}
-
---------------------------------------------------------------------------------
-
--- | Run a parser zero or more times, collect the results in a list. Note: for optimal performance,
---   try to avoid this. Often it is possible to get rid of the intermediate list by using a
---   combinator or a custom parser.
-many :: ParserT st e a -> ParserT st e [a]
-many (ParserT f) = ParserT go where
-  go fp eob s st = case f fp eob s st of
-    OK# st' a s -> case go fp eob s st' of
-                    OK# st'' as s -> OK# st'' (a:as) s
-                    x        -> x
-    Fail# st'  -> OK# st' [] s
-    Err# st' e -> Err# st' e
-{-# inline many #-}
-
--- | Run a parser one or more times, collect the results in a list. Note: for optimal performance,
---   try to avoid this. Often it is possible to get rid of the intermediate list by using a
---   combinator or a custom parser.
-some :: ParserT st e a -> ParserT st e [a]
-some p = (:) <$> p <*> many p
-{-# inline some #-}
 
 --------------------------------------------------------------------------------
 

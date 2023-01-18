@@ -38,6 +38,7 @@ module FlatParse.Basic.Base
 
   -- * Errors and failures
   , failed
+  , try
   , err
   , fails
   , cut
