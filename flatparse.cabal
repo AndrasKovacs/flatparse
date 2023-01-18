@@ -55,10 +55,9 @@ library
       FlatParse.Common.Parser
       FlatParse.Common.Position
       FlatParse.Common.Strings
+      FlatParse.Common.Switch
       FlatParse.Examples.BasicLambda.Lexer
       FlatParse.Examples.BasicLambda.Parser
-      FlatParse.Internal
-      FlatParse.Internal.UnboxedNumerics
       FlatParse.Parsers
       FlatParse.Stateful
       FlatParse.Stateful.Addr

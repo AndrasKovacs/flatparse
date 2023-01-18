@@ -23,7 +23,7 @@ module FlatParse.Stateful (
   , Control.Applicative.empty
 
   -- * TODO possibly remove
-  , packUTF8
+  , Common.packUTF8
 
   -- ** Position and span conversions
   , Basic.validPos
@@ -49,8 +49,6 @@ import qualified Data.ByteString.Internal as B
 import qualified Data.ByteString.Unsafe as B
 import qualified Data.Map.Strict as M
 
-import FlatParse.Internal
-
 import qualified FlatParse.Parsers as Basic
 
 import FlatParse.Stateful.Parser
@@ -59,7 +57,9 @@ import FlatParse.Stateful.Integers
 import FlatParse.Stateful.Strings
 import FlatParse.Stateful.Addr
 import FlatParse.Common.Position
-import FlatParse.Common.Assorted
+import FlatParse.Common.Switch
+import qualified FlatParse.Common.Assorted as Common
+import qualified FlatParse.Common.Numbers  as Common
 
 -- | Higher-level boxed data type for parsing results.
 data Result e a =
@@ -118,12 +118,6 @@ runParserIO (ParserT f) !r (I# n) b@(B.PS (ForeignPtr _ fp) _ (I# len)) = do
       Err# rw' e ->  (# rw', Err e #)
       Fail# rw'  ->  (# rw', Fail #)
 {-# inlinable runParserIO #-}
-
--- | Run a parser on a `String` input. Reminder: @OverloadedStrings@ for `B.ByteString` does not
---   yield a valid UTF-8 encoding! For non-ASCII `B.ByteString` literal input, use `runParserS` or
---   `packUTF8` for testing.
-runParserS :: Parser r e a -> r -> Int -> String -> Result e a
-runParserS pa r !n s = runParser pa r n (packUTF8 s)
 
 --------------------------------------------------------------------------------
 
@@ -269,62 +263,6 @@ rawSwitchWithPost postAction cases fallback = do
   !fallback <- sequence fallback
   genTrie $! genSwitchTrie' postAction cases fallback
 
--- | Parse an ASCII `Char` for which a predicate holds. Assumption: the predicate must only return
---   `True` for ASCII-range characters. Otherwise this function might read a 128-255 range byte,
---   thereby breaking UTF-8 decoding.
-satisfyASCII :: (Char -> Bool) -> ParserT st r e Char
-satisfyASCII f = ParserT \fp !r eob s n st -> case eqAddr# eob s of
-  1# -> Fail# st
-  _  -> case derefChar8# s of
-    c1 | f (C# c1) -> OK# st (C# c1) (plusAddr# s 1#) n
-       | otherwise -> Fail# st
-{-#  inline satisfyASCII #-}
-
--- | Skip an ASCII `Char` for which a predicate holds.  Assumption: the
---   predicate must only return `True` for ASCII-range characters.
-satisfyASCII_ :: (Char -> Bool) -> ParserT st r e ()
-satisfyASCII_ f = () <$ satisfyASCII f
-{-# inline satisfyASCII_ #-}
-
--- | Read an `Int` from the input, as a non-empty digit sequence.
--- Fails on overflow.
-readInt :: ParserT st r e Int
-readInt = ParserT \fp r eob s n st -> case FlatParse.Internal.readInt eob s of
-  (# (##) | #)        -> Fail# st
-  (# | (# i, s' #) #) -> OK# st (I# i) s' n
-{-# inline readInt #-}
-
--- | Read an `Int` from the input, as a non-empty case-insensitive ASCII
---   hexadecimal digit sequence.
--- Fails on overflow.
-readIntHex :: ParserT st r e Int
-readIntHex = ParserT \fp r eob s n st -> case FlatParse.Internal.readIntHex eob s of
-  (# (##) | #)        -> Fail# st
-  (# | (# i, s' #) #) -> OK# st (I# i) s' n
-{-# inline readIntHex #-}
-
--- | Read a `Word` from the input, as a non-empty digit sequence.
--- Fails on overflow.
-readWord :: ParserT st r e Int
-readWord = ParserT \fp r eob s n st -> case FlatParse.Internal.readInt eob s of
-  (# (##) | #)        -> Fail# st
-  (# | (# i, s' #) #) -> OK# st (I# i) s' n
-{-# inline readWord #-}
-
-readWordHex :: ParserT st r e Word
-readWordHex = ParserT \fp r eob s n st ->
-  case FlatParse.Internal.readWordHex eob s of
-    (# | (# w, s' #) #) -> OK# st (W# w) s' n
-    (# (# #) | #)       -> Fail# st
-{-# inline readWordHex #-}
-
--- | Read an `Integer` from the input, as a non-empty digit sequence.
-readInteger :: ParserT st r e Integer
-readInteger = ParserT \fp r eob s n st -> case FlatParse.Internal.readInteger fp eob s of
-  (# (##) | #)        -> Fail# st
-  (# | (# i, s' #) #) -> OK# st i s' n
-{-# inline readInteger #-}
-
 --------------------------------------------------------------------------------
 
 -- | Run a parser zero or more times, collect the results in a list. Note: for optimal performance,
@@ -432,7 +370,7 @@ setBack# (I# i) = ParserT \fp !r eob s n st ->
 --   sequence of bytes.
 scanBytes# :: [Word] -> Q Exp
 scanBytes# bytes = do
-  let !(leading, w8s) = splitBytes bytes
+  let !(leading, w8s) = Common.splitBytes bytes
       !scanw8s        = go w8s where
                          go (w8:[] ) = [| scan64# w8 |]
                          go (w8:w8s) = [| scan64# w8 >> $(go w8s) |]
@@ -440,19 +378,19 @@ scanBytes# bytes = do
   case w8s of
     [] -> go leading
           where
-            go (a:b:c:d:[]) = let !w = packBytes [a, b, c, d] in [| scan32# w |]
-            go (a:b:c:d:ws) = let !w = packBytes [a, b, c, d] in [| scan32# w >> $(go ws) |]
-            go (a:b:[])     = let !w = packBytes [a, b]       in [| scan16# w |]
-            go (a:b:ws)     = let !w = packBytes [a, b]       in [| scan16# w >> $(go ws) |]
+            go (a:b:c:d:[]) = let !w = Common.packBytes [a, b, c, d] in [| scan32# w |]
+            go (a:b:c:d:ws) = let !w = Common.packBytes [a, b, c, d] in [| scan32# w >> $(go ws) |]
+            go (a:b:[])     = let !w = Common.packBytes [a, b]       in [| scan16# w |]
+            go (a:b:ws)     = let !w = Common.packBytes [a, b]       in [| scan16# w >> $(go ws) |]
             go (a:[])       = [| word8Unsafe a |]
             go []           = [| pure () |]
     _  -> case leading of
 
       []              -> scanw8s
       [a]             -> [| word8Unsafe a >> $scanw8s |]
-      ws@[a, b]       -> let !w = packBytes ws in [| scan16# w >> $scanw8s |]
-      ws@[a, b, c, d] -> let !w = packBytes ws in [| scan32# w >> $scanw8s |]
-      ws              -> let !w = packBytes ws
+      ws@[a, b]       -> let !w = Common.packBytes ws in [| scan16# w >> $scanw8s |]
+      ws@[a, b, c, d] -> let !w = Common.packBytes ws in [| scan32# w >> $scanw8s |]
+      ws              -> let !w = Common.packBytes ws
                              !l = length ws
                          in [| scanPartial64# l w >> $scanw8s |]
 
@@ -591,3 +529,37 @@ anyCStringUnsafe = ParserT \fp !r eob s n st ->
 #else
 anyCStringUnsafe = error "Flatparse.Stateful.anyCStringUnsafe: requires GHC 9.0 / base-4.15, not available on this compiler"
 #endif
+
+-- | Read a protobuf-style varint into a positive 'Int'.
+--
+-- protobuf-style varints are byte-aligned. For each byte, the lower 7 bits are
+-- data and the MSB indicates if there are further bytes. Once fully parsed, the
+-- 7-bit payloads are concatenated and interpreted as a little-endian unsigned
+-- integer.
+--
+-- Fails if the varint exceeds the positive 'Int' range.
+--
+-- Really, these are varnats. They also match with the LEB128 varint encoding.
+--
+-- protobuf encodes negatives in unsigned integers using zigzag encoding. See
+-- the @fromZigzag@ family of functions for this functionality.
+--
+-- Further reading:
+-- https://developers.google.com/protocol-buffers/docs/encoding#varints
+anyVarintProtobuf :: ParserT st r e Int
+anyVarintProtobuf = ParserT \fp !r eob s n st ->
+    case Common.anyVarintProtobuf# eob s of
+      (# (##) | #) -> Fail# st
+      (# | (# w#, s#, bits# #) #) ->
+        case bits# ># 63# of
+          0# -> OK# st (I# w#) s# n
+          _  -> Fail# st -- overflow
+{-# inline anyVarintProtobuf #-}
+
+--------------------------------------------------------------------------------
+
+-- | Run a parser on a `String` input. Reminder: @OverloadedStrings@ for `B.ByteString` does not
+--   yield a valid UTF-8 encoding! For non-ASCII `B.ByteString` literal input, use `runParserS` or
+--   `packUTF8` for testing.
+runParserS :: Parser r e a -> r -> Int -> String -> Result e a
+runParserS pa r !n s = runParser pa r n (Common.packUTF8 s)

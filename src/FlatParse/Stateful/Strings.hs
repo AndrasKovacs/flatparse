@@ -180,6 +180,56 @@ anyAsciiChar_ :: ParserT st r e ()
 anyAsciiChar_ = () <$ anyAsciiChar
 {-# inline anyAsciiChar_ #-}
 
+--------------------------------------------------------------------------------
+
+-- | Parse a non-empty ASCII decimal digit sequence as a 'Word'.
+--   Fails on overflow.
+anyAsciiDecimalWord :: ParserT st r e Word
+anyAsciiDecimalWord = ParserT \fp !r eob s n st ->
+    case Common.anyAsciiDecimalWord# eob s of
+      (# | (# w, s' #) #) -> OK#   st (W# w) s' n
+      (# (##) | #)        -> Fail# st
+{-# inline anyAsciiDecimalWord #-}
+
+-- | Parse a non-empty ASCII decimal digit sequence as a positive 'Int'.
+--   Fails on overflow.
+anyAsciiDecimalInt :: ParserT st r e Int
+anyAsciiDecimalInt = ParserT \fp !r eob s n st ->
+    case Common.anyAsciiDecimalInt# eob s of
+      (# | (# i, s' #) #) -> OK#   st (I# i) s' n
+      (# (##) | #)        -> Fail# st
+{-# inline anyAsciiDecimalInt #-}
+
+-- | Parse a non-empty ASCII decimal digit sequence as a positive 'Integer'.
+anyAsciiDecimalInteger :: ParserT st r e Integer
+anyAsciiDecimalInteger = ParserT \fp !r eob s n st ->
+    case Common.anyAsciiDecimalInteger# fp eob s of
+      (# | (# i, s' #) #) -> OK#   st i s' n
+      (# (##) | #)        -> Fail# st
+{-# inline anyAsciiDecimalInteger #-}
+
+-- | Parse a non-empty, case-insensitive ASCII hexadecimal digit sequence as a
+--   'Word'.
+--   Fails on overflow.
+anyAsciiHexWord :: ParserT st r e Word
+anyAsciiHexWord = ParserT \fp !r eob s n st ->
+    case Common.anyAsciiHexWord# eob s of
+      (# | (# w, s' #) #) -> OK#   st (W# w) s' n
+      (# (##) | #)        -> Fail# st
+{-# inline anyAsciiHexWord #-}
+
+-- | Parse a non-empty, case-insensitive ASCII hexadecimal digit sequence as a
+--   positive 'Int'.
+--   Fails on overflow.
+anyAsciiHexInt :: ParserT st r e Int
+anyAsciiHexInt = ParserT \fp !r eob s n st ->
+    case Common.anyAsciiHexInt# eob s of
+      (# | (# i, s' #) #) -> OK#   st (I# i) s' n
+      (# (##) | #)        -> Fail# st
+{-# inline anyAsciiHexInt #-}
+
+--------------------------------------------------------------------------------
+
 -- | Parse a UTF-8 character literal. This is a template function, you can use it as
 --   @$(char \'x\')@, for example, and the splice in this case has type @Parser e ()@.
 char :: Char -> Q Exp
@@ -196,34 +246,6 @@ bytes :: [Word] -> Q Exp
 bytes bs = do
   let !len = length bs
   [| withEnsure len $(bytesUnsafe bs) |]
-
--- | Read a non-negative `Int` from the input, as a non-empty digit sequence.
--- The `Int` may overflow in the result.
-anyAsciiDecimalInt :: ParserT st r e Int
-anyAsciiDecimalInt = ParserT \fp !r eob s n st ->
-    case Common.readInt eob s of
-      (# | (# i, s' #) #) -> OK#   st (I# i) s' n
-      (# (##) | #)        -> Fail# st
-{-# inline anyAsciiDecimalInt #-}
-
--- | Read an `Int` from the input, as a non-empty case-insensitive ASCII
---   hexadecimal digit sequence. The `Int` may overflow in the result.
-anyAsciiHexInt :: ParserT st r e Int
-anyAsciiHexInt = ParserT \fp !r eob s n st ->
-    case Common.readIntHex eob s of
-      (# | (# i, s' #) #) -> OK#   st (I# i) s' n
-      (# (##) | #)        -> Fail# st
-{-# inline anyAsciiHexInt #-}
-
--- | Read a non-negative `Integer` from the input, as a non-empty digit
--- sequence.
-anyAsciiDecimalInteger :: ParserT st r e Integer
-anyAsciiDecimalInteger = ParserT \fp !r eob s n st ->
-    case Common.readInteger fp eob s of
-      (# | (# i, s' #) #) -> OK#   st i s' n
-      (# (##) | #)        -> Fail# st
-{-# inline anyAsciiDecimalInteger #-}
-
 
 -- | Template function, creates a @Parser e ()@ which unsafely parses a given
 --   sequence of bytes.

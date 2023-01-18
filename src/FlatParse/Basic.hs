@@ -26,7 +26,7 @@ module FlatParse.Basic (
   , Control.Applicative.empty
 
   -- * TODO possibly remove
-  , packUTF8
+  , Common.packUTF8
 
   ) where
 
@@ -47,15 +47,15 @@ import qualified Data.ByteString.Unsafe as B
 import qualified Data.ByteString.Internal as B
 import qualified Data.Map.Strict as M
 
-import FlatParse.Internal
-
 import FlatParse.Basic.Parser
 import FlatParse.Basic.Base
 import FlatParse.Basic.Integers
 import FlatParse.Basic.Strings
 import FlatParse.Basic.Addr
 import FlatParse.Common.Position
-import FlatParse.Common.Assorted ( packUTF8 )
+import FlatParse.Common.Switch
+import qualified FlatParse.Common.Assorted as Common
+import qualified FlatParse.Common.Numbers  as Common
 
 -- | Higher-level boxed data type for parsing results.
 data Result e a =
@@ -230,71 +230,6 @@ rawSwitchWithPost postAction cases fallback = do
   !cases <- forM cases \(str, rhs) -> (str,) <$> rhs
   !fallback <- sequence fallback
   genTrie $! genSwitchTrie' postAction cases fallback
-
--- | Read a non-negative `Int` from the input, as a non-empty digit sequence.
--- Fails on overflow.
-readInt :: ParserT st e Int
-readInt = ParserT \fp eob s st -> case FlatParse.Internal.readInt eob s of
-  (# (##) | #)        -> Fail# st
-  (# | (# n, s' #) #) -> OK# st (I# n) s'
-{-# inline readInt #-}
-
--- | Read an `Int` from the input, as a non-empty case-insensitive ASCII
---   hexadecimal digit sequence.
--- Fails on overflow.
-readIntHex :: ParserT st e Int
-readIntHex = ParserT $ \fp eob s st ->
-  case FlatParse.Internal.readIntHex eob s of
-    (# | (# i, s' #) #) -> OK# st (I# i) s'
-    (# (# #) | #)       -> Fail# st
-{-# inline readIntHex #-}
-
--- | Read a `Word` from the input, as a non-empty digit sequence.
--- Fails on overflow.
-readWord :: ParserT st e Int
-readWord = ParserT \fp eob s st -> case FlatParse.Internal.readInt eob s of
-  (# (##) | #)        -> Fail# st
-  (# | (# n, s' #) #) -> OK# st (I# n) s'
-{-# inline readWord #-}
-
-readWordHex :: ParserT st e Word
-readWordHex = ParserT $ \_fp eob s st ->
-  case FlatParse.Internal.readWordHex eob s of
-    (# | (# n, s' #) #) -> OK# st (W# n) s'
-    (# (# #) | #)       -> Fail# st
-{-# inline readWordHex #-}
-
--- | Read a non-negative `Integer` from the input, as a non-empty digit
--- sequence.
-readInteger :: ParserT st e Integer
-readInteger = ParserT \fp eob s st -> case FlatParse.Internal.readInteger fp eob s of
-  (# (##) | #)        -> Fail# st
-  (# | (# i, s' #) #) -> OK# st i s'
-{-# inline readInteger #-}
-
--- | Read a protobuf-style varint into an `Word`.
---
--- protobuf-style varints are byte-aligned. For each byte, the lower 7 bits are
--- data and the MSB indicates if there are further bytes. Once fully parsed, the
--- 7-bit payloads are concatenated and interpreted as a little-endian unsigned
--- integer.
---
--- Really, these are varnats. They also match with the LEB128 varint encoding.
---
--- protobuf encodes negatives in unsigned integers using zigzag encoding. See
--- the @fromZigzag@ family of functions for this functionality.
---
--- Further reading:
--- https://developers.google.com/protocol-buffers/docs/encoding#varints
-readVarintProtobuf :: ParserT st e Word
-readVarintProtobuf = ParserT \fp eob s st ->
-    case readVarintProtobuf# eob s of
-      (# (##) | #) -> Fail# st
-      (# | (# w#, s#, n# #) #) ->
-        case n# ># 64# of
-          1# -> Fail# st -- overflow
-          _  -> OK# st (W# w#) s#
-{-# inline readVarintProtobuf #-}
 
 --------------------------------------------------------------------------------
 
@@ -557,10 +492,36 @@ anyCStringUnsafe = ParserT \fp eob s st ->
 anyCStringUnsafe = error "Flatparse.Basic.anyCStringUnsafe: requires GHC 9.0 / base-4.15, not available on this compiler"
 #endif
 
+-- | Read a protobuf-style varint into a positive 'Int'.
+--
+-- protobuf-style varints are byte-aligned. For each byte, the lower 7 bits are
+-- data and the MSB indicates if there are further bytes. Once fully parsed, the
+-- 7-bit payloads are concatenated and interpreted as a little-endian unsigned
+-- integer.
+--
+-- Fails if the varint exceeds the positive 'Int' range.
+--
+-- Really, these are varnats. They also match with the LEB128 varint encoding.
+--
+-- protobuf encodes negatives in unsigned integers using zigzag encoding. See
+-- the @fromZigzag@ family of functions for this functionality.
+--
+-- Further reading:
+-- https://developers.google.com/protocol-buffers/docs/encoding#varints
+anyVarintProtobuf :: ParserT st e Int
+anyVarintProtobuf = ParserT \fp eob s st ->
+    case Common.anyVarintProtobuf# eob s of
+      (# (##) | #) -> Fail# st
+      (# | (# w#, s#, bits# #) #) ->
+        case bits# ># 63# of
+          0# -> OK# st (I# w#) s#
+          _  -> Fail# st -- overflow
+{-# inline anyVarintProtobuf #-}
+
 --------------------------------------------------------------------------------
 
 -- | Run a parser on a `String` input. Reminder: @OverloadedStrings@ for `B.ByteString` does not
 --   yield a valid UTF-8 encoding! For non-ASCII `B.ByteString` literal input, use `runParserS` or
 --   `packUTF8` for testing.
 runParserS :: Parser e a -> String -> Result e a
-runParserS pa s = runParser pa (packUTF8 s)
+runParserS pa s = runParser pa (Common.packUTF8 s)
