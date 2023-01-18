@@ -1,5 +1,9 @@
 {- | Machine integer parsers.
 
+Functions tagged with @Unsafe@ generally do not check that the input has enough
+bytes. These can occasionally be useful for designing efficient parsers where
+you already have such a guarantee.
+
 TODO: The endianness code is currently lying. We blindly assume that our host
 system is little-endian, and parse in big-endian by parsing normally then
 "reversing" the resulting integer.

@@ -49,8 +49,8 @@ library
       FlatParse.Basic.Bytes
       FlatParse.Basic.Integers
       FlatParse.Basic.Parser
-      FlatParse.Basic.Strings
       FlatParse.Basic.Switch
+      FlatParse.Basic.Text
       FlatParse.Common.Assorted
       FlatParse.Common.GHCExts
       FlatParse.Common.Numbers

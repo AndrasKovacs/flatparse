@@ -1,10 +1,3 @@
-{-
-{-# LANGUAGE UnboxedTuples #-}
-{-# LANGUAGE BinaryLiterals #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE KindSignatures #-}
--}
-
 module FlatParse.Common.Switch where
 
 import Data.Foldable (foldl')

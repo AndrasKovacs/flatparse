@@ -1,4 +1,12 @@
-module FlatParse.Basic.Bytes where
+{- | Bytestring parsers.
+
+Module dependency complications prevent us from placing these in
+"FlatParse.Basic.Base".
+-}
+
+module FlatParse.Basic.Bytes
+  ( bytes, bytesUnsafe
+  ) where
 
 import FlatParse.Basic.Parser
 import FlatParse.Basic.Base ( withEnsure )

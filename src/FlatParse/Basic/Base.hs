@@ -286,9 +286,9 @@ atSkip# n# p = Common.withPosInt# n# (atSkipUnsafe# n# p)
 --
 -- Undefined behaviour if given a negative integer.
 atSkipUnsafe# :: Int# -> ParserT st e r -> ParserT st e r
-atSkipUnsafe# n# p =
+atSkipUnsafe# n# (ParserT p) =
     withEnsure# n# $ ParserT \fp eob s st ->
-        runParserT# p fp eob (plusAddr# s n#) st
+        p fp eob (plusAddr# s n#) st
 {-# inline atSkipUnsafe# #-}
 
 --------------------------------------------------------------------------------

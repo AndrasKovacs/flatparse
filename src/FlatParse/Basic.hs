@@ -20,7 +20,7 @@ module FlatParse.Basic (
   , module FlatParse.Basic.Base
   , module FlatParse.Basic.Integers
   , module FlatParse.Basic.Bytes
-  , module FlatParse.Basic.Strings
+  , module FlatParse.Basic.Text
   , module FlatParse.Basic.Switch
   , module FlatParse.Basic.Addr
   , module FlatParse.Common.Position
@@ -48,7 +48,7 @@ import FlatParse.Basic.Parser
 import FlatParse.Basic.Base
 import FlatParse.Basic.Integers
 import FlatParse.Basic.Bytes
-import FlatParse.Basic.Strings
+import FlatParse.Basic.Text
 import FlatParse.Basic.Switch
 import FlatParse.Basic.Addr
 import FlatParse.Common.Position

@@ -117,6 +117,8 @@ word64ToInt64 :: Word64 -> Int64
 word64ToInt64 = fromIntegral
 {-# inline word64ToInt64 #-}
 
+--------------------------------------------------------------------------------
+
 -- | Assert for the given 'Int#' that @n >= 0@.
 --
 -- Throws a runtime error if given a negative integer.

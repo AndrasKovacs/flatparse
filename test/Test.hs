@@ -314,15 +314,15 @@ basicSpec = describe "FlatParse.Basic" $ do
       it "fails at end of file" $
         FB.satisfyAscii (== 'a') `shouldParseFail` ""
 
-    describe "satisfyAscii_" $ do
+    describe "skipSatisfyAscii" $ do
       it "succeeds on the right char" $
-        FB.satisfyAscii_ (== 'a') `shouldParseWith` ("a", ())
+        FB.skipSatisfyAscii (== 'a') `shouldParseWith` ("a", ())
       it "fails on the wrong char" $
-        FB.satisfyAscii_ (== 'a') `shouldParseFail` "b"
+        FB.skipSatisfyAscii (== 'a') `shouldParseFail` "b"
       it "fails on the wrong multi-byte char" $
-        FB.satisfyAscii_ (== 'a') `shouldParseFail` UTF8.fromString "ȩ"
+        FB.skipSatisfyAscii (== 'a') `shouldParseFail` UTF8.fromString "ȩ"
       it "fails at end of file" $
-        FB.satisfyAscii_ (== 'a') `shouldParseFail` ""
+        FB.skipSatisfyAscii (== 'a') `shouldParseFail` ""
 
     describe "fusedSatisfy" $ do
       it "correctly routes chars based on length" $ do
@@ -370,23 +370,23 @@ basicSpec = describe "FlatParse.Basic" $ do
       it "reads 4-byte char" $ FB.anyChar `shouldParseWith` (UTF8.fromString "𐍈", '𐍈')
       it "fails on FB.empty input" $ FB.anyChar `shouldParseFail` ""
 
-    describe "anyChar_" $ do
-      it "reads 1-byte char" $ FB.anyChar_ `shouldParseWith` (UTF8.fromString "$", ())
-      it "reads 2-byte char" $ FB.anyChar_ `shouldParseWith` (UTF8.fromString "¢", ())
-      it "reads 3-byte char" $ FB.anyChar_ `shouldParseWith` (UTF8.fromString "€", ())
-      it "reads 4-byte char" $ FB.anyChar_ `shouldParseWith` (UTF8.fromString "𐍈", ())
-      it "fails on empty input" $ FB.anyChar_ `shouldParseFail` ""
+    describe "skipAnyChar" $ do
+      it "reads 1-byte char" $ FB.skipAnyChar `shouldParseWith` (UTF8.fromString "$", ())
+      it "reads 2-byte char" $ FB.skipAnyChar `shouldParseWith` (UTF8.fromString "¢", ())
+      it "reads 3-byte char" $ FB.skipAnyChar `shouldParseWith` (UTF8.fromString "€", ())
+      it "reads 4-byte char" $ FB.skipAnyChar `shouldParseWith` (UTF8.fromString "𐍈", ())
+      it "fails on empty input" $ FB.skipAnyChar `shouldParseFail` ""
 
     describe "anyAsciiChar" $ do
       it "reads ASCII char" $ FB.anyAsciiChar `shouldParseWith` (UTF8.fromString "$", '$')
       it "fails on non-ASCII char" $ FB.anyAsciiChar `shouldParseFail` UTF8.fromString "¢"
       it "fails on empty input" $ FB.anyAsciiChar `shouldParseFail` ""
 
-    describe "anyAsciiChar_" $ do
-      it "reads ASCII char" $ FB.anyAsciiChar_ `shouldParseWith` (UTF8.fromString "$", ())
+    describe "skipAnyAsciiChar" $ do
+      it "reads ASCII char" $ FB.skipAnyAsciiChar `shouldParseWith` (UTF8.fromString "$", ())
       it "fails on non-ASCII char" $
-        FB.anyAsciiChar_ `shouldParseFail` UTF8.fromString "¢"
-      it "fails on empty input" $ FB.anyAsciiChar_ `shouldParseFail` ""
+        FB.skipAnyAsciiChar `shouldParseFail` UTF8.fromString "¢"
+      it "fails on empty input" $ FB.skipAnyAsciiChar `shouldParseFail` ""
 
     describe "isDigit" $ do
       it "agrees with Data.Char" $

@@ -1,3 +1,5 @@
+-- | Efficient literal branching using Template Haskell.
+
 module FlatParse.Basic.Switch where
 
 import Control.Monad
