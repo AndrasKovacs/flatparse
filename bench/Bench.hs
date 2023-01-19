@@ -37,6 +37,7 @@ longString =
 
 main :: IO ()
 main = defaultMain [
+{-
   bgroup "String -> UTF-8 ByteString" [
     bench "utf8-string" $ whnf Data.ByteString.UTF8.toString sexpInp,
     bench "fp" $ whnf FlatParse.Common.Assorted.utf8ToStr sexpInp
@@ -46,7 +47,7 @@ main = defaultMain [
     bench "fp" $ whnf FlatParse.Common.Assorted.strToUtf8 longString
   ]
  ]
-{-
+-}
   bgroup "sexp" [
     bench "fpbasic"     $ whnf FPBasic.runSexp    sexpInp,
     bench "fpstateful"  $ whnf FPStateful.runSexp sexpInp,
@@ -76,4 +77,3 @@ main = defaultMain [
     bench "readInteger"  $ whnf ReadInteger.readInteger readIntInp
     ]
  ]
--}
