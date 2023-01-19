@@ -11,15 +11,15 @@ module FlatParse.Basic.Parser
     ParserT(..)
   , Parser, ParserIO, ParserST
 
-  -- ** Result
+  -- * Result
   , type Res#
   , pattern OK#, pattern Err#, pattern Fail#
 
-  -- *** Internal
+  -- ** Internal
   , type ResI#
 
   -- * TODO
-  , failed, (<|>)
+  , (<|>)
   ) where
 
 import FlatParse.Common.GHCExts ( Addr#, unsafeCoerce#, ZeroBitType )
@@ -91,9 +91,7 @@ instance Monad (ParserT st e) where
 
 -- | By default, parser choice `(<|>)` arbitrarily backtracks on parser failure.
 instance Control.Applicative.Alternative (ParserT st e) where
-  -- TODO 2023-01-13 raehik: consider redoing? strange setup
-  --empty = ParserT \fp eob s st -> Fail#
-  empty = failed
+  empty = ParserT \fp eob s st -> Fail# st -- same as @failed@
   {-# inline empty #-}
 
   (<|>) = (<|>)
@@ -112,12 +110,6 @@ instance Control.Applicative.Alternative (ParserT st e) where
   {-# inline some #-}
 
   -- TODO 2023-01-13 raehik: provide more efficient many, some impls?
-
--- | The failing parser. By default, parser choice `(<|>)` arbitrarily backtracks
---   on parser failure.
-failed :: ParserT st e a
-failed = ParserT \fp eob s st -> Fail# st
-{-# inline failed #-}
 
 infixr 6 <|>
 (<|>) :: ParserT st e a -> ParserT st e a -> ParserT st e a

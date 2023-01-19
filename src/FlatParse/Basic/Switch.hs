@@ -1,6 +1,8 @@
 -- | Efficient literal branching using Template Haskell.
 
-module FlatParse.Basic.Switch where
+module FlatParse.Basic.Switch
+  ( switch, switchWithPost, rawSwitchWithPost
+  ) where
 
 import Control.Monad
 import Data.Foldable
@@ -10,8 +12,7 @@ import Language.Haskell.TH
 import qualified Data.Map.Strict as M
 
 import FlatParse.Common.Switch
-import FlatParse.Basic.Parser ( failed )
-import FlatParse.Basic.Base ( ensure, skipBack, branch )
+import FlatParse.Basic.Base ( ensure, skipBack, branch, failed )
 import FlatParse.Basic.Bytes ( bytes, bytesUnsafe )
 import FlatParse.Basic.Integers ( anyWord8Unsafe )
 

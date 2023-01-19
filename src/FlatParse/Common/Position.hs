@@ -1,6 +1,9 @@
 {-# LANGUAGE DerivingStrategies, DerivingVia #-}
 
-module FlatParse.Common.Position where
+module FlatParse.Common.Position
+  ( Pos(..), endPos, addrToPos#, posToAddr#
+  , Span(..), unsafeSlice
+  ) where
 
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Internal as B

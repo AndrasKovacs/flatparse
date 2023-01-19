@@ -6,8 +6,12 @@ module FlatParse.Common.Assorted
   -- * 'Char' predicates
   , isDigit, isLatinLetter, isGreekLetter
 
-  -- * UTF conversions
+  -- * Other
   , packBytes, splitBytes
+
+  -- * UTF-8 conversions
+  , charToBytes, strToBytes
+  , strToUtf8, utf8ToStr
 
   -- * Shortcuts
   , derefChar8#
@@ -18,11 +22,8 @@ module FlatParse.Common.Assorted
   , word32ToInt32
   , word64ToInt64
 
-  -- * TODO
+  -- * Helpers
   , withPosInt#, withIntUnwrap#
-
-  -- * TODO maybe remove
-  , packUTF8, charToBytes, strToBytes
   ) where
 
 import Data.Bits
@@ -40,6 +41,9 @@ import GHC.Num.Integer (Integer(..))
 #else
 import GHC.Integer.GMP.Internals (Integer(..))
 #endif
+
+import qualified Data.ByteString.UTF8 as UTF8
+
 
 -- Compatibility
 --------------------------------------------------------------------------------
@@ -135,13 +139,6 @@ withIntUnwrap# f (I# i#) = f i#
 
 --------------------------------------------------------------------------------
 
--- | Convert a `String` to an UTF-8-coded `B.ByteString`.
-packUTF8 :: String -> B.ByteString
-packUTF8 str = B.pack $ do
-  c <- str
-  w <- charToBytes c
-  pure (fromIntegral w)
-
 charToBytes :: Char -> [Word]
 charToBytes c'
     | c <= 0x7f     = [fromIntegral c]
@@ -159,3 +156,11 @@ charToBytes c'
 strToBytes :: String -> [Word]
 strToBytes = concatMap charToBytes
 {-# inline strToBytes #-}
+
+strToUtf8 :: String -> B.ByteString
+strToUtf8 = UTF8.fromString
+{-# inline strToUtf8 #-}
+
+utf8ToStr :: B.ByteString -> String
+utf8ToStr = UTF8.toString
+{-# inline utf8ToStr #-}

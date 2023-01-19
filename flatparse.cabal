@@ -60,7 +60,6 @@ library
       FlatParse.Common.Switch
       FlatParse.Examples.BasicLambda.Lexer
       FlatParse.Examples.BasicLambda.Parser
-      FlatParse.Parsers
       FlatParse.Stateful
       FlatParse.Stateful.Addr
       FlatParse.Stateful.Base

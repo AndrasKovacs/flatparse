@@ -22,14 +22,11 @@ module FlatParse.Stateful (
 
   , Control.Applicative.empty
 
-  -- * TODO possibly remove
-  , Common.packUTF8
-
   -- ** Position and span conversions
   , Basic.validPos
   , Basic.posLineCols
   , Basic.mkPos
-  , Basic.linesUTF8
+  , Basic.linesUtf8
 
   ) where
 
@@ -48,8 +45,6 @@ import qualified Data.ByteString.Internal as B
 import qualified Data.ByteString.Unsafe as B
 import qualified Data.Map.Strict as M
 
-import qualified FlatParse.Parsers as Basic
-
 import FlatParse.Stateful.Parser
 import FlatParse.Stateful.Base
 import FlatParse.Stateful.Integers
@@ -59,6 +54,7 @@ import FlatParse.Common.Position
 import FlatParse.Common.Switch
 import qualified FlatParse.Common.Assorted as Common
 import qualified FlatParse.Common.Numbers  as Common
+import qualified FlatParse.Basic as Basic
 
 -- | Higher-level boxed data type for parsing results.
 data Result e a =
@@ -554,5 +550,6 @@ anyVarintProtobuf = ParserT \fp !r eob s n st ->
 -- | Run a parser on a `String` input. Reminder: @OverloadedStrings@ for `B.ByteString` does not
 --   yield a valid UTF-8 encoding! For non-ASCII `B.ByteString` literal input, use `runParserS` or
 --   `packUTF8` for testing.
+--   TODO
 runParserS :: Parser r e a -> r -> Int -> String -> Result e a
-runParserS pa r !n s = runParser pa r n (Common.packUTF8 s)
+runParserS pa r !n s = runParser pa r n (Common.strToUtf8 s)

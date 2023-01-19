@@ -7,9 +7,6 @@
 {-|
 This module implements a `Parser` supporting custom error types.  If you need efficient indentation
 parsing, use "FlatParse.Stateful" instead.
-
-Many internals are exposed for hacking on and extending. These are generally
-denoted by a @#@ hash suffix.
 -}
 
 module FlatParse.Basic (
@@ -19,22 +16,73 @@ module FlatParse.Basic (
   -- * Running parsers
   , Result(..)
   , runParser
-  , runParserS
+  , runParserUtf8
   , runParserIO
   , runParserST
 
   -- * Parsers
-  , module FlatParse.Basic.Base
-  , module FlatParse.Basic.Bytes
+  -- ** Bytewise
+  , FlatParse.Basic.Base.eof
+  , FlatParse.Basic.Base.take
+  , FlatParse.Basic.Base.take#
+  , FlatParse.Basic.Base.takeUnsafe#
+  , FlatParse.Basic.Base.takeRest
+  , FlatParse.Basic.Base.skip
+  , FlatParse.Basic.Base.skip#
+  , FlatParse.Basic.Base.skipBack
+  , FlatParse.Basic.Base.skipBack#
+  , FlatParse.Basic.Base.atSkip#
+  , FlatParse.Basic.Base.atSkipUnsafe#
+
+  , FlatParse.Basic.Bytes.bytes
+  , FlatParse.Basic.Bytes.bytesUnsafe
   , byteString
   , anyCString
   , anyVarintProtobuf
+
+  -- ** Combinators
+  , FlatParse.Basic.Base.branch
+  , FlatParse.Basic.Base.notFollowedBy
+  , FlatParse.Basic.Base.chainl
+  , FlatParse.Basic.Base.chainr
+  , FlatParse.Basic.Base.lookahead
+  , FlatParse.Basic.Base.ensure
+  , FlatParse.Basic.Base.ensure#
+  , FlatParse.Basic.Base.withEnsure
+  , FlatParse.Basic.Base.withEnsure1
+  , FlatParse.Basic.Base.withEnsure#
+  , FlatParse.Basic.Base.isolate
+  , FlatParse.Basic.Base.isolate#
+  , FlatParse.Basic.Base.isolateUnsafe#
+  , FlatParse.Basic.Switch.switch
+  , FlatParse.Basic.Switch.switchWithPost
+  , FlatParse.Basic.Switch.rawSwitchWithPost
+
+  -- *** Non-specific (TODO)
   , Control.Applicative.many
+  , FlatParse.Basic.Base.skipMany
   , Control.Applicative.some
+  , FlatParse.Basic.Base.skipSome
   , Control.Applicative.empty
 
+  -- ** Errors and failures
+  , FlatParse.Basic.Base.failed
+  , FlatParse.Basic.Base.try
+  , FlatParse.Basic.Base.err
+  , FlatParse.Basic.Base.fails
+  , FlatParse.Basic.Base.cut
+  , FlatParse.Basic.Base.cutting
+  , FlatParse.Basic.Base.optional
+  , FlatParse.Basic.Base.optional_
+  , FlatParse.Basic.Base.withOption
+
   -- ** Position
-  , module FlatParse.Common.Position
+  , FlatParse.Common.Position.Pos(..)
+  , FlatParse.Common.Position.endPos
+  , FlatParse.Common.Position.addrToPos#
+  , FlatParse.Common.Position.posToAddr#
+  , FlatParse.Common.Position.Span(..)
+  , FlatParse.Common.Position.unsafeSlice
   , getPos
   , setPos
   , spanOf
@@ -42,24 +90,47 @@ module FlatParse.Basic (
   , byteStringOf
   , withByteString
   , inSpan
+  , validPos
+  , posLineCols
+  , mkPos
 
   -- ** Text
-  , module FlatParse.Basic.Text
-  , module FlatParse.Basic.Switch
+  -- *** UTF-8
+  , FlatParse.Basic.Text.char, FlatParse.Basic.Text.string
+  , FlatParse.Basic.Text.anyChar, FlatParse.Basic.Text.skipAnyChar
+  , FlatParse.Basic.Text.satisfy, FlatParse.Basic.Text.skipSatisfy
+  , FlatParse.Basic.Text.fusedSatisfy, FlatParse.Basic.Text.skipFusedSatisfy
+  , FlatParse.Basic.Text.takeLine
+  , FlatParse.Basic.Text.takeRestString
+  , linesUtf8
+
+  -- *** ASCII
+  , FlatParse.Basic.Text.anyAsciiChar, FlatParse.Basic.Text.skipAnyAsciiChar
+  , FlatParse.Basic.Text.satisfyAscii, FlatParse.Basic.Text.skipSatisfyAscii
+
+  -- *** ASCII-encoded numbers
+  , FlatParse.Basic.Text.anyAsciiDecimalWord
+  , FlatParse.Basic.Text.anyAsciiDecimalInt
+  , FlatParse.Basic.Text.anyAsciiDecimalInteger
+  , FlatParse.Basic.Text.anyAsciiHexWord
+  , FlatParse.Basic.Text.anyAsciiHexInt
 
   -- ** Machine integers
   , module FlatParse.Basic.Integers
 
+  -- ** Debugging parsers
+  , FlatParse.Basic.Text.traceLine
+  , FlatParse.Basic.Text.traceRest
+
   -- * Unsafe
+  , unsafeSpanToByteString
+
   -- ** IO
   , unsafeLiftIO
 
   -- ** Parsers
   , module FlatParse.Basic.Addr
   , anyCStringUnsafe
-
-  -- * TODO possibly remove
-  , Common.packUTF8
 
   ) where
 
@@ -70,6 +141,8 @@ import GHC.IO (IO(..))
 import GHC.Exts
 import GHC.ForeignPtr
 import System.IO.Unsafe
+import Data.Ord ( comparing )
+import Data.List ( sortBy )
 
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Unsafe as B
@@ -126,12 +199,20 @@ runParser (ParserT f) b@(B.PS (ForeignPtr _ fp) _ (I# len)) = unsafePerformIO $
 -- We mark this as noinline to allow power users to safely do unsafe state token coercions.
 -- Details are discussed in https://github.com/AndrasKovacs/flatparse/pull/34#issuecomment-1326999390
 
--- | Run an ST based parser
+-- | Run a parser on a 'String', converting it to the corresponding UTF-8 bytes.
+--
+-- Reminder: @OverloadedStrings@ for 'B.ByteString' does not yield a valid UTF-8
+-- encoding! For non-ASCII 'B.ByteString' literal input, use this wrapper or
+-- properly convert your input first.
+runParserUtf8 :: Parser e a -> String -> Result e a
+runParserUtf8 pa s = runParser pa (Common.strToUtf8 s)
+
+-- | Run an ST based parser.
 runParserST :: (forall s. ParserST s e a) -> B.ByteString -> Result e a
 runParserST pst buf = unsafeDupablePerformIO (runParserIO pst buf)
 {-# inlinable runParserST #-}
 
--- | Run an IO based parser
+-- | Run an IO based parser.
 runParserIO :: ParserIO e a -> B.ByteString -> IO (Result e a)
 runParserIO (ParserT f) b@(B.PS (ForeignPtr _ fp) _ (I# len)) = do
   B.unsafeUseAsCString b \(Ptr buf) -> do
@@ -146,7 +227,9 @@ runParserIO (ParserT f) b@(B.PS (ForeignPtr _ fp) _ (I# len)) = do
 
 --------------------------------------------------------------------------------
 
--- | Parse a given `B.ByteString`. If the bytestring is statically known, consider using 'bytes' instead.
+-- | Parse a given 'B.ByteString'.
+--
+-- If the bytestring is statically known, consider using 'bytes' instead.
 byteString :: B.ByteString -> ParserT st e ()
 byteString (B.PS (ForeignPtr bs fcontent) _ (I# len)) =
 
@@ -233,26 +316,89 @@ withByteString (ParserT f) g = ParserT \fp eob s st -> case f fp eob s st of
   x        -> unsafeCoerce# x
 {-# inline withByteString #-}
 
--- | Run a parser in a given input span. The input position and the `Int` state is restored after
---   the parser is finished, so `inSpan` does not consume input and has no side effect.  Warning:
---   this operation may crash if the given span points outside the current parsing buffer. It's
---   always safe to use `inSpan` if the span comes from a previous `withSpan` or `spanOf` call on
---   the current input.
+-- | Run a parser in a given input 'Span'.
+--
+-- The input position is restored after the parser is finished, so 'inSpan' does
+-- not consume input and has no side effect.
+--
+-- Warning: this operation may crash if the given span points outside the
+-- current parsing buffer. It's always safe to use 'inSpan' if the 'Span' comes
+-- from a previous 'withSpan' or 'spanOf' call on the current input.
 inSpan :: Span -> ParserT st e a -> ParserT st e a
 inSpan (Span s eob) (ParserT f) = ParserT \fp eob' s' st ->
   case f fp (posToAddr# eob' eob) (posToAddr# eob' s) st of
     OK# st' a _ -> OK# st' a s'
-    x       -> unsafeCoerce# x
+    x           -> unsafeCoerce# x
 {-# inline inSpan #-}
 
 --------------------------------------------------------------------------------
 
--- | Create a `B.ByteString` from a `Span`. The result is invalid if the `Span` points
---   outside the current buffer, or if the `Span` start is greater than the end position.
+-- | Create a 'B.ByteString' from a 'Span'.
+--
+-- The result is invalid if the 'Span' points outside the current buffer, or if
+-- the 'Span' start is greater than the end position.
 unsafeSpanToByteString :: Span -> ParserT st e B.ByteString
 unsafeSpanToByteString (Span l r) =
   lookahead (setPos l >> byteStringOf (setPos r))
 {-# inline unsafeSpanToByteString #-}
+
+-- | Check whether a `Pos` points into a `B.ByteString`.
+validPos :: B.ByteString -> Pos -> Bool
+validPos str pos =
+  let go = do
+        start <- getPos
+        pure (start <= pos && pos <= endPos)
+  in  case runParser go str of
+        OK b _ -> b
+        _      -> error "FlatParse.Basic.validPos: got a non-OK result, impossible"
+{-# inline validPos #-}
+
+-- | Compute corresponding line and column numbers for each `Pos` in a list. Throw an error
+--   on invalid positions. Note: computing lines and columns may traverse the `B.ByteString`,
+--   but it traverses it only once regardless of the length of the position list.
+posLineCols :: B.ByteString -> [Pos] -> [(Int, Int)]
+posLineCols str poss =
+  let go !line !col [] = pure []
+      go line col ((i, pos):poss) = do
+        p <- getPos
+        if pos == p then
+          ((i, (line, col)):) <$> go line col poss
+        else do
+          c <- anyChar
+          if '\n' == c then
+            go (line + 1) 0 ((i, pos):poss)
+          else
+            go line (col + 1) ((i, pos):poss)
+
+      sorted :: [(Int, Pos)]
+      sorted = sortBy (comparing snd) (zip [0..] poss)
+
+  in case runParser (go 0 0 sorted) str of
+       OK res _ -> snd <$> sortBy (comparing fst) res
+       _        -> error "FlatParse.Basic.posLineCols: invalid position"
+
+-- | Create a `Pos` from a line and column number. Throws an error on out-of-bounds
+--   line and column numbers.
+mkPos :: B.ByteString -> (Int, Int) -> Pos
+mkPos str (line', col') =
+  let go line col | line == line' && col == col' = getPos
+      go line col = (do
+        c <- anyChar
+        if c == '\n' then go (line + 1) 0
+                     else go line (col + 1)) <|> error "FlatParse.Basic.mkPos: invalid position"
+  in case runParser (go 0 0) str of
+    OK res _ -> res
+    _        -> error "FlatParse.Basic.mkPos: got a non-OK result, impossible"
+
+-- | Break an UTF-8-coded `B.ByteString` to lines. Throws an error on invalid input.
+--   This is mostly useful for grabbing specific source lines for displaying error
+--   messages.
+linesUtf8 :: B.ByteString -> [String]
+linesUtf8 str =
+  let go = ([] <$ eof) <|> ((:) <$> takeLine <*> go)
+  in case runParser go str of
+    OK ls _ -> ls
+    _       -> error "FlatParse.Basic.linesUtf8: invalid input"
 
 --------------------------------------------------------------------------------
 
@@ -328,11 +474,3 @@ anyVarintProtobuf = ParserT \fp eob s st ->
           0# -> OK# st (I# w#) s#
           _  -> Fail# st -- overflow
 {-# inline anyVarintProtobuf #-}
-
---------------------------------------------------------------------------------
-
--- | Run a parser on a `String` input. Reminder: @OverloadedStrings@ for `B.ByteString` does not
---   yield a valid UTF-8 encoding! For non-ASCII `B.ByteString` literal input, use `runParserS` or
---   `packUTF8` for testing.
-runParserS :: Parser e a -> String -> Result e a
-runParserS pa s = runParser pa (Common.packUTF8 s)

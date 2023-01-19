@@ -17,7 +17,6 @@ import qualified ReadInteger
 import qualified Data.ByteString.UTF8
 import qualified FlatParse.Common.Assorted
 import qualified FlatParse.Basic
-import qualified FlatParse.Parsers
 
 sexpInp :: B.ByteString
 sexpInp =
@@ -38,13 +37,13 @@ longString =
 
 main :: IO ()
 main = defaultMain [
-  bgroup "bytes to utf8" [
+  bgroup "String -> UTF-8 ByteString" [
     bench "utf8-string" $ whnf Data.ByteString.UTF8.toString sexpInp,
-    bench "fp" $ whnf FlatParse.Parsers.unpackUTF8 sexpInp
+    bench "fp" $ whnf FlatParse.Common.Assorted.utf8ToStr sexpInp
   ],
-  bgroup "utf8 to bytes" [
+  bgroup "UTF-8 ByteString -> String" [
     bench "utf8-string" $ whnf Data.ByteString.UTF8.fromString longString,
-    bench "fp" $ whnf FlatParse.Common.Assorted.packUTF8 longString
+    bench "fp" $ whnf FlatParse.Common.Assorted.strToUtf8 longString
   ]
  ]
 {-

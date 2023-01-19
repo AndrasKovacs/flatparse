@@ -59,6 +59,12 @@ import qualified Data.ByteString.Internal as B
 import GHC.ForeignPtr ( ForeignPtr(..) )
 --import Control.Applicative ( (<|>) )
 
+-- | The failing parser. By default, parser choice `(<|>)` arbitrarily backtracks
+--   on parser failure.
+failed :: ParserT st e a
+failed = ParserT \fp eob s st -> Fail# st
+{-# inline failed #-}
+
 -- | Throw a parsing error. By default, parser choice `(<|>)` can't backtrack
 --   on parser error. Use `try` to convert an error to a recoverable failure.
 err :: e -> ParserT st e a

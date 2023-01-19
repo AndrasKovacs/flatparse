@@ -1,9 +1,5 @@
 {- | Machine integer parsers.
 
-Functions tagged with @Unsafe@ generally do not check that the input has enough
-bytes. These can occasionally be useful for designing efficient parsers where
-you already have such a guarantee.
-
 TODO: The endianness code is currently lying. We blindly assume that our host
 system is little-endian, and parse in big-endian by parsing normally then
 "reversing" the resulting integer.
@@ -283,6 +279,13 @@ word8 wExpected = ParserT \fp eob buf st -> case eqAddr# eob buf of
 
 --------------------------------------------------------------------------------
 
+{- $unsafe
+These unsafe parsers and helpers may be useful for efficient parsing in special
+situations e.g. you already know that the input has enough bytes. You should
+only use them if you can assert their necessary guarantees (see the individual
+function documentation).
+-}
+
 -- | Unsafe helper for defining parsers for types of a constant byte size (i.e.
 --   machine integers) which assert the parsed value's... value.
 --
@@ -300,13 +303,6 @@ sizedUnsafe# size# indexOffAddr aExpected =
         then pure ()
         else empty
 {-# inline sizedUnsafe# #-}
-
-{- $unsafe
-These unsafe parsers and helpers may be useful for efficient parsing in special
-situations e.g. you already know that the input has enough bytes. You should
-only use them if you can assert their necessary guarantees (see the individual
-function documentation).
--}
 
 -- | Unsafely read the next 1 byte and assert its value as a 'Word8'.
 --
