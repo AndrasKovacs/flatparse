@@ -2,7 +2,51 @@
 
 -- | Basic parser building blocks.
 
-module FlatParse.Stateful.Base where
+module FlatParse.Stateful.Base
+  (
+  -- * Bytewise
+    eof
+  , take
+  , take#
+  , takeUnsafe#
+  , takeRest
+  , skip
+  , skip#
+  , skipBack
+  , skipBack#
+  , atSkip#
+  , atSkipUnsafe#
+
+  -- * Combinators
+  , branch
+  , notFollowedBy
+  , chainl
+  , chainr
+  , lookahead
+  , ensure
+  , ensure#
+  , withEnsure
+  , withEnsure1
+  , withEnsure#
+  , isolate
+  , isolate#
+  , isolateUnsafe#
+
+  -- ** Non-specific (TODO)
+  , skipMany
+  , skipSome
+
+  -- * Errors and failures
+  , failed
+  , try
+  , err
+  , fails
+  , cut
+  , cutting
+  , optional
+  , optional_
+  , withOption
+  ) where
 
 import Prelude hiding ( take )
 
@@ -13,7 +57,13 @@ import GHC.Exts
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Internal as B
 import GHC.ForeignPtr ( ForeignPtr(..) )
---import Control.Applicative ( (<|>) )
+import qualified Control.Applicative
+
+-- | The failing parser. By default, parser choice `(<|>)` arbitrarily
+--   backtracks on parser failure.
+failed :: ParserT st r e a
+failed = Control.Applicative.empty
+{-# inline failed #-}
 
 -- | Throw a parsing error. By default, parser choice `(<|>)` can't backtrack
 --   on parser error. Use `try` to convert an error to a recoverable failure.
@@ -53,6 +103,12 @@ cutting (ParserT p) e merge = ParserT \fp !r eob s n st -> case p fp r eob s n s
   Err#  st' e' -> Err# st' $! merge e' e
   x            -> x
 {-# inline cutting #-}
+
+-- | Convert a parsing failure to a `Maybe`. If possible, use `withOption`
+--   instead.
+optional :: ParserT st r e a -> ParserT st r e (Maybe a)
+optional p = (Just <$> p) <|> pure Nothing
+{-# inline optional #-}
 
 -- | Convert a parsing failure to a `()`.
 optional_ :: ParserT st r e a -> ParserT st r e ()
@@ -118,18 +174,6 @@ isolateUnsafe# i# (ParserT p) =
                   1# -> OK#   st' a s'' n'
                   _  -> Fail# st'
               x -> x
-{-
-isolateUnsafe# n# p = ParserT \fp eob s st ->
-  let s' = plusAddr# s n#
-  in  case n# <=# minusAddr# eob s of
-        1# -> case runParserT# p fp s' s st of
-          OK#   st' a s'' -> case eqAddr# s' s'' of
-            1# -> OK#   st' a s''
-            _  -> Fail# st' -- isolated segment wasn't fully consumed
-          Fail# st'       -> Fail# st'
-          Err#  st' e     -> Err#  st' e
-        _  -> Fail# st -- you tried to isolate more than we have left
--}
 {-# inline isolateUnsafe# #-}
 
 -- | An analogue of the list `foldl` function: first parse a @b@, then parse zero or more @a@-s,
@@ -260,6 +304,13 @@ skip (I# n#) = skip# n#
 skip# :: Int# -> ParserT st r e ()
 skip# n# = atSkip# n# (pure ())
 {-# inline skip# #-}
+
+-- | Go back @i@ bytes. (Takes a positive integer.)
+--
+-- Extremely unsafe. Makes no checks. Almost certainly a Bad Idea.
+skipBack :: Int -> ParserT st r e ()
+skipBack = Common.withIntUnwrap# skipBack#
+{-# inline skipBack #-}
 
 -- | Go back @i#@ bytes. (Takes a positive integer.)
 --

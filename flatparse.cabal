@@ -63,9 +63,11 @@ library
       FlatParse.Stateful
       FlatParse.Stateful.Addr
       FlatParse.Stateful.Base
+      FlatParse.Stateful.Bytes
       FlatParse.Stateful.Integers
       FlatParse.Stateful.Parser
-      FlatParse.Stateful.Strings
+      FlatParse.Stateful.Switch
+      FlatParse.Stateful.Text
   other-modules:
       Paths_flatparse
   hs-source-dirs:

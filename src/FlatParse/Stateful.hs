@@ -5,56 +5,167 @@
 {-# LANGUAGE FlexibleInstances #-}
 
 {-|
-This module implements a `Parser` supporting a custom reader environment, custom
-error types and an `Int` state.
+Parser supporting a custom reader environment, custom error types and an 'Int'
+state.
 -}
 
 module FlatParse.Stateful (
+  -- * Parser type
+    module FP.Parser
 
-  -- * TODO
-    module FlatParse.Stateful
-  , module FlatParse.Stateful.Parser
-  , module FlatParse.Stateful.Base
-  , module FlatParse.Stateful.Integers
-  , module FlatParse.Stateful.Strings
-  , module FlatParse.Stateful.Addr
-  , module FlatParse.Common.Position
+  -- * Running parsers
+  , Result(..)
+  , runParser
+  , runParserUtf8
+  , runParserIO
+  , runParserST
 
+  -- * Parsers
+  -- ** Bytewise
+  , FP.Base.eof
+  , FP.Base.take
+  , FP.Base.take#
+  , FP.Base.takeUnsafe#
+  , FP.Base.takeRest
+  , FP.Base.skip
+  , FP.Base.skip#
+  , FP.Base.skipBack
+  , FP.Base.skipBack#
+  , FP.Base.atSkip#
+  , FP.Base.atSkipUnsafe#
+
+  , FP.Bytes.bytes
+  , FP.Bytes.bytesUnsafe
+  , byteString
+  , anyCString
+  , anyVarintProtobuf
+
+  -- ** Combinators
+  , FP.Base.branch
+  , FP.Base.notFollowedBy
+  , FP.Base.chainl
+  , FP.Base.chainr
+  , FP.Base.lookahead
+  , FP.Base.ensure
+  , FP.Base.ensure#
+  , FP.Base.withEnsure
+  , FP.Base.withEnsure1
+  , FP.Base.withEnsure#
+  , FP.Base.isolate
+  , FP.Base.isolate#
+  , FP.Base.isolateUnsafe#
+  , FP.Switch.switch
+  , FP.Switch.switchWithPost
+  , FP.Switch.rawSwitchWithPost
+
+  -- *** Non-specific (TODO)
+  , Control.Applicative.many
+  , FP.Base.skipMany
+  , Control.Applicative.some
+  , FP.Base.skipSome
   , Control.Applicative.empty
 
-  -- ** Position and span conversions
+  -- ** Errors and failures
+  , FP.Base.failed
+  , FP.Base.try
+  , FP.Base.err
+  , FP.Base.fails
+  , FP.Base.cut
+  , FP.Base.cutting
+  , FP.Base.optional
+  , FP.Base.optional_
+  , FP.Base.withOption
+
+  -- ** Position
+  , FlatParse.Common.Position.Pos(..)
+  , FlatParse.Common.Position.endPos
+  , FlatParse.Common.Position.addrToPos#
+  , FlatParse.Common.Position.posToAddr#
+  , FlatParse.Common.Position.Span(..)
+  , FlatParse.Common.Position.unsafeSlice
+  , getPos
+  , setPos
+  , spanOf
+  , withSpan
+  , byteStringOf
+  , withByteString
+  , inSpan
   , Basic.validPos
   , Basic.posLineCols
   , Basic.mkPos
+
+  -- ** Text
+  -- *** UTF-8
+  , FP.Text.char, FP.Text.string
+  , FP.Text.anyChar, FP.Text.skipAnyChar
+  , FP.Text.satisfy, FP.Text.skipSatisfy
+  , FP.Text.fusedSatisfy, FP.Text.skipFusedSatisfy
+  , FP.Text.takeLine
+  , FP.Text.takeRestString
   , Basic.linesUtf8
+
+  -- *** ASCII
+  , FP.Text.anyAsciiChar, FP.Text.skipAnyAsciiChar
+  , FP.Text.satisfyAscii, FP.Text.skipSatisfyAscii
+
+  -- *** ASCII-encoded numbers
+  , FP.Text.anyAsciiDecimalWord
+  , FP.Text.anyAsciiDecimalInt
+  , FP.Text.anyAsciiDecimalInteger
+  , FP.Text.anyAsciiHexWord
+  , FP.Text.anyAsciiHexInt
+
+  -- ** Machine integers
+  , module FP.Integers
+
+  -- ** Debugging parsers
+  , FP.Text.traceLine
+  , FP.Text.traceRest
+
+  -- * Unsafe
+  , unsafeSpanToByteString
+
+  -- ** IO
+  , unsafeLiftIO
+
+  -- ** Parsers
+  , module FP.Addr
+  , anyCStringUnsafe
 
   ) where
 
+
+import qualified FlatParse.Basic as Basic
+import FlatParse.Stateful.Parser
+import FlatParse.Stateful.Base
+import FlatParse.Stateful.Integers
+--import FlatParse.Stateful.Bytes
+--import FlatParse.Stateful.Text
+--import FlatParse.Stateful.Switch
+import FlatParse.Stateful.Addr
+import FlatParse.Common.Position
+--import FlatParse.Common.Switch
+import qualified FlatParse.Common.Assorted as Common
+import qualified FlatParse.Common.Numbers  as Common
+
+-- common prefix for using/exporting parsers with their submodule
+import qualified FlatParse.Stateful.Parser as FP.Parser
+import qualified FlatParse.Stateful.Base as FP.Base
+import qualified FlatParse.Stateful.Integers as FP.Integers
+import qualified FlatParse.Stateful.Bytes as FP.Bytes
+import qualified FlatParse.Stateful.Text as FP.Text
+import qualified FlatParse.Stateful.Switch as FP.Switch
+import qualified FlatParse.Stateful.Addr as FP.Addr
+
 import qualified Control.Applicative
-import Control.Monad
-import Data.Foldable
-import Data.Map (Map)
-import GHC.Exts
 import GHC.IO (IO(..))
-import Language.Haskell.TH
-import System.IO.Unsafe
+import GHC.Exts
 import GHC.ForeignPtr
+import System.IO.Unsafe
 
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Internal as B
 import qualified Data.ByteString.Unsafe as B
-import qualified Data.Map.Strict as M
-
-import FlatParse.Stateful.Parser
-import FlatParse.Stateful.Base
-import FlatParse.Stateful.Integers
-import FlatParse.Stateful.Strings
-import FlatParse.Stateful.Addr
-import FlatParse.Common.Position
-import FlatParse.Common.Switch
-import qualified FlatParse.Common.Assorted as Common
-import qualified FlatParse.Common.Numbers  as Common
-import qualified FlatParse.Basic as Basic
 
 -- | Higher-level boxed data type for parsing results.
 data Result e a =
@@ -95,6 +206,14 @@ runParser (ParserT f) !r (I# n) b@(B.PS (ForeignPtr _ fp) _ (I# len)) = unsafeDu
 {-# noinline runParser #-}
 -- We mark this as noinline to allow power users to safely do unsafe state token coercions.
 -- Details are discussed in https://github.com/AndrasKovacs/flatparse/pull/34#issuecomment-1326999390
+
+-- | Run a parser on a 'String', converting it to the corresponding UTF-8 bytes.
+--
+-- Reminder: @OverloadedStrings@ for 'B.ByteString' does not yield a valid UTF-8
+-- encoding! For non-ASCII 'B.ByteString' literal input, use this
+-- wrpaper or properly convert your input first.
+runParserUtf8 :: Parser r e a -> r -> Int -> String -> Result e a
+runParserUtf8 pa r !n s = runParser pa r n (Common.strToUtf8 s)
 
 -- | Run an ST based parser
 runParserST :: (forall s. ParserST s r e a) -> r -> Int -> B.ByteString -> Result e a
@@ -145,13 +264,6 @@ local f (ParserT g) = ParserT \fp !r eob s n st -> let !r' = f r in g fp r' eob 
 
 --------------------------------------------------------------------------------
 
--- | Convert a parsing failure to a `Maybe`. If possible, use `withOption` instead.
-optional :: ParserT st r e a -> ParserT st r e (Maybe a)
-optional p = (Just <$> p) <|> pure Nothing
-{-# inline optional #-}
-
---------------------------------------------------------------------------------
-
 -- | Parse a given `B.ByteString`. If the bytestring is statically known, consider using 'bytes' instead.
 byteString :: B.ByteString -> ParserT st r e ()
 byteString (B.PS (ForeignPtr bs fcontent) _ (I# len)) =
@@ -191,94 +303,6 @@ byteString (B.PS (ForeignPtr bs fcontent) _ (I# len)) =
              (# rw, a #) -> (# st, a #)
            _  -> Fail# st
 {-# inline byteString #-}
-
-{-|
-This is a template function which makes it possible to branch on a collection of string literals in
-an efficient way. By using `switch`, such branching is compiled to a trie of primitive parsing
-operations, which has optimized control flow, vectorized reads and grouped checking for needed input
-bytes.
-
-The syntax is slightly magical, it overloads the usual @case@ expression. An example:
-
-@
-    $(switch [| case _ of
-        "foo" -> pure True
-        "bar" -> pure False |])
-@
-
-The underscore is mandatory in @case _ of@. Each branch must be a string literal, but optionally
-we may have a default case, like in
-
-@
-    $(switch [| case _ of
-        "foo" -> pure 10
-        "bar" -> pure 20
-        _     -> pure 30 |])
-@
-
-All case right hand sides must be parsers with the same type. That type is also the type
-of the whole `switch` expression.
-
-A `switch` has longest match semantics, and the order of cases does not matter, except for
-the default case, which may only appear as the last case.
-
-If a `switch` does not have a default case, and no case matches the input, then it returns with
-failure, \without\ having consumed any input. A fallthrough to the default case also does not
-consume any input.
--}
-switch :: Q Exp -> Q Exp
-switch = switchWithPost Nothing
-
-{-|
-Switch expression with an optional first argument for performing a post-processing action after
-every successful branch matching. For example, if we have @ws :: ParserT st r e ()@ for a
-whitespace parser, we might want to consume whitespace after matching on any of the switch
-cases. For that case, we can define a "lexeme" version of `switch` as follows.
-
-@
-  switch' :: Q Exp -> Q Exp
-  switch' = switchWithPost (Just [| ws |])
-@
-
-Note that this @switch'@ function cannot be used in the same module it's defined in, because of the
-stage restriction of Template Haskell.
--}
-switchWithPost :: Maybe (Q Exp) -> Q Exp -> Q Exp
-switchWithPost postAction exp = do
-  !postAction <- sequence postAction
-  (!cases, !fallback) <- parseSwitch exp
-  genTrie $! genSwitchTrie' postAction cases fallback
-
--- | Version of `switchWithPost` without syntactic sugar. The second argument is the
---   list of cases, the third is the default case.
-rawSwitchWithPost :: Maybe (Q Exp) -> [(String, Q Exp)] -> Maybe (Q Exp) -> Q Exp
-rawSwitchWithPost postAction cases fallback = do
-  !postAction <- sequence postAction
-  !cases <- forM cases \(str, rhs) -> (str,) <$> rhs
-  !fallback <- sequence fallback
-  genTrie $! genSwitchTrie' postAction cases fallback
-
---------------------------------------------------------------------------------
-
--- | Run a parser zero or more times, collect the results in a list. Note: for optimal performance,
---   try to avoid this. Often it is possible to get rid of the intermediate list by using a
---   combinator or a custom parser.
-many :: ParserT st r e a -> ParserT st r e [a]
-many (ParserT f) = go where
-  go = ParserT \fp !r eob s n st -> case f fp r eob s n st of
-    OK# st' a s n -> case runParserT# go fp r eob s n st' of
-                       OK# st'' as s n -> OK# st'' (a:as) s n
-                       x          -> x
-    Fail# st'  -> OK# st' [] s n
-    Err# st' e -> Err# st' e
-{-# inline many #-}
-
--- | Run a parser one or more times, collect the results in a list. Note: for optimal performance,
---   try to avoid this. Often it is possible to get rid of the intermediate list by using a
---   combinator or a custom parser.
-some :: ParserT st r e a -> ParserT st r e [a]
-some p = (:) <$> p <*> many p
-{-# inline some #-}
 
 --------------------------------------------------------------------------------
 
@@ -327,19 +351,14 @@ withByteString (ParserT f) g = ParserT \fp !r eob s n st -> case f fp r eob s n 
   x              -> unsafeCoerce# x
 {-# inline withByteString #-}
 
--- | Create a `B.ByteString` from a `Span`. The result is invalid is the `Span` points
---   outside the current buffer, or if the `Span` start is greater than the end position.
-unsafeSpanToByteString :: Span -> ParserT st r e B.ByteString
-unsafeSpanToByteString (Span l r) =
-  lookahead (setPos l >> byteStringOf (setPos r))
-{-# inline unsafeSpanToByteString #-}
-
-
--- | Run a parser in a given input span. The input position and the `Int` state is restored after
---   the parser is finished, so `inSpan` does not consume input and has no side effect.  Warning:
---   this operation may crash if the given span points outside the current parsing buffer. It's
---   always safe to use `inSpan` if the span comes from a previous `withSpan` or `spanOf` call on
---   the current input.
+-- | Run a parser in a given input 'Span'.
+--
+-- The input position and the parser state is restored after the parser is
+-- finished, so 'inSpan' does not consume input and has no side effect.
+--
+-- Warning: this operation may crash if the given span points outside the
+-- current parsing buffer. It's always safe to use 'inSpan' if the 'Span' comes
+-- from a previous 'withSpan' or 'spanOf' call on the current input.
 inSpan :: Span -> ParserT st r e a -> ParserT st r e a
 inSpan (Span s eob) (ParserT f) = ParserT \fp !r eob' s' n' st ->
   case f fp r (posToAddr# eob' eob) (posToAddr# eob' s) n' st of
@@ -349,126 +368,14 @@ inSpan (Span s eob) (ParserT f) = ParserT \fp !r eob' s' n' st ->
 
 --------------------------------------------------------------------------------
 
--- | Decrease the current input position by the given number of bytes.
-setBack# :: Int -> ParserT st r e ()
-setBack# (I# i) = ParserT \fp !r eob s n st ->
-  OK# st () (plusAddr# s (negateInt# i)) n
-{-# inline setBack# #-}
-
--- | Template function, creates a @ParserT st r e ()@ which unsafely scans a given
---   sequence of bytes.
-scanBytes# :: [Word] -> Q Exp
-scanBytes# bytes = do
-  let !(leading, w8s) = Common.splitBytes bytes
-      !scanw8s        = go w8s where
-                         go (w8:[] ) = [| scan64# w8 |]
-                         go (w8:w8s) = [| scan64# w8 >> $(go w8s) |]
-                         go []       = [| pure () |]
-  case w8s of
-    [] -> go leading
-          where
-            go (a:b:c:d:[]) = let !w = Common.packBytes [a, b, c, d] in [| scan32# w |]
-            go (a:b:c:d:ws) = let !w = Common.packBytes [a, b, c, d] in [| scan32# w >> $(go ws) |]
-            go (a:b:[])     = let !w = Common.packBytes [a, b]       in [| scan16# w |]
-            go (a:b:ws)     = let !w = Common.packBytes [a, b]       in [| scan16# w >> $(go ws) |]
-            go (a:[])       = [| word8Unsafe a |]
-            go []           = [| pure () |]
-    _  -> case leading of
-
-      []              -> scanw8s
-      [a]             -> [| word8Unsafe a >> $scanw8s |]
-      ws@[a, b]       -> let !w = Common.packBytes ws in [| scan16# w >> $scanw8s |]
-      ws@[a, b, c, d] -> let !w = Common.packBytes ws in [| scan32# w >> $scanw8s |]
-      ws              -> let !w = Common.packBytes ws
-                             !l = length ws
-                         in [| scanPartial64# l w >> $scanw8s |]
-
-
--- Switching code generation
---------------------------------------------------------------------------------
-
-#if MIN_VERSION_base(4,15,0)
-mkDoE = DoE Nothing
-{-# inline mkDoE #-}
-#else
-mkDoE = DoE
-{-# inline mkDoE #-}
-#endif
-
-genTrie :: (Map (Maybe Int) Exp, Trie' (Rule, Int, Maybe Int)) -> Q Exp
-genTrie (rules, t) = do
-  branches <- traverse (\e -> (,) <$> (newName "rule") <*> pure e) rules
-
-  let ix m k = case M.lookup k m of
-        Nothing -> error ("key not in map: " ++ show k)
-        Just a  -> a
-
-  let ensure' :: Maybe Int -> Maybe (Q Exp)
-      ensure' = fmap (\n -> [| ensure n |])
-
-      fallback :: Rule -> Int ->  Q Exp
-      fallback rule 0 = pure $ VarE $ fst $ ix branches rule
-      fallback rule n = [| setBack# n >> $(pure $ VarE $ fst $ ix branches rule) |]
-
-  let go :: Trie' (Rule, Int, Maybe Int) -> Q Exp
-      go = \case
-        Branch' (r, n, alloc) ts
-          | M.null ts -> pure $ VarE $ fst $ branches M.! r
-          | otherwise -> do
-              !next         <- (traverse . traverse) go (M.toList ts)
-              !defaultCase  <- fallback r (n + 1)
-
-              let cases = mkDoE $
-                    [BindS (VarP (mkName "c")) (VarE 'anyWord8Unsafe),
-                      NoBindS (CaseE (VarE (mkName "c"))
-                         (map (\(w, t) ->
-                                 Match (LitP (IntegerL (fromIntegral w)))
-                                       (NormalB t)
-                                       [])
-                              next
-                          ++ [Match WildP (NormalB defaultCase) []]))]
-
-              case ensure' alloc of
-                Nothing    -> pure cases
-                Just alloc -> [| branch $alloc $(pure cases) $(fallback r n) |]
-
-        Path (r, n, alloc) ws t ->
-          case ensure' alloc of
-            Nothing    -> [| branch $(scanBytes# ws) $(go t) $(fallback r n)|]
-            Just alloc -> [| branch ($alloc >> $(scanBytes# ws)) $(go t) $(fallback r n) |]
-
-  letE
-    (map (\(x, rhs) -> valD (varP x) (normalB (pure rhs)) []) (Data.Foldable.toList branches))
-    (go t)
-
-parseSwitch :: Q Exp -> Q ([(String, Exp)], Maybe Exp)
-parseSwitch exp = exp >>= \case
-  CaseE (UnboundVarE _) []    -> error "switch: empty clause list"
-  CaseE (UnboundVarE _) cases -> do
-    (!cases, !last) <- pure (init cases, last cases)
-    !cases <- forM cases \case
-      Match (LitP (StringL str)) (NormalB rhs) [] -> pure (str, rhs)
-      _ -> error "switch: expected a match clause on a string literal"
-    (!cases, !last) <- case last of
-      Match (LitP (StringL str)) (NormalB rhs) [] -> pure (cases ++ [(str, rhs)], Nothing)
-      Match WildP                (NormalB rhs) [] -> pure (cases, Just rhs)
-      _ -> error "switch: expected a match clause on a string literal or a wildcard"
-    pure (cases, last)
-  _ -> error "switch: expected a \"case _ of\" expression"
-
-genSwitchTrie' :: Maybe Exp -> [(String, Exp)] -> Maybe Exp
-              -> (Map (Maybe Int) Exp, Trie' (Rule, Int, Maybe Int))
-genSwitchTrie' postAction cases fallback =
-
-  let (!branches, !strings) = unzip do
-        (!i, (!str, !rhs)) <- zip [0..] cases
-        case postAction of
-          Nothing    -> pure ((Just i, rhs), (i, str))
-          Just !post -> pure ((Just i, (VarE '(>>)) `AppE` post `AppE` rhs), (i, str))
-
-      !m    =  M.fromList ((Nothing, maybe (VarE 'failed) id fallback) : branches)
-      !trie = compileTrie strings
-  in (m , trie)
+-- | Create a 'B.ByteString' from a 'Span'.
+--
+-- The result is invalid if the 'Span' points outside the current buffer, or if
+-- the 'Span' start is greater than the end position.
+unsafeSpanToByteString :: Span -> ParserT st r e B.ByteString
+unsafeSpanToByteString (Span l r) =
+  lookahead (setPos l >> byteStringOf (setPos r))
+{-# inline unsafeSpanToByteString #-}
 
 --------------------------------------------------------------------------------
 
@@ -544,12 +451,3 @@ anyVarintProtobuf = ParserT \fp !r eob s n st ->
           0# -> OK# st (I# w#) s# n
           _  -> Fail# st -- overflow
 {-# inline anyVarintProtobuf #-}
-
---------------------------------------------------------------------------------
-
--- | Run a parser on a `String` input. Reminder: @OverloadedStrings@ for `B.ByteString` does not
---   yield a valid UTF-8 encoding! For non-ASCII `B.ByteString` literal input, use `runParserS` or
---   `packUTF8` for testing.
---   TODO
-runParserS :: Parser r e a -> r -> Int -> String -> Result e a
-runParserS pa r !n s = runParser pa r n (Common.strToUtf8 s)

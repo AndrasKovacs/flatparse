@@ -1,9 +1,4 @@
-{- | Machine integer parsers.
-
-TODO: The endianness code is currently lying. We blindly assume that our host
-system is little-endian, and parse in big-endian by parsing normally then
-"reversing" the resulting integer.
--}
+-- | Machine integer parsers.
 
 module FlatParse.Stateful.Integers
   (
@@ -13,6 +8,7 @@ module FlatParse.Stateful.Integers
   , anyWord, anyInt
 
   -- * Explicit endianness
+  -- $explicit-endianness
   , anyWord16le, anyWord16be
   , anyWord32le, anyWord32be
   , anyWord64le, anyWord64be
@@ -41,6 +37,7 @@ module FlatParse.Stateful.Integers
   ) where
 
 import FlatParse.Stateful.Parser
+import FlatParse.Stateful.Base ( withEnsure# )
 
 import FlatParse.Common.Assorted ( word16ToInt16, word32ToInt32, word64ToInt64 )
 
@@ -59,11 +56,10 @@ import Control.Applicative ( Alternative(empty) )
 -- 'GHC.Exts.indexWord8OffAddr') and the size in bytes of the type you're
 -- parsing.
 withAnySized#
-    :: Int# -> (Addr# -> Int# -> a) -> (a -> ParserT st r e ret) -> ParserT st r e ret
-withAnySized# size# indexOffAddr p = ParserT \fp !r eob buf n st ->
-    case size# <=# minusAddr# eob buf of
-      0# -> Fail# st
-      _  -> runParserT# (withAnySizedUnsafe# size# indexOffAddr p) fp r eob buf n st
+    :: Int# -> (Addr# -> Int# -> a) -> (a -> ParserT st r e ret)
+    -> ParserT st r e ret
+withAnySized# size# indexOffAddr p =
+    withEnsure# size# (withAnySizedUnsafe# size# indexOffAddr p)
 {-# inline withAnySized# #-}
 
 -- | Unsafe helper for defining CPS parsers for types of a constant byte size
@@ -74,8 +70,10 @@ withAnySized# size# indexOffAddr p = ParserT \fp !r eob buf n st ->
 --
 -- The caller must guarantee that the input has enough bytes.
 withAnySizedUnsafe#
-    :: Int# -> (Addr# -> Int# -> a) -> (a -> ParserT st r e ret) -> ParserT st r e ret
+    :: Int# -> (Addr# -> Int# -> a) -> (a -> ParserT st r e ret)
+    -> ParserT st r e ret
 withAnySizedUnsafe# size# indexOffAddr p = ParserT \fp !r eob buf n st ->
+-- TODO force? i.e. @let !a, !buf'@ ?
   let a    = indexOffAddr buf 0#
       buf' = plusAddr# buf size#
   in  runParserT# (p a) fp r eob buf' n st
@@ -205,64 +203,118 @@ anyInt = withAnyInt pure
 
 --------------------------------------------------------------------------------
 
+{- $explicit-endianness
+Native endianness parsers are used where possible. For non-native endianness
+parsers, we parse then use the corresponding @byteSwapX@ function. On x86, this
+is inlined as a single @BSWAP@ instruction.
+-}
+
 -- | Parse any 'Word16' (little-endian).
 anyWord16le :: ParserT st r e Word16
+#ifdef WORDS_BIGENDIAN
+anyWord16le = withAnyWord16 (pure . byteSwap16)
+#else
 anyWord16le = anyWord16
+#endif
 {-# inline anyWord16le #-}
 
 -- | Parse any 'Word16' (big-endian).
 anyWord16be :: ParserT st r e Word16
+#ifdef WORDS_BIGENDIAN
+anyWord16be = anyWord16
+#else
 anyWord16be = withAnyWord16 (pure . byteSwap16)
+#endif
 {-# inline anyWord16be #-}
 
 -- | Parse any 'Word32' (little-endian).
 anyWord32le :: ParserT st r e Word32
+#ifdef WORDS_BIGENDIAN
+anyWord32le = withAnyWord32 (pure . byteSwap32)
+#else
 anyWord32le = anyWord32
+#endif
 {-# inline anyWord32le #-}
 
 -- | Parse any 'Word32' (big-endian).
 anyWord32be :: ParserT st r e Word32
+#ifdef WORDS_BIGENDIAN
+anyWord32be = anyWord32
+#else
 anyWord32be = withAnyWord32 (pure . byteSwap32)
+#endif
 {-# inline anyWord32be #-}
 
 -- | Parse any 'Word64' (little-endian).
 anyWord64le :: ParserT st r e Word64
+#ifdef WORDS_BIGENDIAN
+anyWord64le = withAnyWord64 (pure . byteSwap64)
+#else
 anyWord64le = anyWord64
+#endif
 {-# inline anyWord64le #-}
 
 -- | Parse any 'Word64' (big-endian).
 anyWord64be :: ParserT st r e Word64
+#ifdef WORDS_BIGENDIAN
+anyWord64be = anyWord64
+#else
 anyWord64be = withAnyWord64 (pure . byteSwap64)
+#endif
 {-# inline anyWord64be #-}
 
 -- | Parse any 'Int16' (little-endian).
 anyInt16le :: ParserT st r e Int16
+#ifdef WORDS_BIGENDIAN
+anyInt16le = withAnyWord16 (pure . word16ToInt16 . byteSwap16)
+#else
 anyInt16le = anyInt16
+#endif
 {-# inline anyInt16le #-}
 
 -- | Parse any 'Int16' (big-endian).
 anyInt16be :: ParserT st r e Int16
+#ifdef WORDS_BIGENDIAN
+anyInt16be = anyInt16
+#else
 anyInt16be = withAnyWord16 (pure . word16ToInt16 . byteSwap16)
+#endif
 {-# inline anyInt16be #-}
 
 -- | Parse any 'Int32' (little-endian).
 anyInt32le :: ParserT st r e Int32
+#ifdef WORDS_BIGENDIAN
+anyInt32le = withAnyWord32 (pure . word32ToInt32 . byteSwap32)
+#else
 anyInt32le = anyInt32
+#endif
 {-# inline anyInt32le #-}
 
 -- | Parse any 'Int32' (big-endian).
 anyInt32be :: ParserT st r e Int32
+#ifdef WORDS_BIGENDIAN
+anyInt32be = anyInt32
+#else
 anyInt32be = withAnyWord32 (pure . word32ToInt32 . byteSwap32)
+#endif
 {-# inline anyInt32be #-}
 
 -- | Parse any 'Int64' (little-endian).
 anyInt64le :: ParserT st r e Int64
+#ifdef WORDS_BIGENDIAN
+anyInt64le = withAnyWord64 (pure . word64ToInt64 . byteSwap64)
+#else
 anyInt64le = anyInt64
+#endif
 {-# inline anyInt64le #-}
 
 -- | Parse any 'Int64' (big-endian).
 anyInt64be :: ParserT st r e Int64
+#ifdef WORDS_BIGENDIAN
+anyInt64be = anyInt64
+#else
 anyInt64be = withAnyWord64 (pure . word64ToInt64 . byteSwap64)
+#endif
 {-# inline anyInt64be #-}
 
 --------------------------------------------------------------------------------
@@ -278,6 +330,13 @@ word8 wExpected = ParserT \fp !r eob buf n st -> case eqAddr# eob buf of
 {-# inline word8 #-}
 
 --------------------------------------------------------------------------------
+
+{- $unsafe
+These unsafe parsers and helpers may be useful for efficient parsing in special
+situations e.g. you already know that the input has enough bytes. You should
+only use them if you can assert their necessary guarantees (see the individual
+function documentation).
+-}
 
 -- | Unsafe helper for defining parsers for types of a constant byte size (i.e.
 --   machine integers) which assert the parsed value's... value.
@@ -296,13 +355,6 @@ sizedUnsafe# size# indexOffAddr aExpected =
         then pure ()
         else empty
 {-# inline sizedUnsafe# #-}
-
-{- $unsafe
-These unsafe parsers and helpers may be useful for efficient parsing in special
-situations e.g. you already know that the input has enough bytes. You should
-only use them if you can assert their necessary guarantees (see the individual
-function documentation).
--}
 
 -- | Unsafely read the next 1 byte and assert its value as a 'Word8'.
 --

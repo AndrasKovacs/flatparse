@@ -19,7 +19,7 @@ module FlatParse.Stateful.Parser
   , type ResI#
 
   -- * TODO
-  , failed, (<|>)
+  , (<|>)
   ) where
 
 import FlatParse.Common.GHCExts ( Addr#, unsafeCoerce#, ZeroBitType, Int# )
@@ -91,21 +91,25 @@ instance Monad (ParserT st r e) where
 
 -- | By default, parser choice `(<|>)` arbitrarily backtracks on parser failure.
 instance Control.Applicative.Alternative (ParserT st r e) where
-  -- TODO 2023-01-13 raehik: consider redoing? strange setup
-  --empty = ParserT \fp eob s st -> Fail#
-  empty = failed
+  empty = ParserT \fp !r eob s n st -> Fail# st
   {-# inline empty #-}
 
   (<|>) = (<|>)
   {-# inline (Control.Applicative.<|>) #-}
 
-  -- TODO 2023-01-13 raehik: provide more efficient many, some impls?
+  many (ParserT f) = ParserT go where
+    go fp !r eob s n st =
+        case f fp r eob s n st of
+          OK# st a s n ->
+            case go fp r eob s n st of
+              OK# st as s n -> OK# st (a:as) s n
+              x             -> x
+          Fail# st'    -> OK# st [] s n
+          Err# st' e   -> Err# st e
+  {-# inline many #-}
 
--- | The failing parser. By default, parser choice `(<|>)` arbitrarily backtracks
---   on parser failure.
-failed :: ParserT st r e a
-failed = ParserT \_fp !_r _eob _s _n st -> Fail# st
-{-# inline failed #-}
+  some p = (:) <$> p <*> Control.Applicative.many p
+  {-# inline some #-}
 
 infixr 6 <|>
 (<|>) :: ParserT st r e a -> ParserT st r e a -> ParserT st r e a
