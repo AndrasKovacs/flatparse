@@ -5,13 +5,14 @@
 {-# LANGUAGE FlexibleInstances #-}
 
 {-|
-This module implements a `Parser` supporting custom error types.  If you need efficient indentation
-parsing, use "FlatParse.Stateful" instead.
+Parser supporting custom error types.
+
+If you need efficient indentation parsing, use "FlatParse.Stateful" instead.
 -}
 
 module FlatParse.Basic (
   -- * Parser type
-    module FlatParse.Basic.Parser
+    module FP.Parser
 
   -- * Running parsers
   , Result(..)
@@ -22,59 +23,59 @@ module FlatParse.Basic (
 
   -- * Parsers
   -- ** Bytewise
-  , FlatParse.Basic.Base.eof
-  , FlatParse.Basic.Base.take
-  , FlatParse.Basic.Base.take#
-  , FlatParse.Basic.Base.takeUnsafe#
-  , FlatParse.Basic.Base.takeRest
-  , FlatParse.Basic.Base.skip
-  , FlatParse.Basic.Base.skip#
-  , FlatParse.Basic.Base.skipBack
-  , FlatParse.Basic.Base.skipBack#
-  , FlatParse.Basic.Base.atSkip#
-  , FlatParse.Basic.Base.atSkipUnsafe#
+  , FP.Base.eof
+  , FP.Base.take
+  , FP.Base.take#
+  , FP.Base.takeUnsafe#
+  , FP.Base.takeRest
+  , FP.Base.skip
+  , FP.Base.skip#
+  , FP.Base.skipBack
+  , FP.Base.skipBack#
+  , FP.Base.atSkip#
+  , FP.Base.atSkipUnsafe#
 
-  , FlatParse.Basic.Bytes.bytes
-  , FlatParse.Basic.Bytes.bytesUnsafe
+  , FP.Bytes.bytes
+  , FP.Bytes.bytesUnsafe
   , byteString
   , anyCString
   , anyVarintProtobuf
 
   -- ** Combinators
-  , FlatParse.Basic.Base.branch
-  , FlatParse.Basic.Base.notFollowedBy
-  , FlatParse.Basic.Base.chainl
-  , FlatParse.Basic.Base.chainr
-  , FlatParse.Basic.Base.lookahead
-  , FlatParse.Basic.Base.ensure
-  , FlatParse.Basic.Base.ensure#
-  , FlatParse.Basic.Base.withEnsure
-  , FlatParse.Basic.Base.withEnsure1
-  , FlatParse.Basic.Base.withEnsure#
-  , FlatParse.Basic.Base.isolate
-  , FlatParse.Basic.Base.isolate#
-  , FlatParse.Basic.Base.isolateUnsafe#
-  , FlatParse.Basic.Switch.switch
-  , FlatParse.Basic.Switch.switchWithPost
-  , FlatParse.Basic.Switch.rawSwitchWithPost
+  , FP.Base.branch
+  , FP.Base.notFollowedBy
+  , FP.Base.chainl
+  , FP.Base.chainr
+  , FP.Base.lookahead
+  , FP.Base.ensure
+  , FP.Base.ensure#
+  , FP.Base.withEnsure
+  , FP.Base.withEnsure1
+  , FP.Base.withEnsure#
+  , FP.Base.isolate
+  , FP.Base.isolate#
+  , FP.Base.isolateUnsafe#
+  , FP.Switch.switch
+  , FP.Switch.switchWithPost
+  , FP.Switch.rawSwitchWithPost
 
   -- *** Non-specific (TODO)
   , Control.Applicative.many
-  , FlatParse.Basic.Base.skipMany
+  , FP.Base.skipMany
   , Control.Applicative.some
-  , FlatParse.Basic.Base.skipSome
+  , FP.Base.skipSome
   , Control.Applicative.empty
 
   -- ** Errors and failures
-  , FlatParse.Basic.Base.failed
-  , FlatParse.Basic.Base.try
-  , FlatParse.Basic.Base.err
-  , FlatParse.Basic.Base.fails
-  , FlatParse.Basic.Base.cut
-  , FlatParse.Basic.Base.cutting
-  , FlatParse.Basic.Base.optional
-  , FlatParse.Basic.Base.optional_
-  , FlatParse.Basic.Base.withOption
+  , FP.Base.failed
+  , FP.Base.try
+  , FP.Base.err
+  , FP.Base.fails
+  , FP.Base.cut
+  , FP.Base.cutting
+  , FP.Base.optional
+  , FP.Base.optional_
+  , FP.Base.withOption
 
   -- ** Position
   , FlatParse.Common.Position.Pos(..)
@@ -96,31 +97,31 @@ module FlatParse.Basic (
 
   -- ** Text
   -- *** UTF-8
-  , FlatParse.Basic.Text.char, FlatParse.Basic.Text.string
-  , FlatParse.Basic.Text.anyChar, FlatParse.Basic.Text.skipAnyChar
-  , FlatParse.Basic.Text.satisfy, FlatParse.Basic.Text.skipSatisfy
-  , FlatParse.Basic.Text.fusedSatisfy, FlatParse.Basic.Text.skipFusedSatisfy
-  , FlatParse.Basic.Text.takeLine
-  , FlatParse.Basic.Text.takeRestString
+  , FP.Text.char, FP.Text.string
+  , FP.Text.anyChar, FP.Text.skipAnyChar
+  , FP.Text.satisfy, FP.Text.skipSatisfy
+  , FP.Text.fusedSatisfy, FP.Text.skipFusedSatisfy
+  , FP.Text.takeLine
+  , FP.Text.takeRestString
   , linesUtf8
 
   -- *** ASCII
-  , FlatParse.Basic.Text.anyAsciiChar, FlatParse.Basic.Text.skipAnyAsciiChar
-  , FlatParse.Basic.Text.satisfyAscii, FlatParse.Basic.Text.skipSatisfyAscii
+  , FP.Text.anyAsciiChar, FP.Text.skipAnyAsciiChar
+  , FP.Text.satisfyAscii, FP.Text.skipSatisfyAscii
 
   -- *** ASCII-encoded numbers
-  , FlatParse.Basic.Text.anyAsciiDecimalWord
-  , FlatParse.Basic.Text.anyAsciiDecimalInt
-  , FlatParse.Basic.Text.anyAsciiDecimalInteger
-  , FlatParse.Basic.Text.anyAsciiHexWord
-  , FlatParse.Basic.Text.anyAsciiHexInt
+  , FP.Text.anyAsciiDecimalWord
+  , FP.Text.anyAsciiDecimalInt
+  , FP.Text.anyAsciiDecimalInteger
+  , FP.Text.anyAsciiHexWord
+  , FP.Text.anyAsciiHexInt
 
   -- ** Machine integers
-  , module FlatParse.Basic.Integers
+  , module FP.Integers
 
   -- ** Debugging parsers
-  , FlatParse.Basic.Text.traceLine
-  , FlatParse.Basic.Text.traceRest
+  , FP.Text.traceLine
+  , FP.Text.traceRest
 
   -- * Unsafe
   , unsafeSpanToByteString
@@ -129,12 +130,30 @@ module FlatParse.Basic (
   , unsafeLiftIO
 
   -- ** Parsers
-  , module FlatParse.Basic.Addr
+  , module FP.Addr
   , anyCStringUnsafe
 
   ) where
 
-import Prelude hiding ( take )
+import FlatParse.Basic.Parser
+import FlatParse.Basic.Base
+import FlatParse.Basic.Integers
+--import FlatParse.Basic.Bytes
+import FlatParse.Basic.Text
+--import FlatParse.Basic.Switch
+import FlatParse.Basic.Addr
+import FlatParse.Common.Position
+import qualified FlatParse.Common.Assorted as Common
+import qualified FlatParse.Common.Numbers  as Common
+
+-- common prefix for using/exporting parsers with their submodule
+import qualified FlatParse.Basic.Parser as FP.Parser
+import qualified FlatParse.Basic.Base as FP.Base
+import qualified FlatParse.Basic.Integers as FP.Integers
+import qualified FlatParse.Basic.Bytes as FP.Bytes
+import qualified FlatParse.Basic.Text as FP.Text
+import qualified FlatParse.Basic.Switch as FP.Switch
+import qualified FlatParse.Basic.Addr as FP.Addr
 
 import qualified Control.Applicative
 import GHC.IO (IO(..))
@@ -147,17 +166,6 @@ import Data.List ( sortBy )
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Unsafe as B
 import qualified Data.ByteString.Internal as B
-
-import FlatParse.Basic.Parser
-import FlatParse.Basic.Base
-import FlatParse.Basic.Integers
-import FlatParse.Basic.Bytes
-import FlatParse.Basic.Text
-import FlatParse.Basic.Switch
-import FlatParse.Basic.Addr
-import FlatParse.Common.Position
-import qualified FlatParse.Common.Assorted as Common
-import qualified FlatParse.Common.Numbers  as Common
 
 -- | Higher-level boxed data type for parsing results.
 data Result e a =

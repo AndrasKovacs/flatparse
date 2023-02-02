@@ -91,7 +91,7 @@ instance Monad (ParserT st e) where
 
 -- | By default, parser choice `(<|>)` arbitrarily backtracks on parser failure.
 instance Control.Applicative.Alternative (ParserT st e) where
-  empty = ParserT \fp eob s st -> Fail# st -- same as @failed@
+  empty = ParserT \fp eob s st -> Fail# st
   {-# inline empty #-}
 
   (<|>) = (<|>)
@@ -99,17 +99,15 @@ instance Control.Applicative.Alternative (ParserT st e) where
 
   many (ParserT f) = ParserT go where
     go fp eob s st = case f fp eob s st of
-      OK# st' a s -> case go fp eob s st' of
-                      OK# st'' as s -> OK# st'' (a:as) s
-                      x        -> x
-      Fail# st'  -> OK# st' [] s
-      Err# st' e -> Err# st' e
+      OK# st a s -> case go fp eob s st of
+                      OK# st as s -> OK# st (a:as) s
+                      x           -> x
+      Fail# st  -> OK# st [] s
+      Err# st e -> Err# st e
   {-# inline many #-}
 
   some p = (:) <$> p <*> Control.Applicative.many p
   {-# inline some #-}
-
-  -- TODO 2023-01-13 raehik: provide more efficient many, some impls?
 
 infixr 6 <|>
 (<|>) :: ParserT st e a -> ParserT st e a -> ParserT st e a

@@ -57,12 +57,12 @@ import GHC.Exts
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Internal as B
 import GHC.ForeignPtr ( ForeignPtr(..) )
---import Control.Applicative ( (<|>) )
+import qualified Control.Applicative
 
 -- | The failing parser. By default, parser choice `(<|>)` arbitrarily backtracks
 --   on parser failure.
 failed :: ParserT st e a
-failed = ParserT \fp eob s st -> Fail# st
+failed = Control.Applicative.empty
 {-# inline failed #-}
 
 -- | Throw a parsing error. By default, parser choice `(<|>)` can't backtrack
@@ -104,7 +104,8 @@ cutting (ParserT f) e merge = ParserT \fp eob s st -> case f fp eob s st of
   x            -> x
 {-# inline cutting #-}
 
--- | Convert a parsing failure to a `Maybe`. If possible, use `withOption` instead.
+-- | Convert a parsing failure to a `Maybe`. If possible, use `withOption`
+--   instead.
 optional :: ParserT st e a -> ParserT st e (Maybe a)
 optional p = (Just <$> p) <|> pure Nothing
 {-# inline optional #-}
@@ -171,18 +172,6 @@ isolateUnsafe# n# (ParserT p) =
                   1# -> OK#   st' a s''
                   _  -> Fail# st'
               x -> x
-{-
-isolateUnsafe# n# p = ParserT \fp eob s st ->
-  let s' = plusAddr# s n#
-  in  case n# <=# minusAddr# eob s of
-        1# -> case runParserT# p fp s' s st of
-          OK#   st' a s'' -> case eqAddr# s' s'' of
-            1# -> OK#   st' a s''
-            _  -> Fail# st' -- isolated segment wasn't fully consumed
-          Fail# st'       -> Fail# st'
-          Err#  st' e     -> Err#  st' e
-        _  -> Fail# st -- you tried to isolate more than we have left
--}
 {-# inline isolateUnsafe# #-}
 
 -- | An analogue of the list `foldl` function: first parse a @b@, then parse zero or more @a@-s,

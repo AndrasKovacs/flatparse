@@ -92,18 +92,22 @@ skipAnyChar = ParserT \fp eob buf st -> case eqAddr# eob buf of
              _  -> Fail# st
 {-# inline skipAnyChar #-}
 
--- | Parse a UTF-8 `Char` for which a predicate holds.
+withSatisfy
+    :: (Char -> Bool) -> (Char -> ParserT st e r) -> ParserT st e r
+withSatisfy f p = ParserT \fp eob s st ->
+    case runParserT# anyChar fp eob s st of
+      OK# st c s | f c -> runParserT# (p c) fp eob s st
+      (# st, _ #)      -> Fail# st
+{-# inline withSatisfy #-}
+
+-- | Parse a UTF-8 'Char' for which a predicate holds.
 satisfy :: (Char -> Bool) -> ParserT st e Char
-satisfy f = ParserT \fp eob s st -> case runParserT# anyChar fp eob s st of
-  OK# st' c s | f c -> OK#   st' c s
-  (# st', _ #)      -> Fail# st'
+satisfy f = withSatisfy f pure
 {-# inline satisfy #-}
 
 -- | Skip a UTF-8 `Char` for which a predicate holds.
 skipSatisfy :: (Char -> Bool) -> ParserT st e ()
-skipSatisfy f = ParserT \fp eob s st -> case runParserT# anyChar fp eob s st of
-  OK# st' c s | f c -> OK#   st' () s
-  (# st', _ #)      -> Fail# st'
+skipSatisfy f = withSatisfy f (\_ -> pure ())
 {-# inline skipSatisfy #-}
 
 withSatisfyAscii :: (Char -> Bool) -> (Char -> ParserT st e r) -> ParserT st e r
@@ -113,9 +117,11 @@ withSatisfyAscii f p = withEnsure1 $ ParserT \fp eob s st ->
          | otherwise -> Fail# st
 {-# inline withSatisfyAscii #-}
 
--- | Parse an ASCII `Char` for which a predicate holds. Assumption: the predicate must only return
---   `True` for ASCII-range characters. Otherwise this function might read a 128-255 range byte,
---   thereby breaking UTF-8 decoding.
+-- | Parse an ASCII `Char` for which a predicate holds.
+--
+-- Assumption: the predicate must only return 'True' for ASCII-range characters.
+-- Otherwise this function might read a 128-255 range byte, thereby breaking
+-- UTF-8 decoding.
 satisfyAscii :: (Char -> Bool) -> ParserT st e Char
 satisfyAscii f = withSatisfyAscii f pure
 {-# inline satisfyAscii #-}
@@ -237,12 +243,11 @@ anyAsciiHexInt = ParserT \fp eob s st ->
 --
 -- More efficient than 'anyChar' for ASCII-only input.
 anyAsciiChar :: ParserT st e Char
-anyAsciiChar = ParserT \fp eob buf st -> case eqAddr# eob buf of
-  1# -> Fail# st
-  _  -> case Common.derefChar8# buf of
-    c1 -> case c1 `leChar#` '\x7F'# of
-      1# -> OK#   st (C# c1) (plusAddr# buf 1#)
-      _  -> Fail# st
+anyAsciiChar = withEnsure1 $ ParserT \fp eob buf st ->
+    case Common.derefChar8# buf of
+      c1 -> case c1 `leChar#` '\x7F'# of
+              1# -> OK#   st (C# c1) (plusAddr# buf 1#)
+              _  -> Fail# st
 {-# inline anyAsciiChar #-}
 
 -- | Skip any single ASCII character (a single byte).
