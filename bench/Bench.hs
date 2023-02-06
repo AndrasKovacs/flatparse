@@ -14,6 +14,10 @@ import qualified FPStateful
 import qualified FPBasic
 import qualified ReadInteger
 
+import qualified Data.ByteString.UTF8
+import qualified FlatParse.Common.Assorted
+import qualified FlatParse.Basic
+
 sexpInp :: B.ByteString
 sexpInp =
   B.concat $ "(" : replicate 33333 "(foo (foo (foo ((bar baza)))))" ++ [")"]
@@ -27,8 +31,23 @@ numcsvInp = B.concat ("0" : [B.pack (",  " ++ show n) | n <- [1..100000::Int]])
 readIntInp :: B.ByteString
 readIntInp = "12345678910"
 
+longString :: String
+longString =
+  concat $ "(" : replicate 33333 "(foo (foo (foo ((bar baza)))))" ++ [")"]
+
 main :: IO ()
 main = defaultMain [
+{-
+  bgroup "String -> UTF-8 ByteString" [
+    bench "utf8-string" $ whnf Data.ByteString.UTF8.toString sexpInp,
+    bench "fp" $ whnf FlatParse.Common.Assorted.utf8ToStr sexpInp
+  ],
+  bgroup "UTF-8 ByteString -> String" [
+    bench "utf8-string" $ whnf Data.ByteString.UTF8.fromString longString,
+    bench "fp" $ whnf FlatParse.Common.Assorted.strToUtf8 longString
+  ]
+ ]
+-}
   bgroup "sexp" [
     bench "fpbasic"     $ whnf FPBasic.runSexp    sexpInp,
     bench "fpstateful"  $ whnf FPStateful.runSexp sexpInp,

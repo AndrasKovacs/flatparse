@@ -9,6 +9,7 @@ demonstrates a simple but decently informative implementation of error message p
 module FlatParse.Examples.BasicLambda.Lexer where
 
 import FlatParse.Basic hiding (Parser, runParser, string, char, cut)
+import FlatParse.Common.Strings
 
 import qualified FlatParse.Basic as FP
 import qualified Data.ByteString as B
@@ -16,6 +17,8 @@ import Language.Haskell.TH
 
 import Data.String
 import qualified Data.Set as S
+
+import qualified Data.ByteString.UTF8 as UTF8
 
 --------------------------------------------------------------------------------
 
@@ -64,8 +67,8 @@ prettyError b e =
   let pos :: Pos
       pos      = case e of Imprecise pos e -> pos
                            Precise pos e   -> pos
-      ls       = FP.lines b
-      (l, c)   = head $ posLineCols b [pos]
+      ls       = FP.linesUtf8 b
+      (l, c)   = head $ FP.posLineCols b [pos]
       line     = if l < length ls then ls !! l else ""
       linum    = show l
       lpad     = map (const ' ') linum
@@ -108,7 +111,7 @@ runParser = FP.runParser
 
 -- | Run parser, print pretty error on failure.
 testParser :: Show a => Parser a -> String -> IO ()
-testParser p str = case packUTF8 str of
+testParser p str = case UTF8.fromString str of
   b -> case runParser p b of
     Err e  -> putStrLn $ prettyError b e
     OK a _ -> print a
@@ -149,12 +152,12 @@ token p = p <* ws
 
 -- | Read a starting character of an identifier.
 identStartChar :: Parser Char
-identStartChar = satisfyASCII isLatinLetter
+identStartChar = satisfyAscii isAsciiLetter
 {-# inline identStartChar #-}
 
 -- | Read a non-starting character of an identifier.
 identChar :: Parser Char
-identChar = satisfyASCII (\c -> isLatinLetter c || isDigit c)
+identChar = satisfyAscii (\c -> isAsciiLetter c || isDigit c)
 {-# inline identChar #-}
 
 -- | Check whether a `Span` contains exactly a keyword. Does not change parsing state.

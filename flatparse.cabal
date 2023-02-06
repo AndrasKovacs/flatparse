@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.0.
+-- This file has been generated from package.yaml by hpack version 0.35.1.
 --
 -- see: https://github.com/sol/hpack
 
@@ -44,11 +44,30 @@ flag llvm
 library
   exposed-modules:
       FlatParse.Basic
+      FlatParse.Basic.Addr
+      FlatParse.Basic.Base
+      FlatParse.Basic.Bytes
+      FlatParse.Basic.Integers
+      FlatParse.Basic.Parser
+      FlatParse.Basic.Switch
+      FlatParse.Basic.Text
+      FlatParse.Common.Assorted
+      FlatParse.Common.GHCExts
+      FlatParse.Common.Numbers
+      FlatParse.Common.Parser
+      FlatParse.Common.Position
+      FlatParse.Common.Strings
+      FlatParse.Common.Switch
       FlatParse.Examples.BasicLambda.Lexer
       FlatParse.Examples.BasicLambda.Parser
-      FlatParse.Internal
-      FlatParse.Internal.UnboxedNumerics
       FlatParse.Stateful
+      FlatParse.Stateful.Addr
+      FlatParse.Stateful.Base
+      FlatParse.Stateful.Bytes
+      FlatParse.Stateful.Integers
+      FlatParse.Stateful.Parser
+      FlatParse.Stateful.Switch
+      FlatParse.Stateful.Text
   other-modules:
       Paths_flatparse
   hs-source-dirs:
@@ -71,6 +90,7 @@ library
     , containers
     , integer-gmp
     , template-haskell
+    , utf8-string >=1.0.2 && <1.1
   default-language: Haskell2010
   if flag(dump)
     ghc-options: -ddump-simpl -ddump-stg-final -ddump-cmm -dsuppress-all -dno-suppress-type-signatures -ddump-to-file
@@ -105,6 +125,7 @@ test-suite spec
     , flatparse
     , hspec
     , quickcheck-instances
+    , utf8-string >=1.0.2 && <1.1
   default-language: Haskell2010
   if flag(dump)
     ghc-options: -ddump-simpl -ddump-stg-final -ddump-cmm -dsuppress-all -dno-suppress-type-signatures -ddump-to-file
@@ -146,6 +167,7 @@ benchmark bench
     , megaparsec
     , parsec
     , primitive
+    , utf8-string >=1.0.2 && <1.1
   default-language: Haskell2010
   if flag(dump)
     ghc-options: -ddump-simpl -ddump-stg-final -ddump-cmm -dsuppress-all -dno-suppress-type-signatures -ddump-to-file

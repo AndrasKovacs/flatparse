@@ -4,7 +4,7 @@
 .stack-work/
 *#
 TAGS
-*.lock
+#*.lock
 *.dump-simpl
 *.dump-cmm
 *.dump-stg

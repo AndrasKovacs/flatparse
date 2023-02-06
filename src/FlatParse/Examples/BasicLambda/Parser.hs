@@ -12,6 +12,7 @@ import Data.Char (ord)
 import qualified Data.ByteString as B
 
 import FlatParse.Basic hiding (Parser, runParser, string, char, cut)
+import FlatParse.Common.Strings
 import FlatParse.Examples.BasicLambda.Lexer
 
 --------------------------------------------------------------------------------
@@ -49,14 +50,14 @@ data Tm
 --   keyword.
 ident :: Parser Name
 ident = token $ byteStringOf $
-  withSpan (identStartChar *> many_ identChar) (\_ span -> fails (isKeyword span))
+  withSpan (identStartChar *> skipMany identChar) (\_ span -> fails (isKeyword span))
 
 -- | Parse an identifier, throw a precise error on failure.
 ident' :: Parser Name
 ident' = ident `cut'` (Msg "identifier")
 
 digit :: Parser Int
-digit = (\c -> ord c - ord '0') <$> satisfyASCII isDigit
+digit = (\c -> ord c - ord '0') <$> satisfyAscii isDigit
 
 int :: Parser Int
 int = token do
