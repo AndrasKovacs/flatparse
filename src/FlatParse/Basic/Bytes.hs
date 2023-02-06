@@ -16,7 +16,7 @@ import Language.Haskell.TH
 import GHC.Exts
 
 -- | Read a sequence of bytes. This is a template function, you can use it as @$(bytes [3, 4, 5])@,
---   for example, and the splice has type @Parser e ()@. For a non-TH variant see 'byteString'.
+--   for example, and the splice has type @Parser e ()@. For a non-TH variant see 'FlatParse.Basic.byteString'.
 bytes :: [Word] -> Q Exp
 bytes bs = do
   let !len = length bs

@@ -13,12 +13,12 @@ import GHC.Exts
 import Data.Void ( Void )
 
 {- $parser-state-token-types
-These type synonyms are used as parameters to @ParserT@. By manually threading a
-state token through, we're able to unsafely embed IO actions in pure parsers
-(without being removed or reordered by the compiler).
-
-TODO 2023-01-17 raehik: perhaps more/better explanation?
+These type synonyms are used as parameters to @ParserT@. Different state tokens
+support different embedded effects.
 -}
+
+-- TODO 2023-01-17 raehik: perhaps more/better explanation?
+
 type PureMode = Proxy# Void
 type IOMode   = State# RealWorld
 type STMode s = State# s

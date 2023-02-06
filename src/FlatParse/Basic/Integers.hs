@@ -123,9 +123,8 @@ withAnyInt64 :: (Int64 -> ParserT st e r) -> ParserT st e r
 withAnyInt64 = withAnySized# 8# (\a i -> I64# (indexInt64OffAddr# a i))
 {-# inline withAnyInt64 #-}
 
--- | Parse any 'Word' (native size) (CPS).
---
 -- TODO assumes 64-bit platform
+-- | Parse any 'Word' (native size) (CPS).
 withAnyWord :: (Word -> ParserT st e r) -> ParserT st e r
 withAnyWord p = ParserT \fp eob buf st -> case 8# <=# minusAddr# eob buf of
   0# -> Fail# st
@@ -133,9 +132,8 @@ withAnyWord p = ParserT \fp eob buf st -> case 8# <=# minusAddr# eob buf of
         in  runParserT# (p (W# w#)) fp eob (plusAddr# buf 8#) st
 {-# inline withAnyWord #-}
 
+-- -- TODO assumes 64-bit platform
 -- | Parse any 'Int' (native size) (CPS).
---
--- TODO assumes 64-bit platform
 withAnyInt :: (Int -> ParserT st e r) -> ParserT st e r
 withAnyInt p = ParserT \fp eob buf st -> case 8# <=# minusAddr# eob buf of
   0# -> Fail# st
@@ -185,16 +183,14 @@ anyInt64 :: ParserT st e Int64
 anyInt64 = withAnyInt64 pure
 {-# inline anyInt64 #-}
 
--- | Parse any 'Word' (native size).
---
 -- TODO 'withAnyWord' assumes 64-bit platform
+-- | Parse any 'Word' (native size).
 anyWord :: ParserT st e Word
 anyWord = withAnyWord pure
 {-# inline anyWord #-}
 
--- | Parse any 'Int' (native size).
---
 -- TODO 'withAnyInt' assumes 64-bit platform
+-- | Parse any 'Int' (native size).
 anyInt :: ParserT st e Int
 anyInt = withAnyInt pure
 {-# inline anyInt #-}

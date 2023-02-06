@@ -60,7 +60,7 @@ import GHC.ForeignPtr ( ForeignPtr(..) )
 import qualified Control.Applicative
 
 -- | The failing parser. By default, parser choice `(<|>)` arbitrarily
---   backtracks on parser failure.
+--   backtracks on parser failure. This is a synonym for `Control.Applicative.empty`.
 failed :: ParserT st r e a
 failed = Control.Applicative.empty
 {-# inline failed #-}
@@ -228,6 +228,9 @@ ensure# :: Int# -> ParserT st r e ()
 ensure# n# = withEnsure# n# (pure ())
 {-# inline ensure# #-}
 
+-- TODO: András: withEnsure operations seem superfluous to me?
+-- There's no unboxing in vanilla ensure that could be broken.
+
 -- | Assert that there are at least @n#@ bytes remaining (CPS).
 --
 -- Undefined behaviour if given a negative integer.
@@ -257,7 +260,7 @@ withEnsure# n# (ParserT p) = ParserT \fp !r eob s n st ->
 
 --------------------------------------------------------------------------------
 
--- | Read @n@ bytes as a 'ByteString'. Fails if newer than @n@ bytes are
+-- | Read @n@ bytes as a 'ByteString'. Fails if fewer than @n@ bytes are
 --   available.
 --
 -- Throws a runtime error if given a negative integer.
@@ -265,7 +268,7 @@ take :: Int -> ParserT st r e B.ByteString
 take (I# n#) = take# n#
 {-# inline take #-}
 
--- | Read @n#@ bytes as a 'ByteString'. Fails if newer than @n#@ bytes are
+-- | Read @n#@ bytes as a 'ByteString'. Fails if fewer than @n#@ bytes are
 --   available.
 --
 -- Throws a runtime error if given a negative integer.
@@ -276,7 +279,7 @@ take# n# = Common.withPosInt# n# (takeUnsafe# n#)
 -- | Read @i#@ bytes as a 'ByteString'. Fails if newer than @i#@ bytes are
 --   available.
 --
--- Undefined behaviour if given a negative integer.
+--   Undefined behaviour if given a negative integer.
 takeUnsafe# :: Int# -> ParserT st r e B.ByteString
 takeUnsafe# i# = ParserT \fp !r eob s n st ->
     case i# <=# minusAddr# eob s of
@@ -305,14 +308,14 @@ skip# :: Int# -> ParserT st r e ()
 skip# n# = atSkip# n# (pure ())
 {-# inline skip# #-}
 
--- | Go back @i@ bytes. (Takes a positive integer.)
+-- | Go back @i@ bytes in the input. Takes a positive integer.
 --
 -- Extremely unsafe. Makes no checks. Almost certainly a Bad Idea.
 skipBack :: Int -> ParserT st r e ()
 skipBack = Common.withIntUnwrap# skipBack#
 {-# inline skipBack #-}
 
--- | Go back @i#@ bytes. (Takes a positive integer.)
+-- | Go back @i#@ bytes in the input. Takes a positive integer.
 --
 -- Extremely unsafe. Makes no checks. Almost certainly a Bad Idea.
 skipBack# :: Int# -> ParserT st r e ()
@@ -341,23 +344,16 @@ atSkipUnsafe# i# (ParserT p) =
 --------------------------------------------------------------------------------
 
 -- | Skip a parser zero or more times.
---
--- TODO identical to one from parser-combinators
 skipMany :: ParserT st r e a -> ParserT st r e ()
-skipMany p = go
-  where go = (p *> go) <|> pure ()
-{-
 skipMany (ParserT f) = ParserT go where
-  go fp eob s st = case f fp eob s st of
-    OK#   st' a s -> go fp eob s st'
-    Fail# st'     -> OK#  st' () s
-    Err#  st' e   -> Err# st' e
--}
+  go fp !r eob s n st = case f fp r eob s n st of
+    OK# st a s n -> go fp r eob s n st
+    Fail# st     -> OK# st () s n
+    Err# st e    -> Err# st e
 {-# inline skipMany #-}
 
--- | Skip a parser one or more times.
---
 -- TODO identical to one from parser-combinators
+-- | Skip a parser one or more times.
 skipSome :: ParserT st r e a -> ParserT st r e ()
 skipSome p = p *> skipMany p
 {-# inline skipSome #-}

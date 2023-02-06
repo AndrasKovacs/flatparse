@@ -2,6 +2,7 @@
 
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE DataKinds #-} -- needed for manual ZeroBitType def (unsure why)
+{-# OPTIONS_GHC -Wno-dodgy-exports #-}
 
 module FlatParse.Common.GHCExts
   ( module FlatParse.Common.GHCExts

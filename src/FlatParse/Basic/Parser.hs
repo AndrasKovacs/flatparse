@@ -18,7 +18,7 @@ module FlatParse.Basic.Parser
   -- ** Internal
   , type ResI#
 
-  -- * TODO
+  -- * Choice operator (defined with right associativity)
   , (<|>)
   ) where
 
@@ -33,20 +33,26 @@ import Control.Monad.IO.Class ( MonadIO(..) )
 import GHC.IO ( IO(IO) )
 
 -- | @ParserT st e a@ is a parser with a state token type @st@, an error type
---   @e@ and a return type @a@.
---
--- See "FlatParse.Common.Parser" for a commentary on the state token types.
+--   @e@ and a return type @a@. The different state token types support
+--   different embededded effects; see `Parser`, `ParserIO` and `ParserST`
+--   below.
 newtype ParserT (st :: ZeroBitType) e a =
     ParserT { runParserT# :: ForeignPtrContents -> Addr# -> Addr# -> st -> Res# st e a }
 
+-- | The type of pure parsers.
 type Parser     = ParserT PureMode
+
+-- | The type of parsers which can embed `IO` actions.
 type ParserIO   = ParserT IOMode
+
+-- | The type of parsers which can embed `ST` actions.
 type ParserST s = ParserT (STMode s)
 
--- | You may lift IO actions into a 'ParserIO'.
+-- | You may lift IO actions into a 'ParserIO' using `liftIO`.
 instance MonadIO (ParserIO e) where
   liftIO (IO a) = ParserT \fp eob s rw ->
     case a rw of (# rw', a #) -> OK# rw' a s
+  {-# inline liftIO #-}
 
 instance Functor (ParserT st e) where
   fmap f (ParserT g) = ParserT \fp eob s st -> case g fp eob s st of
@@ -110,6 +116,13 @@ instance Control.Applicative.Alternative (ParserT st e) where
   {-# inline some #-}
 
 infixr 6 <|>
+-- | Choose between two parsers. If the first parser fails, try the second one,
+--   but if the first one throws an error, propagate the error. This operation
+--   can arbitrarily backtrack.
+--
+-- Note: this exported operator has different fixity than the same operator in
+-- `Control.Applicative`. Hide this operator if you want to use the
+-- `Alternative` version.
 (<|>) :: ParserT st e a -> ParserT st e a -> ParserT st e a
 (<|>) (ParserT f) (ParserT g) = ParserT \fp eob s st ->
   case f fp eob s st of

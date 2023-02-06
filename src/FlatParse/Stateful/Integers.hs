@@ -73,7 +73,6 @@ withAnySizedUnsafe#
     :: Int# -> (Addr# -> Int# -> a) -> (a -> ParserT st r e ret)
     -> ParserT st r e ret
 withAnySizedUnsafe# size# indexOffAddr p = ParserT \fp !r eob buf n st ->
--- TODO force? i.e. @let !a, !buf'@ ?
   let a    = indexOffAddr buf 0#
       buf' = plusAddr# buf size#
   in  runParserT# (p a) fp r eob buf' n st
@@ -125,9 +124,8 @@ withAnyInt64 :: (Int64 -> ParserT st r e ret) -> ParserT st r e ret
 withAnyInt64 = withAnySized# 8# (\a i -> I64# (indexInt64OffAddr# a i))
 {-# inline withAnyInt64 #-}
 
--- | Parse any 'Word' (native size) (CPS).
---
 -- TODO assumes 64-bit platform
+-- | Parse any 'Word' (native size) (CPS).
 withAnyWord :: (Word -> ParserT st r e ret) -> ParserT st r e ret
 withAnyWord p = ParserT \fp !r eob buf n st -> case 8# <=# minusAddr# eob buf of
   0# -> Fail# st
@@ -135,9 +133,8 @@ withAnyWord p = ParserT \fp !r eob buf n st -> case 8# <=# minusAddr# eob buf of
         in  runParserT# (p (W# w#)) fp r eob (plusAddr# buf 8#) n st
 {-# inline withAnyWord #-}
 
--- | Parse any 'Int' (native size) (CPS).
---
 -- TODO assumes 64-bit platform
+-- | Parse any 'Int' (native size) (CPS).
 withAnyInt :: (Int -> ParserT st r e ret) -> ParserT st r e ret
 withAnyInt p = ParserT \fp !r eob buf n st -> case 8# <=# minusAddr# eob buf of
   0# -> Fail# st
@@ -187,16 +184,14 @@ anyInt64 :: ParserT st r e Int64
 anyInt64 = withAnyInt64 pure
 {-# inline anyInt64 #-}
 
--- | Parse any 'Word' (native size).
---
 -- TODO 'withAnyWord' assumes 64-bit platform
+-- | Parse any 'Word' (native size).
 anyWord :: ParserT st r e Word
 anyWord = withAnyWord pure
 {-# inline anyWord #-}
 
--- | Parse any 'Int' (native size).
---
 -- TODO 'withAnyInt' assumes 64-bit platform
+-- | Parse any 'Int' (native size).
 anyInt :: ParserT st r e Int
 anyInt = withAnyInt pure
 {-# inline anyInt #-}

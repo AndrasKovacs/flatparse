@@ -20,10 +20,15 @@ newtype Pos = Pos { unPos :: Int }
 data Span = Span !Pos !Pos
     deriving stock (Eq, Show)
 
+-- | Very unsafe conversion between a primitive address and a position.  The
+--   first argument points to the end of the buffer, the second argument is
+--   being converted.
 addrToPos# :: Addr# -> Addr# -> Pos
 addrToPos# eob s = Pos (I# (minusAddr# eob s))
 {-# inline addrToPos# #-}
 
+-- | Very unsafe conversion between a primitive address and a position.  The
+--   first argument points to the end of the buffer.
 posToAddr# :: Addr# -> Pos -> Addr#
 posToAddr# eob (Pos (I# n)) = unsafeCoerce# (minusAddr# eob (unsafeCoerce# n))
 {-# inline posToAddr# #-}

@@ -226,6 +226,9 @@ ensure# :: Int# -> ParserT st e ()
 ensure# n# = withEnsure# n# (pure ())
 {-# inline ensure# #-}
 
+-- TODO: András: why do we need withEnsure-s?
+-- There's no unboxing to be improved.
+
 -- | Assert that there are at least @n#@ bytes remaining (CPS).
 --
 -- Undefined behaviour if given a negative integer.
@@ -262,7 +265,7 @@ take :: Int -> ParserT st e B.ByteString
 take (I# n#) = take# n#
 {-# inline take #-}
 
--- | Read @n#@ bytes as a 'ByteString'. Fails if newer than @n#@ bytes are
+-- | Read @n#@ bytes as a 'ByteString'. Fails if fewer than @n#@ bytes are
 --   available.
 --
 -- Throws a runtime error if given a negative integer.
@@ -270,7 +273,7 @@ take# :: Int# -> ParserT st e B.ByteString
 take# n# = Common.withPosInt# n# (takeUnsafe# n#)
 {-# inline take# #-}
 
--- | Read @n#@ bytes as a 'ByteString'. Fails if newer than @n#@ bytes are
+-- | Read @n#@ bytes as a 'ByteString'. Fails if fewer than @n#@ bytes are
 --   available.
 --
 -- Undefined behaviour if given a negative integer.
@@ -302,14 +305,14 @@ skip# :: Int# -> ParserT st e ()
 skip# n# = atSkip# n# (pure ())
 {-# inline skip# #-}
 
--- | Go back @n@ bytes. (Takes a positive integer.)
+-- | Go back @i@ bytes in the input. Takes a positive integer.
 --
 -- Extremely unsafe. Makes no checks. Almost certainly a Bad Idea.
 skipBack :: Int -> ParserT st e ()
 skipBack = Common.withIntUnwrap# skipBack#
 {-# inline skipBack #-}
 
--- | Go back @n#@ bytes. (Takes a positive integer.)
+-- | Go back @n#@ bytes. Takes a positive integer.
 --
 -- Extremely unsafe. Makes no checks. Almost certainly a Bad Idea.
 skipBack# :: Int# -> ParserT st e ()
@@ -338,23 +341,16 @@ atSkipUnsafe# n# (ParserT p) =
 --------------------------------------------------------------------------------
 
 -- | Skip a parser zero or more times.
---
--- TODO identical to one from parser-combinators. confirm core matches
 skipMany :: ParserT st e a -> ParserT st e ()
-skipMany p = go
-  where go = (p *> go) <|> pure ()
-{-
 skipMany (ParserT f) = ParserT go where
   go fp eob s st = case f fp eob s st of
-    OK#   st' a s -> go fp eob s st'
-    Fail# st'     -> OK#  st' () s
-    Err#  st' e   -> Err# st' e
--}
+    OK# st a s -> go fp eob s st
+    Fail# st   -> OK# st () s
+    Err# st e  -> Err# st e
 {-# inline skipMany #-}
 
--- | Skip a parser one or more times.
---
 -- TODO identical to one from parser-combinators
+-- | Skip a parser one or more times.
 skipSome :: ParserT st e a -> ParserT st e ()
 skipSome p = p *> skipMany p
 {-# inline skipSome #-}

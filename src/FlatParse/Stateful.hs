@@ -6,12 +6,15 @@
 
 {-|
 Parser supporting a custom reader environment, custom error types and an 'Int'
-state.
+state. A common use case of the `Int` state is to keep track of column numbers
+to implement indentation-sensitive parsers.
 -}
 
 module FlatParse.Stateful (
-  -- * Parser type
-    module FP.Parser
+
+  -- * Parser types
+    FP.Parser.ParserT(..)
+  , FP.Parser.Parser, FP.Parser.ParserIO, FP.Parser.ParserST
 
   -- * Running parsers
   , Result(..)
@@ -19,6 +22,27 @@ module FlatParse.Stateful (
   , runParserUtf8
   , runParserIO
   , runParserST
+
+  -- ** Primitive result types
+  , type FP.Parser.Res#
+  , pattern FP.Parser.OK#, pattern FP.Parser.Err#, pattern FP.Parser.Fail#
+  , type FP.Parser.ResI#
+
+  -- * Embedding `ST` operations
+  , liftST
+
+  -- * Environment operations
+  , ask
+  , local
+
+  -- * State operations
+  , get
+  , put
+  , modify
+
+  -- * UTF conversion
+  , Common.strToUtf8
+  , Common.utf8ToStr
 
   -- * Parsers
   -- ** Bytewise
@@ -41,6 +65,7 @@ module FlatParse.Stateful (
   , anyVarintProtobuf
 
   -- ** Combinators
+  , (FP.Parser.<|>)
   , FP.Base.branch
   , FP.Base.notFollowedBy
   , FP.Base.chainl
@@ -57,15 +82,13 @@ module FlatParse.Stateful (
   , FP.Switch.switch
   , FP.Switch.switchWithPost
   , FP.Switch.rawSwitchWithPost
-
-  -- *** Non-specific (TODO)
   , Control.Applicative.many
   , FP.Base.skipMany
   , Control.Applicative.some
   , FP.Base.skipSome
-  , Control.Applicative.empty
 
   -- ** Errors and failures
+  , Control.Applicative.empty
   , FP.Base.failed
   , FP.Base.try
   , FP.Base.err
@@ -76,7 +99,7 @@ module FlatParse.Stateful (
   , FP.Base.optional_
   , FP.Base.withOption
 
-  -- ** Position
+  -- ** Positions
   , FlatParse.Common.Position.Pos(..)
   , FlatParse.Common.Position.endPos
   , FlatParse.Common.Position.addrToPos#
@@ -139,16 +162,11 @@ import qualified FlatParse.Basic as Basic
 import FlatParse.Stateful.Parser
 import FlatParse.Stateful.Base
 import FlatParse.Stateful.Integers
---import FlatParse.Stateful.Bytes
---import FlatParse.Stateful.Text
---import FlatParse.Stateful.Switch
 import FlatParse.Stateful.Addr
 import FlatParse.Common.Position
---import FlatParse.Common.Switch
 import qualified FlatParse.Common.Assorted as Common
 import qualified FlatParse.Common.Numbers  as Common
 
--- common prefix for using/exporting parsers with their submodule
 import qualified FlatParse.Stateful.Parser as FP.Parser
 import qualified FlatParse.Stateful.Base as FP.Base
 import qualified FlatParse.Stateful.Integers as FP.Integers
@@ -161,11 +179,14 @@ import qualified Control.Applicative
 import GHC.IO (IO(..))
 import GHC.Exts
 import GHC.ForeignPtr
+import GHC.ST (ST(..))
 import System.IO.Unsafe
 
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Internal as B
 import qualified Data.ByteString.Unsafe as B
+
+--------------------------------------------------------------------------------
 
 -- | Higher-level boxed data type for parsing results.
 data Result e a =
@@ -192,7 +213,7 @@ unsafeLiftIO io = ParserT \fp !r eob s n st ->
 
 --------------------------------------------------------------------------------
 
--- | Run a parser. The `Int` argument is the initial state.
+-- | Run a pure parser. The `Int` argument is the initial state.
 runParser :: Parser r e a -> r -> Int -> B.ByteString -> Result e a
 runParser (ParserT f) !r (I# n) b@(B.PS (ForeignPtr _ fp) _ (I# len)) = unsafeDupablePerformIO $
   B.unsafeUseAsCString b \(Ptr buf) -> do
@@ -208,19 +229,20 @@ runParser (ParserT f) !r (I# n) b@(B.PS (ForeignPtr _ fp) _ (I# len)) = unsafeDu
 -- Details are discussed in https://github.com/AndrasKovacs/flatparse/pull/34#issuecomment-1326999390
 
 -- | Run a parser on a 'String', converting it to the corresponding UTF-8 bytes.
+--   The `Int` argument is the initial state.
 --
 -- Reminder: @OverloadedStrings@ for 'B.ByteString' does not yield a valid UTF-8
--- encoding! For non-ASCII 'B.ByteString' literal input, use this
--- wrpaper or properly convert your input first.
+-- encoding! For non-ASCII 'B.ByteString' literal input, use this wrapper or
+-- convert your input using `strToUtf8`.
 runParserUtf8 :: Parser r e a -> r -> Int -> String -> Result e a
 runParserUtf8 pa r !n s = runParser pa r n (Common.strToUtf8 s)
 
--- | Run an ST based parser
+-- | Run an ST-based parser. The `Int` argument is the initial state.
 runParserST :: (forall s. ParserST s r e a) -> r -> Int -> B.ByteString -> Result e a
 runParserST pst !r i buf = unsafeDupablePerformIO (runParserIO pst r i buf)
 {-# inlinable runParserST #-}
 
--- | Run an IO based parser
+-- | Run an IO-based parser. The `Int` argument is the initial state.
 runParserIO :: ParserIO r e a -> r -> Int -> B.ByteString -> IO (Result e a)
 runParserIO (ParserT f) !r (I# n) b@(B.PS (ForeignPtr _ fp) _ (I# len)) = do
   B.unsafeUseAsCString b \(Ptr buf) -> do
@@ -232,6 +254,14 @@ runParserIO (ParserT f) !r (I# n) b@(B.PS (ForeignPtr _ fp) _ (I# len)) = do
       Err# rw' e ->  (# rw', Err e #)
       Fail# rw'  ->  (# rw', Fail #)
 {-# inlinable runParserIO #-}
+
+--------------------------------------------------------------------------------
+
+-- | Run an `ST` action in a `ParserST`.
+liftST :: ST s a -> ParserST s r e a
+liftST (ST f) = ParserT \fp !r eob s n st -> case f st of
+  (# st, a #) -> OK# st a s n
+{-# inline liftST #-}
 
 --------------------------------------------------------------------------------
 

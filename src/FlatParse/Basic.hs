@@ -5,14 +5,16 @@
 {-# LANGUAGE FlexibleInstances #-}
 
 {-|
-Parser supporting custom error types.
+Parser supporting custom error types and embeddable `IO` or `ST` actions, but
+no other bells and whistles.
 
-If you need efficient indentation parsing, use "FlatParse.Stateful" instead.
+If you need efficient indentation parsing, consider "FlatParse.Stateful" instead.
 -}
 
 module FlatParse.Basic (
-  -- * Parser type
-    module FP.Parser
+  -- * Parser types
+    FP.Parser.ParserT(..)
+  , FP.Parser.Parser, FP.Parser.ParserIO, FP.Parser.ParserST
 
   -- * Running parsers
   , Result(..)
@@ -20,6 +22,18 @@ module FlatParse.Basic (
   , runParserUtf8
   , runParserIO
   , runParserST
+
+  -- ** Primitive result types
+  , type FP.Parser.Res#
+  , pattern FP.Parser.OK#, pattern FP.Parser.Err#, pattern FP.Parser.Fail#
+  , type FP.Parser.ResI#
+
+  -- * Embedding `ST` operations
+  , liftST
+
+  -- * UTF conversion
+  , Common.strToUtf8
+  , Common.utf8ToStr
 
   -- * Parsers
   -- ** Bytewise
@@ -42,6 +56,7 @@ module FlatParse.Basic (
   , anyVarintProtobuf
 
   -- ** Combinators
+  , (FP.Parser.<|>)
   , FP.Base.branch
   , FP.Base.notFollowedBy
   , FP.Base.chainl
@@ -58,15 +73,13 @@ module FlatParse.Basic (
   , FP.Switch.switch
   , FP.Switch.switchWithPost
   , FP.Switch.rawSwitchWithPost
-
-  -- *** Non-specific (TODO)
   , Control.Applicative.many
   , FP.Base.skipMany
   , Control.Applicative.some
   , FP.Base.skipSome
-  , Control.Applicative.empty
 
   -- ** Errors and failures
+  , Control.Applicative.empty
   , FP.Base.failed
   , FP.Base.try
   , FP.Base.err
@@ -159,6 +172,7 @@ import qualified Control.Applicative
 import GHC.IO (IO(..))
 import GHC.Exts
 import GHC.ForeignPtr
+import GHC.ST (ST(..))
 import System.IO.Unsafe
 import Data.Ord ( comparing )
 import Data.List ( sortBy )
@@ -232,6 +246,12 @@ runParserIO (ParserT f) b@(B.PS (ForeignPtr _ fp) _ (I# len)) = do
       Err# rw' e ->  (# rw', Err e #)
       Fail# rw'  ->  (# rw', Fail #)
 {-# inlinable runParserIO #-}
+
+-- | Run an `ST` action in a `ParserST`.
+liftST :: ST s a -> ParserST s e a
+liftST (ST f) = ParserT \fp eob s st -> case f st of
+  (# st, a #) -> OK# st a s
+{-# inline liftST #-}
 
 --------------------------------------------------------------------------------
 

@@ -157,10 +157,12 @@ strToBytes :: String -> [Word]
 strToBytes = concatMap charToBytes
 {-# inline strToBytes #-}
 
+-- | Convert an UTF8-encoded `String` to a `B.ByteString`.
 strToUtf8 :: String -> B.ByteString
 strToUtf8 = UTF8.fromString
 {-# inline strToUtf8 #-}
 
+-- | Convert a `B.ByteString` to an UTF8-encoded `String`.
 utf8ToStr :: B.ByteString -> String
 utf8ToStr = UTF8.toString
 {-# inline utf8ToStr #-}
