@@ -7,8 +7,6 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import qualified Data.Char
 import qualified FlatParse.Basic as FB
-import qualified FlatParse.Common.Strings as FB
--- import qualified FlatParse.Stateful as FS
 import Test.HUnit
 import Test.Hspec
 import Test.Hspec.QuickCheck
@@ -397,7 +395,7 @@ basicSpec = describe "FlatParse.Basic" $ do
       it "agrees with Data.Char" $
         property $
           \c ->
-            FB.isAsciiLetter c
+            FB.isLatinLetter c
               === (Data.Char.isAsciiUpper c || Data.Char.isAsciiLower c)
 
     describe "anyAsciiDecimalInt" $ do
@@ -568,33 +566,33 @@ basicSpec = describe "FlatParse.Basic" $ do
 
     describe "many" $ do
       it "parses many chars" $
-        FB.many (FB.satisfy FB.isAsciiLetter) `shouldParseWith` ("abc", "abc")
+        FB.many (FB.satisfy FB.isLatinLetter) `shouldParseWith` ("abc", "abc")
       it "accepts FB.empty input" $
-        FB.many (FB.satisfy FB.isAsciiLetter) `shouldParseWith` ("", "")
+        FB.many (FB.satisfy FB.isLatinLetter) `shouldParseWith` ("", "")
       it "is greedy" $
         (FB.many (FB.satisfy FB.isDigit) *> FB.satisfy FB.isDigit) `shouldParseFail` "123"
 
     describe "skipMany" $ do
       it "parses many chars" $
-        FB.skipMany (FB.satisfy FB.isAsciiLetter) `shouldParseWith` ("abc", ())
+        FB.skipMany (FB.satisfy FB.isLatinLetter) `shouldParseWith` ("abc", ())
       it "accepts FB.empty input" $
-        FB.skipMany (FB.satisfy FB.isAsciiLetter) `shouldParseWith` ("", ())
+        FB.skipMany (FB.satisfy FB.isLatinLetter) `shouldParseWith` ("", ())
       it "is greedy" $
         (FB.skipMany (FB.satisfy FB.isDigit) *> FB.satisfy FB.isDigit) `shouldParseFail` "123"
 
     describe "some" $ do
       it "parses some chars" $
-        FB.some (FB.satisfy FB.isAsciiLetter) `shouldParseWith` ("abc", "abc")
+        FB.some (FB.satisfy FB.isLatinLetter) `shouldParseWith` ("abc", "abc")
       it "rejects FB.empty input" $
-        FB.some (FB.satisfy FB.isAsciiLetter) `shouldParseFail` ""
+        FB.some (FB.satisfy FB.isLatinLetter) `shouldParseFail` ""
       it "is greedy" $
         (FB.some (FB.satisfy FB.isDigit) *> FB.satisfy FB.isDigit) `shouldParseFail` "123"
 
     describe "skipSome" $ do
       it "parses some chars" $
-        FB.skipSome (FB.satisfy FB.isAsciiLetter) `shouldParseWith` ("abc", ())
+        FB.skipSome (FB.satisfy FB.isLatinLetter) `shouldParseWith` ("abc", ())
       it "rejects FB.empty input" $
-        FB.skipSome (FB.satisfy FB.isAsciiLetter) `shouldParseFail` ""
+        FB.skipSome (FB.satisfy FB.isLatinLetter) `shouldParseFail` ""
       it "is greedy" $
         (FB.skipSome (FB.satisfy FB.isDigit) *> FB.satisfy FB.isDigit) `shouldParseFail` "123"
 

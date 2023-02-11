@@ -35,6 +35,11 @@ module FlatParse.Basic (
   , Common.strToUtf8
   , Common.utf8ToStr
 
+  -- * Character predicates
+  , Common.isDigit
+  , Common.isLatinLetter
+  , Common.isGreekLetter
+
   -- * Parsers
   -- ** Bytewise
   , FP.Base.eof
@@ -229,12 +234,12 @@ runParser (ParserT f) b@(B.PS (ForeignPtr _ fp) _ (I# len)) = unsafePerformIO $
 runParserUtf8 :: Parser e a -> String -> Result e a
 runParserUtf8 pa s = runParser pa (Common.strToUtf8 s)
 
--- | Run an ST based parser.
+-- | Run an `ST`-based parser.
 runParserST :: (forall s. ParserST s e a) -> B.ByteString -> Result e a
 runParserST pst buf = unsafeDupablePerformIO (runParserIO pst buf)
 {-# inlinable runParserST #-}
 
--- | Run an IO based parser.
+-- | Run an `IO`-based parser.
 runParserIO :: ParserIO e a -> B.ByteString -> IO (Result e a)
 runParserIO (ParserT f) b@(B.PS (ForeignPtr _ fp) _ (I# len)) = do
   B.unsafeUseAsCString b \(Ptr buf) -> do

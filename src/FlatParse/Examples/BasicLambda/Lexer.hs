@@ -9,7 +9,6 @@ demonstrates a simple but decently informative implementation of error message p
 module FlatParse.Examples.BasicLambda.Lexer where
 
 import FlatParse.Basic hiding (Parser, runParser, string, char, cut)
-import FlatParse.Common.Strings
 
 import qualified FlatParse.Basic as FP
 import qualified Data.ByteString as B
@@ -152,12 +151,12 @@ token p = p <* ws
 
 -- | Read a starting character of an identifier.
 identStartChar :: Parser Char
-identStartChar = satisfyAscii isAsciiLetter
+identStartChar = satisfyAscii isLatinLetter
 {-# inline identStartChar #-}
 
 -- | Read a non-starting character of an identifier.
 identChar :: Parser Char
-identChar = satisfyAscii (\c -> isAsciiLetter c || isDigit c)
+identChar = satisfyAscii (\c -> isLatinLetter c || isDigit c)
 {-# inline identChar #-}
 
 -- | Check whether a `Span` contains exactly a keyword. Does not change parsing state.

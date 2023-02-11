@@ -44,6 +44,11 @@ module FlatParse.Stateful (
   , Common.strToUtf8
   , Common.utf8ToStr
 
+  -- * Character predicates
+  , Common.isDigit
+  , Common.isLatinLetter
+  , Common.isGreekLetter
+
   -- * Parsers
   -- ** Bytewise
   , FP.Base.eof
@@ -237,12 +242,12 @@ runParser (ParserT f) !r (I# n) b@(B.PS (ForeignPtr _ fp) _ (I# len)) = unsafeDu
 runParserUtf8 :: Parser r e a -> r -> Int -> String -> Result e a
 runParserUtf8 pa r !n s = runParser pa r n (Common.strToUtf8 s)
 
--- | Run an ST-based parser. The `Int` argument is the initial state.
+-- | Run an `ST`-based parser. The `Int` argument is the initial state.
 runParserST :: (forall s. ParserST s r e a) -> r -> Int -> B.ByteString -> Result e a
 runParserST pst !r i buf = unsafeDupablePerformIO (runParserIO pst r i buf)
 {-# inlinable runParserST #-}
 
--- | Run an IO-based parser. The `Int` argument is the initial state.
+-- | Run an `IO`-based parser. The `Int` argument is the initial state.
 runParserIO :: ParserIO r e a -> r -> Int -> B.ByteString -> IO (Result e a)
 runParserIO (ParserT f) !r (I# n) b@(B.PS (ForeignPtr _ fp) _ (I# len)) = do
   B.unsafeUseAsCString b \(Ptr buf) -> do

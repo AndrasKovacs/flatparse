@@ -12,7 +12,6 @@ import Data.Char (ord)
 import qualified Data.ByteString as B
 
 import FlatParse.Basic hiding (Parser, runParser, string, char, cut)
-import FlatParse.Common.Strings
 import FlatParse.Examples.BasicLambda.Lexer
 
 --------------------------------------------------------------------------------

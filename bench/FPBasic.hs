@@ -5,7 +5,6 @@ module FPBasic (
   , runNumcsv) where
 
 import FlatParse.Basic
-import FlatParse.Common.Assorted
 
 ws, open, close, ident, sexp, src :: Parser () ()
 ws      = skipMany $(switch [| case _ of " " -> pure (); "\n" -> pure () |])

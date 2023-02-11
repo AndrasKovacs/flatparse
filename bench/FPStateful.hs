@@ -5,7 +5,6 @@ module FPStateful (
   , runNumcsv) where
 
 import FlatParse.Stateful
-import FlatParse.Common.Assorted
 
 ws, open, close, ident, sexp, src :: Parser () () ()
 ws      = skipMany $(switch [| case _ of " " -> pure (); "\n" -> pure () |])
