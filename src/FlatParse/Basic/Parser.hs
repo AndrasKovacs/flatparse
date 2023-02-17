@@ -34,8 +34,7 @@ import GHC.IO ( IO(IO) )
 
 -- | @ParserT st e a@ is a parser with a state token type @st@, an error type
 --   @e@ and a return type @a@. The different state token types support
---   different embededded effects; see `Parser`, `ParserIO` and `ParserST`
---   below.
+--   different embedded effects; see `Parser`, `ParserIO` and `ParserST` below.
 newtype ParserT (st :: ZeroBitType) e a =
     ParserT { runParserT# :: ForeignPtrContents -> Addr# -> Addr# -> st -> Res# st e a }
 
