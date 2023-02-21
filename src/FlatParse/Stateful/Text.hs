@@ -96,8 +96,10 @@ withSatisfy
     :: (Char -> Bool) -> (Char -> ParserT st r e ret) -> ParserT st r e ret
 withSatisfy f p = ParserT \fp !r eob s n st ->
     case runParserT# anyChar fp r eob s n st of
-      OK# st c s n | f c -> runParserT# (p c) fp r eob s n st
-      (# st, _ #)        -> Fail# st
+      -- This is OK# unfolded, to silence incomplete pattern warnings
+      -- in GHC <= 8.8.4.
+      (# st, (# (# c, s, n #) | | #) #) | f c -> runParserT# (p c) fp r eob s n st
+      (# st, _ #)                             -> Fail# st
 {-# inline withSatisfy #-}
 
 -- | Parse a UTF-8 'Char' for which a predicate holds.
