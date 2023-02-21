@@ -645,7 +645,13 @@ basicSpec = describe "FlatParse.Basic" $ do
       pure ()
 
     describe "posLineCols" $ do
-      pure ()
+      let str = FB.strToUtf8 "monkey"
+
+      it "empty"    $ FB.posLineCols str [] `shouldBe` []
+      it "single"   $ FB.posLineCols str [FB.Pos 0] `shouldBe` [(0,6)]
+      it "two"      $ FB.posLineCols str [FB.Pos 0, FB.Pos 1] `shouldBe` [(0,6), (0,5)]
+      it "three"    $ FB.posLineCols str [FB.Pos 3, FB.Pos 5, FB.Pos 4] `shouldBe` [(0,3),(0,1),(0,2)]
+      it "emptystr" $ FB.posLineCols mempty [] `shouldBe` []
 
     describe "unsafeSpanToByteString" $ do
       pure ()

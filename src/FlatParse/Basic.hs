@@ -386,9 +386,10 @@ validPos str pos =
         _      -> error "FlatParse.Basic.validPos: got a non-OK result, impossible"
 {-# inline validPos #-}
 
--- | Compute corresponding line and column numbers for each `Pos` in a list. Throw an error
---   on invalid positions. Note: computing lines and columns may traverse the `B.ByteString`,
---   but it traverses it only once regardless of the length of the position list.
+-- | Compute corresponding line and column numbers for each `Pos` in a list,
+--   assuming UTF8 encoding. Throw an error on invalid positions. Note:
+--   computing lines and columns may traverse the `B.ByteString`, but it
+--   traverses it only once regardless of the length of the position list.
 posLineCols :: B.ByteString -> [Pos] -> [(Int, Int)]
 posLineCols str poss =
   let go !line !col [] = pure []
@@ -404,7 +405,7 @@ posLineCols str poss =
             go line (col + 1) ((i, pos):poss)
 
       sorted :: [(Int, Pos)]
-      sorted = sortBy (comparing snd) (zip [0..] poss)
+      sorted = sortBy (\(_, i) (_, j) -> compare j i) (zip [0..] poss)
 
   in case runParser (go 0 0 sorted) str of
        OK res _ -> snd <$> sortBy (comparing fst) res
