@@ -261,6 +261,9 @@ withEnsure# n# (ParserT p) = ParserT \fp eob s st ->
 -- | Read the given number of bytes as a 'ByteString'.
 --
 -- Throws a runtime error if given a negative integer.
+--
+-- This does no copying. The 'B.ByteString' returned is a "slice" of the input,
+-- and will keep it alive. To avoid this, use 'B.copy' on the output.
 take :: Int -> ParserT st e B.ByteString
 take (I# n#) = take# n#
 {-# inline take #-}
@@ -269,6 +272,9 @@ take (I# n#) = take# n#
 --   available.
 --
 -- Throws a runtime error if given a negative integer.
+--
+-- This does no copying. The 'B.ByteString' returned is a "slice" of the input,
+-- and will keep it alive. To avoid this, use 'B.copy' on the output.
 take# :: Int# -> ParserT st e B.ByteString
 take# n# = Common.withPosInt# n# (takeUnsafe# n#)
 {-# inline take# #-}
@@ -277,6 +283,9 @@ take# n# = Common.withPosInt# n# (takeUnsafe# n#)
 --   available.
 --
 -- Undefined behaviour if given a negative integer.
+--
+-- This does no copying. The 'B.ByteString' returned is a "slice" of the input,
+-- and will keep it alive. To avoid this, use 'B.copy' on the output.
 takeUnsafe# :: Int# -> ParserT st e B.ByteString
 takeUnsafe# n# = ParserT \fp eob s st ->
     case n# <=# minusAddr# eob s of
@@ -285,6 +294,9 @@ takeUnsafe# n# = ParserT \fp eob s st ->
 {-# inline takeUnsafe# #-}
 
 -- | Consume the rest of the input. May return the empty bytestring.
+--
+-- This does no copying. The 'B.ByteString' returned is a "slice" of the input,
+-- and will keep it alive. To avoid this, use 'B.copy' on the output.
 takeRest :: ParserT st e B.ByteString
 takeRest = ParserT \fp eob s st ->
   let n# = minusAddr# eob s
