@@ -405,7 +405,7 @@ posLineCols str poss =
             go line (col + 1) ((i, pos):poss)
 
       sorted :: [(Int, Pos)]
-      sorted = sortBy (\(_, i) (_, j) -> compare j i) (zip [0..] poss)
+      sorted = sortBy (\(_, i) (_, j) -> compare i j) (zip [0..] poss)
 
   in case runParser (go 0 0 sorted) str of
        OK res _ -> snd <$> sortBy (comparing fst) res

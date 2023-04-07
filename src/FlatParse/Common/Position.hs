@@ -12,9 +12,17 @@ import GHC.ForeignPtr ( ForeignPtr(..) )
 import GHC.Exts
 
 -- | Byte offset counted backwards from the end of the buffer.
+--   Note: the `Ord` instance for `Pos` considers the earlier positions to be
+--   smaller.
 newtype Pos = Pos { unPos :: Int }
     deriving stock (Show)
-    deriving (Eq, Ord) via Int
+    deriving Eq via Int
+
+instance Ord Pos where
+  (<=) (Pos x) (Pos y) = y <= x
+  {-# inline (<=) #-}
+  compare (Pos x) (Pos y) = compare y x
+  {-# inline compare #-}
 
 -- | A pair of positions.
 data Span = Span !Pos !Pos
