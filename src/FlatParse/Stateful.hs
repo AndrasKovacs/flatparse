@@ -181,7 +181,7 @@ import qualified FlatParse.Stateful.Switch as FP.Switch
 import qualified FlatParse.Stateful.Addr as FP.Addr
 
 import qualified Control.Applicative
-import GHC.IO (IO(..))
+import GHC.IO (IO(..), unsafeIOToST)
 import GHC.Exts
 import GHC.ForeignPtr
 import GHC.ST (ST(..))
@@ -243,8 +243,8 @@ runParserUtf8 :: Parser r e a -> r -> Int -> String -> Result e a
 runParserUtf8 pa r !n s = runParser pa r n (Common.strToUtf8 s)
 
 -- | Run an `ST`-based parser. The `Int` argument is the initial state.
-runParserST :: (forall s. ParserST s r e a) -> r -> Int -> B.ByteString -> Result e a
-runParserST pst !r i buf = unsafeDupablePerformIO (runParserIO pst r i buf)
+runParserST :: ParserST s r e a -> r -> Int -> B.ByteString -> ST s (Result e a)
+runParserST pst !r i buf = unsafeIOToST (runParserIO (unsafeCoerce# pst) r i buf)
 {-# inlinable runParserST #-}
 
 -- | Run an `IO`-based parser. The `Int` argument is the initial state.
