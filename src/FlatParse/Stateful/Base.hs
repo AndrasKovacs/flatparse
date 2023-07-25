@@ -40,6 +40,7 @@ module FlatParse.Stateful.Base
   , failed
   , try
   , err
+  , withError
   , fails
   , cut
   , cutting
@@ -70,6 +71,14 @@ failed = Control.Applicative.empty
 err :: e -> ParserT st r e a
 err e = ParserT \_fp !_r _eob _s _n st -> Err# st e
 {-# inline err #-}
+
+-- | Run the parser, if an error is thrown, handle it with the given function.
+withError :: ParserT st r e b -> (e -> ParserT st r e b) -> ParserT st r e b
+withError (ParserT f) hdl = ParserT $ \fp !r eob s n st -> case f fp r eob s n st of
+  Err# st' e -> case hdl e of
+    ParserT g -> g fp r eob s n st'
+  x -> x
+{-# inline withError #-}
 
 -- | Convert a parsing error into failure.
 try :: ParserT st r e a -> ParserT st r e a

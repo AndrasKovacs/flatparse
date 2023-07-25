@@ -97,6 +97,7 @@ module FlatParse.Stateful (
   , FP.Base.failed
   , FP.Base.try
   , FP.Base.err
+  , FP.Base.withError
   , FP.Base.fails
   , FP.Base.cut
   , FP.Base.cutting
