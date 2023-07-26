@@ -1,11 +1,11 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.1.
+-- This file has been generated from package.yaml by hpack version 0.35.2.
 --
 -- see: https://github.com/sol/hpack
 
 name:           flatparse
-version:        0.5.0.0
+version:        0.5.0.1
 synopsis:       High-performance parsing from strict bytestrings
 description:    @Flatparse@ is a high-performance parsing library for strict bytestring input. See the README for more information:
                 <https://github.com/AndrasKovacs/flatparse>.
