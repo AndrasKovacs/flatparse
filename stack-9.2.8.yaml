@@ -1,7 +1,5 @@
 
-# ghc 9.6.2
-
-resolver: nightly-2023-09-08
+resolver: lts-20.26
 
 packages:
 - .

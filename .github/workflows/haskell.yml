@@ -12,29 +12,20 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        cabal: ["3.6"]
-        ghc: ["8.6.5", "8.8.4", "8.10.7", "9.0.2", "9.2.5", "9.4.5"]
+        cabal: ["3.10"]
+        ghc: ["8.6.5", "8.8.4", "8.10.7", "9.0.2", "9.2.8", "9.4.6", "9.6.2"]
     env:
       CONFIG: "--enable-tests --enable-benchmarks"
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/cache@v3
-        with:
-          path: ${{ runner.temp }}/llvm
-          key: llvm-9.0.0
-      - uses: KyleMayes/install-llvm-action@v1
-        with:
-          version: "9.0.0"
-          directory: ${{ runner.temp }}/llvm
-          cached: ${{ steps.cache-llvm.outputs.cache-hit }}
+      - uses: actions/checkout@v4
       - uses: haskell/actions/setup@v2
         id: setup-haskell-cabal
         with:
           ghc-version: ${{ matrix.ghc }}
           cabal-version: ${{ matrix.cabal }}
-      - run: cabal v2-update
-      - run: cabal v2-freeze $CONFIG
-      - uses: actions/cache@v3
+      - run: cabal update
+      - run: cabal freeze $CONFIG
+      - uses: actions/cache@v3.3.2
         with:
           path: |
             ${{ steps.setup-haskell-cabal.outputs.cabal-store }}
@@ -42,8 +33,8 @@ jobs:
           key: ${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('cabal.project.freeze') }}
           restore-keys: |
             ${{ runner.os }}-${{ matrix.ghc }}-
-      - run: cabal v2-build $CONFIG
-      - run: cabal v2-haddock $CONFIG
-      - run: cabal v2-sdist
-      - run: cabal v2-bench
-      - run: cabal v2-test
+      - run: cabal build $CONFIG
+      - run: cabal haddock $CONFIG
+      - run: cabal sdist
+      - run: cabal bench
+      - run: cabal test
