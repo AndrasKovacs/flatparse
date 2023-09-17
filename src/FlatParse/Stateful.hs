@@ -3,6 +3,7 @@
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 {-|
 Parser supporting a custom reader environment, custom error types and an 'Int'
@@ -22,6 +23,7 @@ module FlatParse.Stateful (
   , runParserUtf8
   , runParserIO
   , runParserST
+  , embedParserST
 
   -- ** Primitive result types
   , type FP.Parser.Res#
@@ -260,6 +262,11 @@ runParserIO (ParserT f) !r (I# n) b@(B.PS (ForeignPtr _ fp) _ (I# len)) = do
       Err# rw' e ->  (# rw', Err e #)
       Fail# rw'  ->  (# rw', Fail #)
 {-# inlinable runParserIO #-}
+
+-- | Run a `ParserST` inside a pure parser.
+embedParserST :: forall r e a. (forall s. ParserST s r e a) -> Parser r e a
+embedParserST f = unsafeCoerce# (f :: ParserST RealWorld r e a)
+{-# inline embedParserST #-}
 
 --------------------------------------------------------------------------------
 

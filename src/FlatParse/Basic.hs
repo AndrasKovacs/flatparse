@@ -3,6 +3,7 @@
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 {-|
 Parser supporting custom error types and embeddable `IO` or `ST` actions, but
@@ -22,6 +23,7 @@ module FlatParse.Basic (
   , runParserUtf8
   , runParserIO
   , runParserST
+  , embedParserST
 
   -- ** Primitive result types
   , type FP.Parser.Res#
@@ -258,6 +260,11 @@ liftST :: ST s a -> ParserST s e a
 liftST (ST f) = ParserT \fp eob s st -> case f st of
   (# st, a #) -> OK# st a s
 {-# inline liftST #-}
+
+-- | Run a `ParserST` inside a pure parser.
+embedParserST :: forall e a. (forall s. ParserST s e a) -> Parser e a
+embedParserST f = unsafeCoerce# (f :: ParserST RealWorld e a)
+{-# inline embedParserST #-}
 
 --------------------------------------------------------------------------------
 
