@@ -89,6 +89,7 @@ main = defaultMain [
                (show size)
                [ bench "check" (whnf ReadVectorInt.checkInts bs)
                , bench "parse" (whnf ReadVectorInt.readInts bs)
+               , bench "parse'" (whnf ReadVectorInt.readInts' bs)
                ])
         | size <- [1000, 10000, 100000]
         ]
