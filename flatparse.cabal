@@ -142,6 +142,7 @@ benchmark bench
       Megaparsec
       Parsec
       ReadInteger
+      ReadVectorInt
       Paths_flatparse
   hs-source-dirs:
       bench
@@ -168,6 +169,7 @@ benchmark bench
     , parsec
     , primitive
     , utf8-string >=1.0.2 && <1.1
+    , vector
   default-language: Haskell2010
   if flag(dump)
     ghc-options: -ddump-simpl -ddump-stg-final -ddump-cmm -dsuppress-all -dno-suppress-type-signatures -ddump-to-file

@@ -114,5 +114,6 @@ benchmarks:
       - megaparsec
       - parsec
       - primitive
+      - vector
     ghc-options:
       - -O2
