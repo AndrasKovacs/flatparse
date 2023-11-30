@@ -84,6 +84,7 @@ module FlatParse.Stateful (
   , FP.Base.withEnsure1
   , FP.Base.withEnsure#
   , FP.Base.isolate
+  , isolateToNextNull
   , FP.Base.isolate#
   , FP.Base.isolateUnsafe#
   , FP.Switch.switch
@@ -422,15 +423,16 @@ unsafeSpanToByteString (Span l r) =
 
 --------------------------------------------------------------------------------
 
--- | Read a null-terminated bytestring (a C-style string).
+-- | Isolate the given parser up to (excluding) the next null byte.
 --
--- Consumes the null terminator.
-anyCString :: ParserT st r e B.ByteString
-anyCString = ParserT \fp !r eob s n st -> go' fp eob s n st
+-- All isolated bytes must be consumed. The null byte is consumed in the outer
+-- parser.
+isolateToNextNull :: ParserT st r e a -> ParserT st r e a
+isolateToNextNull (ParserT p) = ParserT \fp !r eob s n st -> go' fp r n eob s st
   where
-    go' fp eob s0 n st = go 0# s0 n
+    go' fp r n eob s0 st = go s0
       where
-        go n# s n = case eqAddr# eob s of
+        go s = case eqAddr# eob s of
           1# -> Fail# st
           _  ->
             let s' = plusAddr# s 1#
@@ -440,8 +442,21 @@ anyCString = ParserT \fp !r eob s n st -> go' fp eob s n st
 #else
             in  case eqWord# (indexWord8OffAddr# s 0#) 0## of
 #endif
-                  1# -> OK# st (B.PS (ForeignPtr s0 fp) 0 (I# n#)) s' n
-                  _  -> go (n# +# 1#) s' n
+                  1# ->
+                    case p fp r s s0 n st of
+                      OK# st' a s'' n' ->
+                        case eqAddr# s s'' of
+                          1# -> OK#   st' a s' n'
+                          _  -> Fail# st'
+                      x -> x
+                  _  -> go s'
+{-# inline isolateToNextNull #-}
+
+-- | Read a null-terminated bytestring (a C-style string).
+--
+-- Consumes the null terminator.
+anyCString :: ParserT st r e B.ByteString
+anyCString = isolateToNextNull takeRest
 {-# inline anyCString #-}
 
 -- | Read a null-terminated bytestring (a C-style string), where the bytestring
