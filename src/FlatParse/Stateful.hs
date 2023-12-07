@@ -430,51 +430,49 @@ unsafeSpanToByteString (Span l r) =
 --
 -- Useful for defining parsers for null-terminated data.
 isolateToNextNull :: ParserT st r e a -> ParserT st r e a
-isolateToNextNull (ParserT p) = ParserT \fp !r eob s n st -> go' fp r n eob s st
+isolateToNextNull (ParserT p) = ParserT \fp !r eob s n st -> go fp r n eob s st s
   where
-    go' fp r n eob s0 st = go s0
-      where
-        {- The "find first null byte" algorithms used here are adapted from
-           Hacker's Delight (2012) ch.6.
+    {- The "find first null byte" algorithms used here are adapted from
+       Hacker's Delight (2012) ch.6.
 
-        We read a word at a time for efficiency. The internal algorithm does
-        byte indexing, thus endianness matters. We switch between indexing
-        algorithms depending on compile-time native endianness. (The code
-        surrounding the indexing is endian-independent, so we do this inline).
-        -}
-        go s =
+    We read a word at a time for efficiency. The internal algorithm does
+    byte indexing, thus endianness matters. We switch between indexing
+    algorithms depending on compile-time native endianness. (The code
+    surrounding the indexing is endian-independent, so we do this inline).
+    -}
+    go fp r n eob s0 st s =
 #ifdef WORDS_BIGENDIAN
-            -- big-endian ("L->R"): find leftmost null byte
-            let !x@(I# x#) = Common.zbytel'intermediate (I# (indexIntOffAddr# s 0#)) in
+        -- big-endian ("L->R"): find leftmost null byte
+        let !x@(I# x#) = Common.zbytel'intermediate (I# (indexIntOffAddr# s 0#)) in
 #else
-            -- little-endian ("R->L"): find rightmost null byte
-            let !x@(I# x#) = Common.zbyter'intermediate (I# (indexIntOffAddr# s 0#)) in
+        -- little-endian ("R->L"): find rightmost null byte
+        let !x@(I# x#) = Common.zbyter'intermediate (I# (indexIntOffAddr# s 0#)) in
 #endif
-            case x# ==# 0# of
-              1# -> -- no 0x00 in next word
-                let s' = s `plusAddr#` 8# in
-                case gtAddr# s' eob of
-                  1# -> Fail# st -- less than a word of input: fail
-                  _  -> go s' -- more than a word of input: skip word, recurse
-              _  -> -- 0x00 somewhere in next word
+        case x# ==# 0# of
+          1# -> -- no 0x00 in next word
+            let s' = s `plusAddr#` 8# in
+            case gtAddr# s' eob of
+              1# -> Fail# st -- less than a word of input: fail
+              _  -> go fp r n eob s0 st s' -- more than a word of input: skip word, recurse
+          _  -> -- 0x00 somewhere in next word
 #ifdef WORDS_BIGENDIAN
-                let !(I# nullIdx#) = Common.zbytel'toIdx x in
+            let !(I# nullIdx#) = Common.zbytel'toIdx x in
 #else
-                let !(I# nullIdx#) = Common.zbyter'toIdx x in
-                -- TEST BE ON LE: change above CPP to zbytel, uncomment below
-                -- let !(I# nullIdx#) = Common.zbytel'toIdx (I# (word2Int# (byteSwap# (int2Word# x#)))) in
+            let !(I# nullIdx#) = Common.zbyter'toIdx x in
+            -- TEST BE ON LE: change above CPP to zbytel, uncomment below
+            -- let !(I# nullIdx#) = Common.zbytel'toIdx (I# (word2Int# (byteSwap# (int2Word# x#)))) in
 #endif
-                case nullIdx# <# minusAddr# eob s of
-                  1# -> -- 0x00 is contained in input
-                    let s' = s `plusAddr#` nullIdx# in
-                    case p fp r s' s0 n st of
-                      OK# st' a s'' n' ->
-                        case eqAddr# s' s'' of
-                          1# -> -- consumed full input: skip null, return
-                                OK#   st' a (s' `plusAddr#` 1#) n'
-                          _  -> Fail# st' -- didn't consume whole input
-                      x -> x
-                  _  -> Fail# st -- 0x00 is not contained in input
+            case nullIdx# <# minusAddr# eob s of
+              1# -> -- 0x00 is contained in input
+                let s' = s `plusAddr#` nullIdx# in
+                case p fp r s' s0 n st of
+                  OK# st' a s'' n' ->
+                    case eqAddr# s' s'' of
+                      1# -> -- consumed full input: skip null, return
+                            OK#   st' a (s' `plusAddr#` 1#) n'
+                      _  -> Fail# st' -- didn't consume whole input
+                  x -> x
+              _  -> Fail# st -- 0x00 is not contained in input
 {-# inline isolateToNextNull #-}
 
 -- | Read a null-terminated bytestring (a C-style string).
