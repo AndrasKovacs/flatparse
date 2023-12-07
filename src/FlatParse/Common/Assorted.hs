@@ -24,6 +24,10 @@ module FlatParse.Common.Assorted
 
   -- * Helpers
   , withPosInt#, withIntUnwrap#
+
+  -- * Bit manipulation
+  , zbytel, zbytel'intermediate, zbytel'toIdx
+  , zbyter, zbyter'intermediate, zbyter'toIdx
   ) where
 
 import Data.Bits
@@ -166,3 +170,51 @@ strToUtf8 = UTF8.fromString
 utf8ToStr :: B.ByteString -> String
 utf8ToStr = UTF8.toString
 {-# inline utf8ToStr #-}
+
+--------------------------------------------------------------------------------
+
+-- | Index of leftmost null byte, or (number of bytes in type) if not present.
+--
+-- Adapted from Hacker's Delight 6-1. Useful in big-endian environments.
+zbytel :: (FiniteBits a, Num a) => a -> Int
+zbytel = zbytel'toIdx . zbytel'intermediate
+{-# inline zbytel #-}
+
+-- | bit mangling, returns 0 for inputs without a null byte
+--
+-- Separating allows us to skip some index calculation if there was no null byte.
+zbytel'intermediate :: (FiniteBits a, Num a) => a -> a
+zbytel'intermediate a =
+    let a' = (a .&. mask) + mask
+    in  complement (a' .|. a .|. mask)
+  where
+    mask = 0x7F7F7F7F7F7F7F7F
+{-# inline zbytel'intermediate #-}
+
+-- | bit mangling, turns intermediate value into an index
+--
+-- Separating allows us to skip some index calculation if there was no null byte.
+zbytel'toIdx :: (FiniteBits a, Num a) => a -> Int
+zbytel'toIdx a = countLeadingZeros a `unsafeShiftR` 3
+{-# inline zbytel'toIdx #-}
+
+-- | Index of rightmost null byte, or (number of bytes in type) if not present
+--
+-- Adapted from Hacker's Delight 6-1. Useful in little-endian environments.
+zbyter :: (FiniteBits a, Num a) => a -> Int
+zbyter = zbyter'toIdx . zbyter'intermediate
+{-# inline zbyter #-}
+
+-- | bit mangling, returns 0 for inputs without a null byte
+--
+-- Separating allows us to skip some index calculation if there was no null byte.
+zbyter'intermediate :: (FiniteBits a, Num a) => a -> a
+zbyter'intermediate a = (a - 0x0101010101010101) .&. (complement a) .&. 0x8080808080808080
+{-# inline zbyter'intermediate #-}
+
+-- | bit mangling, turns intermediate value into an index
+--
+-- Separating allows us to skip some index calculation if there was no null byte.
+zbyter'toIdx :: (FiniteBits a, Num a) => a -> Int
+zbyter'toIdx a = countTrailingZeros a `unsafeShiftR` 3
+{-# inline zbyter'toIdx #-}
