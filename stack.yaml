@@ -1,7 +1,7 @@
 
 # ghc 9.6.2
 
-resolver: nightly-2023-09-08
+resolver: nightly-2023-12-07
 
 packages:
 - .
