@@ -71,8 +71,7 @@ withAnySized# size# indexOffAddr p =
 withAnySizedUnsafe#
     :: Int# -> (Addr# -> Int# -> a) -> (a -> ParserT st e r) -> ParserT st e r
 withAnySizedUnsafe# size# indexOffAddr p = ParserT \fp eob buf st ->
--- TODO force? i.e. @let !a, !buf'@ ?
-  let a    = indexOffAddr buf 0#
+  let !a   = indexOffAddr buf 0#
       buf' = plusAddr# buf size#
   in  runParserT# (p a) fp eob buf' st
 {-# inline withAnySizedUnsafe# #-}
