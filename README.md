@@ -55,13 +55,13 @@ Execution times below. See source code in [bench](bench). Compiled with GHC
 |sexp/attoparsec              | 21.82 ms   |
 |sexp/megaparsec              | 59.60 ms   |
 |sexp/parsec                  | 79.81 ms   |
-|long keyword/fpbasic         | 96.95 μs   |
-|long keyword/fpstateful      | 95.30 μs   |
+|long keyword/fpbasic         | 0.1 ms     |
+|long keyword/fpstateful      | 0.1 ms     |
 |long keyword/attoparsec      | 2.43 ms    |
 |long keyword/megaparsec      | 5.196 ms   |
 |long keyword/parsec          | 10.02 ms   |
-|numeral csv/fpbasic          | 715.2 μs   |
-|numeral csv/fpstateful       | 555.0 μs   |
+|numeral csv/fpbasic          | 0.72 ms    |
+|numeral csv/fpstateful       | 0.56 ms    |
 |numeral csv/attoparsec       | 10.52 ms   |
 |numeral csv/megaparsec       | 19.77 ms   |
 |numeral csv/parsec           | 26.46 ms   |
