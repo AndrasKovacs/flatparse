@@ -58,7 +58,7 @@ Execution times below. See source code in [bench](bench). Compiled with GHC
 |long keyword/fpbasic         | 0.1 ms     |
 |long keyword/fpstateful      | 0.1 ms     |
 |long keyword/attoparsec      | 2.43 ms    |
-|long keyword/megaparsec      | 5.196 ms   |
+|long keyword/megaparsec      | 5.2 ms     |
 |long keyword/parsec          | 10.02 ms   |
 |numeral csv/fpbasic          | 0.72 ms    |
 |numeral csv/fpstateful       | 0.56 ms    |
