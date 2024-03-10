@@ -190,7 +190,7 @@ isolateUnsafe# i# (ParserT p) =
 --   the usual `chainl` function from the parsec libraries!
 chainl :: (b -> a -> b) -> ParserT st r e b -> ParserT st r e a -> ParserT st r e b
 chainl f start elem = start >>= go where
-  go b = do {!a <- elem; go $! f b a} <|> pure b
+  go b = withOption elem (\ !a -> go $! f b a) (pure b)
 {-# inline chainl #-}
 
 -- | An analogue of the list `foldr` function: parse zero or more @a@-s, terminated by a @b@, and

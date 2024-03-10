@@ -10,6 +10,7 @@ module FlatParse.Basic.Parser
   -- * Parser
     ParserT(..)
   , Parser, ParserIO, ParserST
+  , pureLazy
 
   -- * Result
   , type Res#
@@ -55,7 +56,7 @@ instance MonadIO (ParserIO e) where
 
 instance Functor (ParserT st e) where
   fmap f (ParserT g) = ParserT \fp eob s st -> case g fp eob s st of
-    OK# st' a s -> OK# st' (f $! a) s
+    OK# st' a s -> let !b = f a in OK# st' b s
     x           -> unsafeCoerce# x
   {-# inline fmap #-}
 
@@ -65,11 +66,11 @@ instance Functor (ParserT st e) where
   {-# inline (<$) #-}
 
 instance Applicative (ParserT st e) where
-  pure a = ParserT \fp eob s st -> OK# st a s
+  pure !a = ParserT \fp eob s st -> OK# st a s
   {-# inline pure #-}
   ParserT ff <*> ParserT fa = ParserT \fp eob s st -> case ff fp eob s st of
     OK# st' f s -> case fa fp eob s st' of
-      OK# st'' a s -> OK# st'' (f $! a) s
+      OK# st'' a s -> let !b = f a in OK# st'' b s
       x            -> unsafeCoerce# x
     x           -> unsafeCoerce# x
   {-# inline (<*>) #-}
@@ -83,6 +84,11 @@ instance Applicative (ParserT st e) where
     OK# st' _a s -> fb fp eob s st'
     x            -> unsafeCoerce# x
   {-# inline (*>) #-}
+
+-- | Same as `pure` for `ParserT` except that it does not force the returned value.
+pureLazy :: a -> ParserT st e a
+pureLazy a = ParserT \fp eob s st -> OK# st a s
+{-# inline pureLazy #-}
 
 instance Monad (ParserT st e) where
   return = pure
