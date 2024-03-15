@@ -36,6 +36,9 @@ module FlatParse.Basic.Integers
   , sizedUnsafe#
   ) where
 
+-- for WORDS_BIGENDIAN
+#include "MachDeps.h"
+
 import FlatParse.Basic.Parser
 import FlatParse.Basic.Base ( withEnsure# )
 
@@ -204,7 +207,7 @@ is inlined as a single @BSWAP@ instruction.
 
 -- | Parse any 'Word16' (little-endian).
 anyWord16le :: ParserT st e Word16
-#ifdef WORDS_BIGENDIAN
+#if defined(WORDS_BIGENDIAN)
 anyWord16le = withAnyWord16 (pure . byteSwap16)
 #else
 anyWord16le = anyWord16
@@ -213,7 +216,7 @@ anyWord16le = anyWord16
 
 -- | Parse any 'Word16' (big-endian).
 anyWord16be :: ParserT st e Word16
-#ifdef WORDS_BIGENDIAN
+#if defined(WORDS_BIGENDIAN)
 anyWord16be = anyWord16
 #else
 anyWord16be = withAnyWord16 (pure . byteSwap16)
@@ -222,7 +225,7 @@ anyWord16be = withAnyWord16 (pure . byteSwap16)
 
 -- | Parse any 'Word32' (little-endian).
 anyWord32le :: ParserT st e Word32
-#ifdef WORDS_BIGENDIAN
+#if defined(WORDS_BIGENDIAN)
 anyWord32le = withAnyWord32 (pure . byteSwap32)
 #else
 anyWord32le = anyWord32
@@ -231,7 +234,7 @@ anyWord32le = anyWord32
 
 -- | Parse any 'Word32' (big-endian).
 anyWord32be :: ParserT st e Word32
-#ifdef WORDS_BIGENDIAN
+#if defined(WORDS_BIGENDIAN)
 anyWord32be = anyWord32
 #else
 anyWord32be = withAnyWord32 (pure . byteSwap32)
@@ -240,7 +243,7 @@ anyWord32be = withAnyWord32 (pure . byteSwap32)
 
 -- | Parse any 'Word64' (little-endian).
 anyWord64le :: ParserT st e Word64
-#ifdef WORDS_BIGENDIAN
+#if defined(WORDS_BIGENDIAN)
 anyWord64le = withAnyWord64 (pure . byteSwap64)
 #else
 anyWord64le = anyWord64
@@ -249,7 +252,7 @@ anyWord64le = anyWord64
 
 -- | Parse any 'Word64' (big-endian).
 anyWord64be :: ParserT st e Word64
-#ifdef WORDS_BIGENDIAN
+#if defined(WORDS_BIGENDIAN)
 anyWord64be = anyWord64
 #else
 anyWord64be = withAnyWord64 (pure . byteSwap64)
@@ -258,7 +261,7 @@ anyWord64be = withAnyWord64 (pure . byteSwap64)
 
 -- | Parse any 'Int16' (little-endian).
 anyInt16le :: ParserT st e Int16
-#ifdef WORDS_BIGENDIAN
+#if defined(WORDS_BIGENDIAN)
 anyInt16le = withAnyWord16 (pure . word16ToInt16 . byteSwap16)
 #else
 anyInt16le = anyInt16
@@ -267,7 +270,7 @@ anyInt16le = anyInt16
 
 -- | Parse any 'Int16' (big-endian).
 anyInt16be :: ParserT st e Int16
-#ifdef WORDS_BIGENDIAN
+#if defined(WORDS_BIGENDIAN)
 anyInt16be = anyInt16
 #else
 anyInt16be = withAnyWord16 (pure . word16ToInt16 . byteSwap16)
@@ -276,7 +279,7 @@ anyInt16be = withAnyWord16 (pure . word16ToInt16 . byteSwap16)
 
 -- | Parse any 'Int32' (little-endian).
 anyInt32le :: ParserT st e Int32
-#ifdef WORDS_BIGENDIAN
+#if defined(WORDS_BIGENDIAN)
 anyInt32le = withAnyWord32 (pure . word32ToInt32 . byteSwap32)
 #else
 anyInt32le = anyInt32
@@ -285,7 +288,7 @@ anyInt32le = anyInt32
 
 -- | Parse any 'Int32' (big-endian).
 anyInt32be :: ParserT st e Int32
-#ifdef WORDS_BIGENDIAN
+#if defined(WORDS_BIGENDIAN)
 anyInt32be = anyInt32
 #else
 anyInt32be = withAnyWord32 (pure . word32ToInt32 . byteSwap32)
@@ -294,7 +297,7 @@ anyInt32be = withAnyWord32 (pure . word32ToInt32 . byteSwap32)
 
 -- | Parse any 'Int64' (little-endian).
 anyInt64le :: ParserT st e Int64
-#ifdef WORDS_BIGENDIAN
+#if defined(WORDS_BIGENDIAN)
 anyInt64le = withAnyWord64 (pure . word64ToInt64 . byteSwap64)
 #else
 anyInt64le = anyInt64
@@ -303,7 +306,7 @@ anyInt64le = anyInt64
 
 -- | Parse any 'Int64' (big-endian).
 anyInt64be :: ParserT st e Int64
-#ifdef WORDS_BIGENDIAN
+#if defined(WORDS_BIGENDIAN)
 anyInt64be = anyInt64
 #else
 anyInt64be = withAnyWord64 (pure . word64ToInt64 . byteSwap64)
