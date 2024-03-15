@@ -166,6 +166,8 @@ module FlatParse.Stateful (
 
   ) where
 
+-- for WORDS_BIGENDIAN
+#include "MachDeps.h"
 
 import qualified FlatParse.Basic as Basic
 import FlatParse.Stateful.Parser
@@ -472,7 +474,7 @@ isolateToNextNull (ParserT p) = ParserT \fp !r eob s n st -> go fp r n eob s st 
             -- reading could probably segfault
             go8 fp r n eob s0 st s
           _  -> -- >= 8 bytes of input: use efficient 8-byte scanning
-#ifdef WORDS_BIGENDIAN
+#if defined(WORDS_BIGENDIAN)
             -- big-endian ("L->R"): find leftmost null byte
             let !x@(I# x#) = Common.zbytel'intermediate (I# (indexIntOffAddr# s 0#)) in
 #else
@@ -482,7 +484,7 @@ isolateToNextNull (ParserT p) = ParserT \fp !r eob s n st -> go fp r n eob s st 
             case x# ==# 0# of
               1# -> go fp r n eob s0 st sWord -- no 0x00 in next word
               _  -> -- 0x00 somewhere in next word
-#ifdef WORDS_BIGENDIAN
+#if defined(WORDS_BIGENDIAN)
                 let !(I# nullIdx#) = Common.zbytel'toIdx x in
 #else
                 let !(I# nullIdx#) = Common.zbyter'toIdx x in
