@@ -41,6 +41,7 @@ module FlatParse.Basic.Base
   , try
   , err
   , withError
+  , withAnyResult
   , fails
   , cut
   , cutting
@@ -79,6 +80,21 @@ withError (ParserT f) hdl = ParserT $ \fp eob s st -> case f fp eob s st of
     ParserT g -> g fp eob s st'
   x -> x
 {-# inline withError #-}
+
+-- | Run the parser, and handle each possible result.
+withAnyResult
+  :: ParserT st t a         -- ^ The parser to run.
+  -> (a -> ParserT st e b)  -- ^ The parser to run in case of success.
+  -> ParserT st e b         -- ^ The parser to run in case of failure.
+  -> (t -> ParserT st e b)  -- ^ The parser to run in case of error.
+  -> ParserT st e b
+withAnyResult (ParserT first) whenSuccess (ParserT whenFailure) whenError =
+  ParserT \fp eob n st ->
+    case first fp eob n st of
+      OK# st' a  n' -> runParserT# (whenSuccess a) fp eob n' st'
+      Fail# st'     -> whenFailure fp eob n st'
+      Err# st' e    -> runParserT# (whenError e) fp eob n st'
+{-# INLINE withAnyResult #-}
 
 -- | Convert a parsing error into failure.
 try :: ParserT st e a -> ParserT st e a

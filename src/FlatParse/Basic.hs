@@ -92,6 +92,7 @@ module FlatParse.Basic (
   , FP.Base.try
   , FP.Base.err
   , FP.Base.withError
+  , FP.Base.withAnyResult
   , FP.Base.fails
   , FP.Base.cut
   , FP.Base.cutting
