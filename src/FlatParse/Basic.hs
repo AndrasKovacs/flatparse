@@ -398,7 +398,7 @@ validPos str pos =
         _      -> error "FlatParse.Basic.validPos: got a non-OK result, impossible"
 {-# inline validPos #-}
 
--- | Compute corresponding line and column numbers for each `Pos` in a list,
+-- | Compute corresponding line and column numbers (both starting from 0) for each `Pos` in a list,
 --   assuming UTF8 encoding. Throw an error on invalid positions. Note:
 --   computing lines and columns may traverse the `B.ByteString`, but it
 --   traverses it only once regardless of the length of the position list.
