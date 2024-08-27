@@ -1,5 +1,5 @@
 
-resolver: lts-21.23
+resolver: lts-21.25
 
 packages:
 - .
