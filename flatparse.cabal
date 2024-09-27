@@ -63,6 +63,7 @@ library
       FlatParse.Stateful
       FlatParse.Stateful.Addr
       FlatParse.Stateful.Base
+      FlatParse.Stateful.Batteries
       FlatParse.Stateful.Bytes
       FlatParse.Stateful.Integers
       FlatParse.Stateful.Parser
