@@ -3,6 +3,7 @@
 module FlatParse.Common.Position
   ( Pos(..), endPos, addrToPos#, posToAddr#
   , Span(..), unsafeSlice
+  , leftPos, rightPos
   ) where
 
 import qualified Data.ByteString as B
@@ -27,6 +28,14 @@ instance Ord Pos where
 -- | A pair of positions.
 data Span = Span !Pos !Pos
     deriving stock (Eq, Show)
+
+leftPos :: Span -> Pos
+leftPos (Span p _) = p
+{-# inline leftPos #-}
+
+rightPos :: Span -> Pos
+rightPos (Span _ p) = p
+{-# inline rightPos #-}
 
 -- | Very unsafe conversion between a primitive address and a position.  The
 --   first argument points to the end of the buffer, the second argument is
