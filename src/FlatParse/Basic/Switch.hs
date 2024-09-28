@@ -137,21 +137,6 @@ genTrie (rules, t) = do
     (map (\(x, rhs) -> valD (varP x) (normalB (pure rhs)) []) (Data.Foldable.toList branches))
     (go t)
 
-parseSwitch :: Q Exp -> Q ([(String, Exp)], Maybe Exp)
-parseSwitch exp = exp >>= \case
-  CaseE (UnboundVarE _) []    -> error "switch: empty clause list"
-  CaseE (UnboundVarE _) cases -> do
-    (!cases, !last) <- pure (init cases, last cases)
-    !cases <- forM cases \case
-      Match (LitP (StringL str)) (NormalB rhs) [] -> pure (str, rhs)
-      _ -> error "switch: expected a match clause on a string literal"
-    (!cases, !last) <- case last of
-      Match (LitP (StringL str)) (NormalB rhs) [] -> pure (cases ++ [(str, rhs)], Nothing)
-      Match WildP                (NormalB rhs) [] -> pure (cases, Just rhs)
-      _ -> error "switch: expected a match clause on a string literal or a wildcard"
-    pure (cases, last)
-  _ -> error "switch: expected a \"case _ of\" expression"
-
 genSwitchTrie' :: Maybe Exp -> [(String, Exp)] -> Maybe Exp
               -> (Map (Maybe Int) Exp, Trie' (Rule, Int, Maybe Int))
 genSwitchTrie' postAction cases fallback =

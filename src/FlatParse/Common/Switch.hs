@@ -8,7 +8,7 @@ import Language.Haskell.TH
 
 import FlatParse.Common.Assorted
 
--- Switch parsing
+-- Switch parsing and building
 --------------------------------------------------------------------------------
 
 parseSwitch :: Q Exp -> Q ([(String, Exp)], Maybe Exp)

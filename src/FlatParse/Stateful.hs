@@ -112,6 +112,8 @@ module FlatParse.Stateful (
   -- ** Positions
   , FlatParse.Common.Position.Pos(..)
   , FlatParse.Common.Position.endPos
+  , FlatParse.Common.Position.leftPos
+  , FlatParse.Common.Position.rightPos
   , FlatParse.Common.Position.addrToPos#
   , FlatParse.Common.Position.posToAddr#
   , FlatParse.Common.Position.Span(..)

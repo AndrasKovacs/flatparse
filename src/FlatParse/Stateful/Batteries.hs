@@ -1,22 +1,21 @@
-{-# language Strict, ViewPatterns, ScopedTypeVariables #-}
+{-# language Strict, ViewPatterns #-}
 
 module FlatParse.Stateful.Batteries where
 
-import Control.Monad
 import qualified Data.ByteString as B
-import qualified FlatParse.Stateful as FP
-import qualified FlatParse.Stateful.Switch as FP
 import qualified Data.Set as S
 import Language.Haskell.TH
 import Language.Haskell.TH.Syntax
 
+import qualified FlatParse.Stateful as FP
+import qualified FlatParse.Common.Switch as FP
+
 type Parser = FP.Parser Int Error
 
 data Expected
-  = Lit String
-  | Msg String
-  | ExactIndent Int
-  | IndentMore Int
+  = Lit String       -- ^ Name of expected thing.
+  | ExactIndent Int  -- ^ Exact indentation level.
+  | IndentMore Int   -- ^ More than given indentation level.
   deriving (Eq, Show, Ord)
 
 data Error = Error FP.Pos [Expected] | DontUnbox
@@ -54,10 +53,9 @@ prettyError b (Error pos es) =
       linum  = show l
       lpad   = map (const ' ') linum
 
-      expected (Lit s) = show s
-      expected (Msg s) = s
+      expected (Lit s)           = s
       expected (ExactIndent col) = "expected a token indented to column " ++ show (col + 1)
-      expected (IndentMore col) = "expected a token indented to column " ++ show (col + 1) ++ " or more."
+      expected (IndentMore col)  = "expected a token indented to column " ++ show (col + 1) ++ " or more."
 
       expecteds :: [Expected] -> String
       expecteds []     = error "impossible"
@@ -73,37 +71,6 @@ prettyError b (Error pos es) =
      lpad   ++ "| " ++ replicate c ' ' ++ "^\n" ++
      "parse error: expected " ++ expecteds (S.toList $ S.fromList es)
 prettyError _ _ = undefined
-
-{-
-Batteries included for potentially indentation-sensitive parsing
-
-token parsing scheme:
-  1 check indentation
-  2 read thing
-  3 read ws
-
-input
-  - parser for first ident character
-  - parser for rest ident character
-  - parser for whitespace
-  - parser for line comment, multiline open, multiline close, whether multiline is nestable
-  - list of keywords
-
-th-generated output
-  - ident parser, handles keywords, indentation, returns span
-    + strict version
-  - symbol parser, handles keywords, idents, indentation, return span
-    + strict version
-  - case split:
-      - handles keywords, ident overlaps, indentation, returns span
-
-non-th exports
-  - all the useful stuff
-  - error types, printing, handling
-
--}
-
---------------------------------------------------------------------------------
 
 getPos :: Parser FP.Pos
 getPos = FP.getPos
@@ -180,13 +147,13 @@ localIndentation n p = FP.local (\_ -> n) p
 --------------------------------------------------------------------------------
 
 data Config = Config
-  (CodeQ (Parser Char))  -- ident start char (Parser Char)
-  (CodeQ (Parser Char))  -- ident nonstart char (Parser Char)
-  String   -- set of whitespace characters, excluding newline
-  String   -- line comment start
-  String   -- block comment start
-  String   -- block comment end
-  [String] -- keywords
+  (CodeQ (Parser Char))  -- ^ Parsing first character of an identifier.
+  (CodeQ (Parser Char))  -- ^ Parsing non-first characters of an identifier.
+  String   -- ^ List of whitespace characters, excluding newline (which is always whitespace).
+  String   -- ^ Line comment start.
+  String   -- ^ Block comment start.
+  String   -- ^ Block comment end.
+  [String] -- ^ List of keywords.
 
 -- Working around nested quote limitations
 --------------------------------------------------------------------------------
@@ -197,16 +164,22 @@ symBody1 s = [| spanOfToken $(FP.string s) `notFollowedBy` identChar |]
 symBody2 :: String -> Q Exp
 symBody2 s = [| spanOfToken $(FP.string s) |]
 
+symBody1' :: String -> Q Exp
+symBody1' s = [| (spanOfToken $(FP.string s) `notFollowedBy` identChar) `cut` [Lit (show s)] |]
+
+symBody2' :: String -> Q Exp
+symBody2' s = [| spanOfToken $(FP.string s) `cut` [Lit (show s)]  |]
+
 switchBody :: (String -> Bool) -> ([(String, Exp)], Maybe Exp) -> Q Exp
-switchBody isIdent (cases, deflt) =
+switchBody identOverlap (cases, deflt) =
       [| do lvl
             left <- FP.getPos
-            $(FP.switch (makeRawSwitch
-                (map (\(s, body) -> (s, if isIdent s
+            $(FP.switch (FP.makeRawSwitch
+                (map (\(s, body) -> (s, if identOverlap s
                      then [| do {FP.fails identChar; right <- FP.getPos; ws; $(pure body) (FP.Span left right)} |]
                      else [| do {right <- FP.getPos; ws ; $(pure body) (FP.Span left right)} |]))
                      cases)
-                ((\deflt -> [| do {right <- FP.getPos; ws ; $(pure deflt) (FP.Span left right)} |]) <$> deflt)))
+                ((\deflt -> [| do {right <- FP.getPos; ws ; $(pure deflt)} |]) <$> deflt)))
         |]
 
 --------------------------------------------------------------------------------
@@ -230,14 +203,14 @@ chargeBatteries (Config identStart identRest wsChars lineComment
     blockComment :: Parser ()
     blockComment = go (1 :: Int) where
       go 0 = ws
-      go n = $(FP.switch $ makeRawSwitch [
+      go n = $(FP.switch $ FP.makeRawSwitch [
           ("\n"              , [| FP.put 0 >> go n |])
         , (blockCommentStart , [| FP.modify (+ $(lift blockCommentStartLen)) >> go (n - 1) |])
         , (blockCommentEnd   , [| FP.modify (+ $(lift blockCommentEndLen)) >> go (n + 1) |]) ]
        (Just [| FP.branch FP.anyChar (FP.modify (+1) >> go n) (pure ()) |]))
 
     ws :: Parser ()
-    ws = $(FP.switch $ makeRawSwitch
+    ws = $(FP.switch $ FP.makeRawSwitch
       (
         ("\n", [| FP.put 0 >> ws |])
       : (blockCommentStart, [| FP.modify (+ $(lift blockCommentStartLen)) >> blockComment |])
@@ -276,10 +249,12 @@ chargeBatteries (Config identStart identRest wsChars lineComment
     scanIdent = identStartChar >> FP.skipMany inlineIdentChar
 
     anyKeyword :: Parser ()
-    anyKeyword = $(FP.switch $
-      makeRawSwitch
-        (map (\s -> (s, [| FP.eof |])) keywords)
-        Nothing)
+    anyKeyword = $(case keywords of
+      [] -> [|FP.empty|]
+      _  -> FP.switch $
+              FP.makeRawSwitch
+                (map (\s -> (s, [| FP.eof |])) keywords)
+                Nothing)
 
     identBase :: Parser FP.Span
     identBase = FP.withSpan scanIdent \_ span -> do
@@ -297,13 +272,19 @@ chargeBatteries (Config identStart identRest wsChars lineComment
     ident' = lvl' >> identBase `cut` [Lit "identifier"]
     {-# inline ident' #-}
 
-    isIdent :: String -> Bool
-    isIdent = undefined
+    identOverlap :: String -> Bool
+    identOverlap s = case runParser (ws >> scanIdent >> FP.eof) (FP.strToUtf8 s) of
+      FP.OK{} -> True
+      _       -> False
 
     sym :: String -> Q Exp
-    sym s | isIdent s = symBody1 s
+    sym s | identOverlap s = symBody1 s
           | otherwise = symBody2 s
 
+    sym' :: String -> Q Exp
+    sym' s | identOverlap s = symBody1' s
+           | otherwise = symBody2' s
+
     switch :: Q Exp -> Q Exp
-    switch cases = switchBody isIdent =<< FP.parseSwitch cases
+    switch cases = switchBody identOverlap =<< FP.parseSwitch cases
     |]
