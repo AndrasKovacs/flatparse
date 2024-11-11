@@ -67,7 +67,9 @@ prettyError b e =
       pos      = case e of Imprecise pos e -> pos
                            Precise pos e   -> pos
       ls       = FP.linesUtf8 b
-      (l, c)   = head $ FP.posLineCols b [pos]
+      (l, c)   = case FP.posLineCols b [pos] of
+                   x: _ -> x
+                   _    -> error "impossible"
       line     = if l < length ls then ls !! l else ""
       linum    = show l
       lpad     = map (const ' ') linum
