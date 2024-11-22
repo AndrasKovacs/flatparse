@@ -2,7 +2,7 @@
 
 module FlatParse.Common.Position
   ( Pos(..), endPos, addrToPos#, posToAddr#
-  , Span(..), unsafeSlice
+  , Span(..), unsafeSlice, leftPos, rightPos
   ) where
 
 import qualified Data.ByteString as B
@@ -54,3 +54,11 @@ unsafeSlice (B.PS (ForeignPtr addr fp) (I# start) (I# len))
 endPos :: Pos
 endPos = Pos 0
 {-# inline endPos #-}
+
+leftPos :: Span -> Pos
+leftPos (Span p _) = p
+{-# inline leftPos #-}
+
+rightPos :: Span -> Pos
+rightPos (Span _ p) = p
+{-# inline rightPos #-}

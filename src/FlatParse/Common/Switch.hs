@@ -1,7 +1,9 @@
 module FlatParse.Common.Switch where
 
+import Control.Monad (forM)
 import Data.Foldable (foldl')
 import Data.Map (Map)
+import Language.Haskell.TH
 
 import qualified Data.Map.Strict as M
 
@@ -87,3 +89,30 @@ ensureBytes = go 0 where
 
 compileTrie :: [(Int, String)] -> Trie' (Rule, Int, Maybe Int)
 compileTrie = ensureBytes . fallbacks . pathify . mindepths . listToTrie
+
+parseSwitch :: Q Exp -> Q ([(String, Exp)], Maybe Exp)
+parseSwitch exp = exp >>= \case
+  CaseE (UnboundVarE _) []    -> error "switch: empty clause list"
+  CaseE (UnboundVarE _) cases -> do
+    (!cases, !last) <- pure (init cases, last cases)
+    !cases <- forM cases \case
+      Match (LitP (StringL str)) (NormalB rhs) [] -> pure (str, rhs)
+      _ -> error "switch: expected a match clause on a string literal"
+    (!cases, !last) <- case last of
+      Match (LitP (StringL str)) (NormalB rhs) [] -> pure (cases ++ [(str, rhs)], Nothing)
+      Match WildP                (NormalB rhs) [] -> pure (cases, Just rhs)
+      _ -> error "switch: expected a match clause on a string literal or a wildcard"
+    pure (cases, last)
+  _ -> error "switch: expected a \"case _ of\" expression"
+
+makeRawSwitch :: [(String, Q Exp)] -> Maybe (Q Exp) -> Q Exp
+makeRawSwitch branches deflt = do
+  branches <- forM branches $ \(s, body) -> do
+    body <- body
+    pure $ Match (LitP (StringL s)) (NormalB body) []
+  branches <- case deflt of
+    Nothing    -> pure branches
+    Just deflt -> do
+      deflt <- deflt
+      pure $ branches ++ [Match WildP (NormalB deflt) []]
+  pure $ CaseE (UnboundVarE (mkName "_")) branches
