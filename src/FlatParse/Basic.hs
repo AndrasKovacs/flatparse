@@ -24,6 +24,7 @@ module FlatParse.Basic (
   , runParserIO
   , runParserST
   , embedParserST
+  , embedParser
 
   -- ** Primitive result types
   , type FP.Parser.Res#
@@ -219,7 +220,7 @@ unsafeLiftIO io = ParserT \fp eob s st ->
 
 --------------------------------------------------------------------------------
 
--- | Run a parser.
+-- | Run a pure parser.
 runParser :: Parser e a -> B.ByteString -> Result e a
 runParser (ParserT f) b@(B.PS (ForeignPtr _ fp) _ (I# len)) = unsafePerformIO $
   B.unsafeUseAsCString b \(Ptr buf) -> do
@@ -234,7 +235,7 @@ runParser (ParserT f) b@(B.PS (ForeignPtr _ fp) _ (I# len)) = unsafePerformIO $
 -- We mark this as noinline to allow power users to safely do unsafe state token coercions.
 -- Details are discussed in https://github.com/AndrasKovacs/flatparse/pull/34#issuecomment-1326999390
 
--- | Run a parser on a 'String', converting it to the corresponding UTF-8 bytes.
+-- | Run a pure parser on a 'String', converting it to the corresponding UTF-8 bytes.
 --
 -- Reminder: @OverloadedStrings@ for 'B.ByteString' does not yield a valid UTF-8
 -- encoding! For non-ASCII 'B.ByteString' literal input, use this wrapper or
@@ -266,10 +267,15 @@ liftST (ST f) = ParserT \fp eob s st -> case f st of
   (# st, a #) -> OK# st a s
 {-# inline liftST #-}
 
--- | Run a `ParserST` inside a pure parser.
-embedParserST :: forall e a. (forall s. ParserST s e a) -> Parser e a
+-- | Run a `ParserST` inside any parser.
+embedParserST :: forall e a s. (forall s. ParserST s e a) -> ParserT s e a
 embedParserST f = unsafeCoerce# (f :: ParserST RealWorld e a)
 {-# inline embedParserST #-}
+
+-- | Run a pure `Parser` inside any parser.
+embedParser :: forall e a s. Parser e a -> ParserT s e a
+embedParser f = unsafeCoerce# f
+{-# inline embedParser #-}
 
 --------------------------------------------------------------------------------
 

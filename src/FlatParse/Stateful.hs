@@ -24,6 +24,7 @@ module FlatParse.Stateful (
   , runParserIO
   , runParserST
   , embedParserST
+  , embedParser
 
   -- ** Primitive result types
   , type FP.Parser.Res#
@@ -267,10 +268,15 @@ runParserIO (ParserT f) !r (I# n) b@(B.PS (ForeignPtr _ fp) _ (I# len)) = do
       Fail# rw'  ->  (# rw', Fail #)
 {-# inlinable runParserIO #-}
 
--- | Run a `ParserST` inside a pure parser.
-embedParserST :: forall r e a. (forall s. ParserST s r e a) -> Parser r e a
+-- | Run a `ParserST` inside any parser.
+embedParserST :: forall s r e a. (forall s. ParserST s r e a) -> ParserT s r e a
 embedParserST f = unsafeCoerce# (f :: ParserST RealWorld r e a)
 {-# inline embedParserST #-}
+
+-- | Run a pure `Parser` inside any parser.
+embedParser :: forall s r e a. Parser r e a -> ParserT s r e a
+embedParser f = unsafeCoerce# f
+{-# inline embedParser #-}
 
 --------------------------------------------------------------------------------
 
