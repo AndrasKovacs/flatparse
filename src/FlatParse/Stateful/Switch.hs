@@ -13,7 +13,7 @@ import qualified Data.Map.Strict as M
 
 import FlatParse.Common.Switch
 import FlatParse.Stateful.Base ( ensure, skipBack, branch, failed )
-import FlatParse.Stateful.Bytes ( bytes, bytesUnsafe )
+import FlatParse.Stateful.Bytes ( bytesUnsafe )
 import FlatParse.Stateful.Integers ( anyWord8Unsafe )
 
 {-|
@@ -129,7 +129,7 @@ genTrie (rules, t) = do
 
         Path (r, n, alloc) ws t ->
           case ensure' alloc of
-            Nothing    -> [| branch $(bytes ws) $(go t) $(fallback r n)|]
+            Nothing    -> [| branch $(bytesUnsafe ws) $(go t) $(fallback r n)|]
             Just alloc -> [| branch ($alloc >> $(bytesUnsafe ws)) $(go t) $(fallback r n) |]
 
   letE

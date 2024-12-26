@@ -181,6 +181,16 @@ basicSpec = describe "FlatParse.Basic" $ do
          )
           `shouldParse` "E"
 
+      it "doesn't reproduce bug #62" $
+        $( FB.switch
+             [| case _ of
+                 "0a" -> pure 0
+                 "abc" -> pure 1
+                 _ -> pure 3
+               |]
+         )
+          `shouldParsePartialWith` (B.take 2 "abc", 3)
+
     describe "switchWithPost" $ do
       it "applies post after match" $
         $( FB.switchWithPost

@@ -34,17 +34,15 @@ listToTrie :: [(Int, String)] -> Trie Rule
 listToTrie = foldl' (\t (!r, !s) -> insert r (charToBytes =<< s) t) nilTrie
 
 -- | Decorate a trie with the minimum lengths of non-empty paths. This
---   is used later to place `ensureBytes#`.
+--   is used later to place `ensure`.
 mindepths :: Trie Rule -> Trie (Rule, Int)
 mindepths (Branch rule ts) =
   if M.null ts then
     Branch (rule, 0) mempty
   else
-    let !ts' = M.map mindepths ts in
-    Branch (
-      rule,
-      minimum (M.map (\(Branch (rule,d) _) -> maybe (d + 1) (\_ -> 1) rule) ts'))
-      ts'
+    let !ts' = M.map mindepths ts
+        !min = minimum (M.map (\(Branch (rule,d) _) -> maybe (d + 1) (\_ -> 1) rule) ts') in
+    Branch (rule, min) ts'
 
 data Trie' a
   = Branch' !a !(Map Word (Trie' a))
@@ -73,7 +71,7 @@ fallbacks = go Nothing 0  where
     | Nothing <- rule' = Path (rule, n, d)  ws (go rule (n + length ws) t)
     | otherwise        = Path (rule', 0, d) ws (go rule' (length ws) t)
 
--- | Decorate with `ensureBytes#` invocations, represented as
+-- | Decorate with `ensure` invocations, represented as
 --   `Maybe Int`.
 ensureBytes :: Trie' (Rule, Int, Int) -> Trie' (Rule, Int, Maybe Int)
 ensureBytes = go 0 where
@@ -84,8 +82,8 @@ ensureBytes = go 0 where
       | res < 1   -> Branch' (r, n, Just d ) (go (d   - 1) <$> ts)
       | otherwise -> Branch' (r, n, Nothing) (go (res - 1) <$> ts)
     Path (r, n, d) ws t -> case length ws of
-      l | res < l   -> Path (r, n, Just $! d - res) ws (go (d - l)   t)
-        | otherwise -> Path (r, n, Nothing        ) ws (go (res - l) t)
+      l | res < l   -> Path (r, n, Just d ) ws (go (d   - l) t)
+        | otherwise -> Path (r, n, Nothing) ws (go (res - l) t)
 
 compileTrie :: [(Int, String)] -> Trie' (Rule, Int, Maybe Int)
 compileTrie = ensureBytes . fallbacks . pathify . mindepths . listToTrie
