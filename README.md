@@ -17,7 +17,7 @@ outside `flatparse`, and compiled there.
 
 ## Features and non-features
 
-* __Excellent performance__. On microbenchmarks, `flatparse` is around 10 times faster than `attoparsec` or `megaparsec`. On larger examples with heavier use of source positions and spans and/or indentation parsing, the performance difference grows to 20-30 times. Compile times and executable sizes are also significantly better with `flatparse` than with `megaparsec` or `attoparsec`. `flatparse` internals make liberal use of unboxed tuples and GHC primops. As a result, pure validators (parsers returning `()`) in `flatparse` are not difficult to implement with zero heap allocation.
+* __Excellent performance__. On microbenchmarks, `flatparse` is around 5-10 times faster than `attoparsec` or `megaparsec`. On larger examples with heavier use of source positions and spans and/or indentation parsing, the performance difference is greater. Compile times and executable sizes are also significantly better with `flatparse` than with `megaparsec` or `attoparsec`. `flatparse` internals make liberal use of unboxed tuples and GHC primops. As a result, pure validators (parsers returning `()`) in `flatparse` are not difficult to implement with zero heap allocation.
 * __No incremental parsing__, and __only strict `ByteString`__ is supported as input. However, it can be still useful to convert from `Text`, `String` or other types to `ByteString`, and then use `flatparse` for parsing, since `flatparse` performance usually more than makes up for the conversion costs.
 * __Only little-endian 64 bit systems are currently supported as the host machine__. This may change in the future. Getting good performance requires architecture-specific optimizations; I've only considered the most common setting at this point. However, `flatparse` does include primitive integer parsers with specific endianness.
 * __Support for fast source location handling, indentation parsing and informative error messages__. `flatparse` provides a low-level interface to these. Batteries are _not included_, but it should be possible for users to build custom solutions, which are more sophisticated, but still as fast as possible. In my experience, the included batteries in other libraries often come with major unavoidable overheads, and often we still have to extend existing machinery in order to scale to production features.
@@ -25,13 +25,14 @@ outside `flatparse`, and compiled there.
 
 `flatparse` comes in two flavors: [`FlatParse.Basic`][basic] and [`FlatParse.Stateful`][stateful]. Both support a custom error type. Also, both come in three modes, where we can respectively run `IO` actions, `ST` actions, or no side effects. The modes are selected by a state token type parameter on the parser types.
 
-* [`FlatParse.Basic`][basic] only supports the above features. If you don't need indentation
-  parsing, this is sufficient.
-* [`FlatParse.Stateful`][stateful] additionally supports a built-in `Int` worth of internal state
-  and an additional custom reader environment. This can support a wide range of indentation parsing
-  features. There is a slight overhead in performance and code size compared to `Basic`. However, in
-  small parsers and microbenchmarks the difference between `Basic` and `Stateful` is often reduced
-  to near zero by GHC and/or LLVM optimization.
+* [`FlatParse.Basic`][basic] only supports the above features. If you don't need
+  indentation parsing, this is sufficient.
+* [`FlatParse.Stateful`][stateful] additionally supports a built-in `Int` worth
+  of internal state and an additional custom reader environment. This can
+  support a wide range of indentation parsing features. There is a moderate
+  overhead in performance and code size compared to `Basic`. In microbenchmarks
+  and small parsers, the performance difference between `Basic` and `Stateful`
+  is more up to the whims of GHC and LLVM, and is a bit more "random".
 
 ## Tutorial
 
@@ -45,36 +46,36 @@ Pull requests are welcome. I'm fairly quick to add PR authors as collaborators.
 ## Some benchmarks
 
 Execution times below. See source code in [bench](bench). Compiled with GHC
-9.4.4 `-O2 -fllvm`. Executed on Intel 1165G7 CPU at 28W power draw. Uses
-`nightly-2023-02-06` Stackage snapshot for the involved packages.
+9.8.3. `-O2 -fllvm` with `flatparse-0.5.2.1`. Executed on Intel 1345U CPU. Uses
+`nightly-2024-11-11` Stackage snapshot for the involved packages.
 
 |      benchmark              |  runtime   |
 |-----------------------------|-------------
-|sexp/fpbasic                 | 1.93 ms    |
-|sexp/fpstateful              | 2.00 ms    |
-|sexp/attoparsec              | 21.82 ms   |
-|sexp/megaparsec              | 59.60 ms   |
-|sexp/parsec                  | 79.81 ms   |
-|long keyword/fpbasic         | 0.1 ms     |
-|long keyword/fpstateful      | 0.1 ms     |
-|long keyword/attoparsec      | 2.43 ms    |
-|long keyword/megaparsec      | 5.2 ms     |
-|long keyword/parsec          | 10.02 ms   |
-|numeral csv/fpbasic          | 0.72 ms    |
-|numeral csv/fpstateful       | 0.56 ms    |
-|numeral csv/attoparsec       | 10.52 ms   |
-|numeral csv/megaparsec       | 19.77 ms   |
-|numeral csv/parsec           | 26.46 ms   |
+|sexp/fpbasic                 | 3.262 ms   |
+|sexp/fpstateful              | 2.523 ms   |
+|sexp/attoparsec              | 15.28 ms   |
+|sexp/megaparsec              | 36.03 ms   |
+|sexp/parsec                  | 67.16 ms   |
+|long keyword/fpbasic         | 0.079 ms   |
+|long keyword/fpstateful      | 0.078 ms   |
+|long keyword/attoparsec      | 0.705 ms   |
+|long keyword/megaparsec      | 2.014 ms   |
+|long keyword/parsec          | 8.813 ms   |
+|numeral csv/fpbasic          | 0.482 ms   |
+|numeral csv/fpstateful       | 0.580 ms   |
+|numeral csv/attoparsec       | 4.661 ms   |
+|numeral csv/megaparsec       | 7.415 ms   |
+|numeral csv/parsec           | 24.54 ms   |
 
 Object file sizes for each module containing the `s-exp`, `long keyword` and `numeral csv` benchmarks.
 
 | library    | object file size (bytes) |
 | -------    | ------------------------ |
-| fpbasic    |  20656                   |
-| fpstateful |  26664                   |
-| attoparsec |  69384                   |
-| megaparsec |  226232                  |
-| parsec     |  117696                  |
+| fpbasic    |  26704                   |
+| fpstateful |  31064                   |
+| attoparsec |  91216                   |
+| megaparsec |  219712                  |
+| parsec     |  113152                  |
 
 [basic]: https://hackage.haskell.org/package/flatparse/docs/FlatParse-Basic.html
 [stateful]: https://hackage.haskell.org/package/flatparse/docs/FlatParse-Stateful.html
