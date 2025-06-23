@@ -3,7 +3,7 @@
 module Main where
 
 import Data.Primitive.ByteArray
-import Gauge
+import Test.Tasty.Bench
 
 import qualified Data.ByteString.Char8 as B
 

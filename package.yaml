@@ -111,10 +111,10 @@ benchmarks:
       - attoparsec
       - bytestring
       - flatparse
-      - gauge
       - integer-gmp
       - megaparsec
       - parsec
       - primitive
+      - tasty-bench
     ghc-options:
       - -O2
