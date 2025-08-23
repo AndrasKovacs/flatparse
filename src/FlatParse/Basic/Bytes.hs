@@ -14,6 +14,7 @@ import FlatParse.Basic.Integers ( word8Unsafe, word16Unsafe, word32Unsafe, word6
 import qualified FlatParse.Common.Assorted as Common
 import Language.Haskell.TH
 import GHC.Exts
+import GHC.Word
 
 -- | Read a sequence of bytes. This is a template function, you can use it as @$(bytes [3, 4, 5])@,
 --   for example, and the splice has type @Parser e ()@. For a non-TH variant see 'FlatParse.Basic.byteString'.
@@ -28,7 +29,7 @@ bytes bs = do
 -- The caller must guarantee that the input has enough bytes.
 bytesUnsafe :: [Word] -> Q Exp
 bytesUnsafe bytes = do
-  let !(leading, w8s) = Common.splitBytes bytes
+  let !(leading, w8s) = Common.splitBytes $ (fromIntegral :: Word -> Word64) <$> bytes
       !scanw8s        = go w8s where
                          go (w8:[] ) = [| word64Unsafe w8 |]
                          go (w8:w8s) = [| word64Unsafe w8 >> $(go w8s) |]
@@ -52,12 +53,16 @@ bytesUnsafe bytes = do
                              !l = length ws
                          in [| scanPartial64# l w >> $scanw8s |]
 
-scanPartial64# :: Int -> Word -> ParserT st e ()
-scanPartial64# (I# len) (W# w) = ParserT \fp eob s st ->
-  case indexWordOffAddr# s 0# of
+scanPartial64# :: Int -> Word64 -> ParserT st e ()
+scanPartial64# (I# len) (W64# w) = ParserT \fp eob s st ->
+  case indexWord64OffAddr# s 0# of
     w' -> case uncheckedIShiftL# (8# -# len) 3# of
-      sh -> case uncheckedShiftL# w' sh of
-        w' -> case uncheckedShiftRL# w' sh of
+      sh -> case uncheckedShiftL64# w' sh of
+        w' -> case uncheckedShiftRL64# w' sh of
+#if MIN_VERSION_base(4,17,0)
+          w' -> case eqWord64# w w' of
+#else
           w' -> case eqWord# w w' of
+#endif
             1# -> OK#   st () (plusAddr# s len)
             _  -> Fail# st

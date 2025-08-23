@@ -20,6 +20,8 @@ import GHC.Int ( Int(I#) )
 
 import qualified Data.ByteString.UTF8 as UTF8
 
+#include "MachDeps.h"
+
 main :: IO ()
 main = hspec $ do
   basicSpec
@@ -467,10 +469,12 @@ basicSpec = describe "FlatParse.Basic" $ do
         FB.anyVarintProtobuf `shouldParseWith` (B.pack [0b10000000, 0b00000001], 128)
         FB.anyVarintProtobuf `shouldParseWith` (B.pack [0b10010110, 0b00000001], 150)
       it "fails on overlong varint" $ do
-        -- 7 bits per byte = max 9 bytes in 64-bit word
-        let bs n = B.replicate n 0b10101010
-        FB.anyVarintProtobuf `shouldParse`     B.snoc (bs 8) 0b01010101
-        FB.anyVarintProtobuf `shouldParseFail` B.snoc (bs 9) 0b01010101
+        -- Variant has 7 bits payload per byte, so 'maxVarintBytesPerWord' gives
+        -- the max number of bytes we can parse into a (word-size) 'Int'.
+        let maxVarintBytesPerWord = WORD_SIZE_IN_BITS `div` 7
+            bs n = B.replicate n 0b10101010
+        FB.anyVarintProtobuf `shouldParse`     B.snoc (bs (maxVarintBytesPerWord - 1)) 0b01010101
+        FB.anyVarintProtobuf `shouldParseFail` B.snoc (bs maxVarintBytesPerWord)       0b01010101
 
     describe "anyCString" $ do
       prop "parses arbitrary null-terminated bytestrings" $
