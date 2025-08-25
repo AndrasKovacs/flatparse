@@ -82,13 +82,13 @@ isGreekLetter c = ('Α' <= c && c <= 'Ω') || ('α' <= c && c <= 'ω')
 -- UTF conversions
 --------------------------------------------------------------------------------
 
-packBytes :: [Word] -> Word
+packBytes :: [Word64] -> Word64
 packBytes = fst . foldl' go (0, 0) where
   go (acc, shift) w | shift == 64 = error "packBytes: too many bytes"
   go (acc, shift) w = (unsafeShiftL (fromIntegral w) shift .|. acc, shift+8)
 
 -- TODO chunks into 8-bytes for 64-bit performance
-splitBytes :: [Word] -> ([Word], [Word])
+splitBytes :: [Word64] -> ([Word64], [Word64])
 splitBytes ws = case quotRem (length ws) 8 of
   (0, _) -> (ws, [])
   (_, r) -> (as, chunk8s bs) where

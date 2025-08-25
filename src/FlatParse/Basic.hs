@@ -184,6 +184,7 @@ import qualified FlatParse.Basic.Addr as FP.Addr
 
 import qualified Control.Applicative
 import GHC.IO (IO(..), unsafeIOToST)
+import GHC.Int
 import GHC.Exts
 import GHC.ForeignPtr
 import GHC.ST (ST(..))
@@ -506,12 +507,16 @@ isolateToNextNull (ParserT p) = ParserT \fp eob s st -> go fp eob s st s
           _  -> -- >= 8 bytes of input: use efficient 8-byte scanning
 #if defined(WORDS_BIGENDIAN)
             -- big-endian ("L->R"): find leftmost null byte
-            let !x@(I# x#) = Common.zbytel'intermediate (I# (indexIntOffAddr# s 0#)) in
+            let !x@(I64# x#) = Common.zbytel'intermediate (I64# (indexInt64OffAddr# s 0#)) in
 #else
             -- little-endian ("R->L"): find rightmost null byte
-            let !x@(I# x#) = Common.zbyter'intermediate (I# (indexIntOffAddr# s 0#)) in
+            let !x@(I64# x#) = Common.zbyter'intermediate (I64# (indexInt64OffAddr# s 0#)) in
 #endif
+#if MIN_VERSION_base(4,17,0)
+            case eqInt64# x# (intToInt64# 0#) of
+#else
             case x# ==# 0# of
+#endif
               1# -> go fp eob s0 st sWord -- no 0x00 in next word
               _  -> -- 0x00 somewhere in next word
 #if defined(WORDS_BIGENDIAN)
@@ -578,7 +583,7 @@ anyVarintProtobuf = ParserT \fp eob s st ->
     case Common.anyVarintProtobuf# eob s of
       (# (##) | #) -> Fail# st
       (# | (# w#, s#, bits# #) #) ->
-        case bits# ># 63# of
+        case bits# ># (WORD_SIZE_IN_BITS# -# 1#) of
           0# -> OK# st (I# w#) s#
           _  -> Fail# st -- overflow
 {-# inline anyVarintProtobuf #-}

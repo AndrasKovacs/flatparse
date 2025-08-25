@@ -36,3 +36,35 @@ jobs:
       - run: cabal sdist
       - run: cabal bench
       - run: cabal test
+
+  wasm:
+    runs-on: ubuntu-latest
+    env:
+      GHC_WASM_META_REV: 7927129e42bcd6a54b9e06e26455803fa4878261
+    strategy:
+      matrix:
+        ghc: ['9.10', '9.12']
+      fail-fast: false
+    steps:
+    - name: Setup wasm32-wasi-ghc
+      run: |
+        cd $(mktemp -d)
+        curl -L https://gitlab.haskell.org/ghc/ghc-wasm-meta/-/archive/$GHC_WASM_META_REV/ghc-wasm-meta.tar.gz | tar xz --strip-components=1
+        ./setup.sh
+        ~/.ghc-wasm/add_to_github_path.sh
+      env:
+        FLAVOUR: ${{ matrix.ghc }}
+    - uses: actions/checkout@v4
+    - uses: actions/cache@v4
+      with:
+        path: |
+          ~/.ghc-wasm/.cabal/store
+        key: wasi-${{ runner.os }}-${{ env.GHC_WASM_META_REV }}-flavour-${{ matrix.ghc }}-${{ github.sha }}
+        restore-keys: |
+          wasi-${{ runner.os }}-${{ env.GHC_WASM_META_REV }}-flavour-${{ matrix.ghc }}-
+    - name: Build
+      run: |
+        wasm32-wasi-cabal build --enable-tests --enable-benchmarks
+    - name: Test
+      run: |
+        wasm32-wasi-cabal test --test-wrapper=wasmtime

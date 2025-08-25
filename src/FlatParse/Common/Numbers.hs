@@ -3,6 +3,7 @@
 module FlatParse.Common.Numbers where
 
 import FlatParse.Common.Assorted ( shortInteger )
+import Language.Haskell.TH.Syntax (lift)
 
 import GHC.Exts
 import GHC.ForeignPtr
@@ -68,12 +69,16 @@ anyAsciiDecimalInteger# fp eob s = case anyAsciiDecimalIntOverflow_# 0# eob s of
   (# n, s' #)
     | 1# <- eqAddr# s s'            -> (# (##) | #)
 
-    -- Simple heuristic, 18 digits correspond to somewhere between 2^59 and 2^60, which is
-    -- well inside the 'IS' constructor.
-    | 1# <- minusAddr# s' s <=# 18# -> (# | (# shortInteger n, s' #) #)
+    -- Simple heuristic, using the largest number of digits that can be in an
+    -- 'Int#', such that we can use the 'IS' constructor.
+    | 1# <- minusAddr# s' s <=# maxDigitsInt -> (# | (# shortInteger n, s' #) #)
     | otherwise -> case BC8.readInteger (B.PS (ForeignPtr s fp) 0 (I# (minusAddr# s' s))) of
         Nothing     -> (# (##) | #)
         Just (i, _) -> (# | (# i, s' #) #)
+  where
+    maxDigitsInt :: Int#
+    !(I# maxDigitsInt) = $(let p e = 10 ^ e - 1 <= toInteger (maxBound :: Int)
+                           in  lift $ last $ takeWhile p [0 :: Int ..])
 {-# inline anyAsciiDecimalInteger# #-}
 
 -- | Parse a non-empty ASCII decimal digit sequence as a positive 'Int'.
