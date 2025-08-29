@@ -1,7 +1,7 @@
 
 # ghc 9.10.2
 
-resolver: 2025-06-18
+resolver: lts-24.7
 
 packages:
 - .
