@@ -368,11 +368,52 @@ basicSpec = describe "FlatParse.Basic" $ do
       it "fails on insufficient input" $
         FB.anyWord32 `shouldParseFail` "\xff\xff\xff"
 
+    describe "anyWord64" $ do
+      -- Byte order is unspecified, so just assert that it succeeds.
+      it "succeeds" $ FB.anyWord64 `shouldParse` "\xef\xbe\xae\x7e\xff\xb1\xc2\xd3"
+
+      it "fails on empty input" $ FB.anyWord64 `shouldParseFail` ""
+      it "fails on insufficient input" $
+        FB.anyWord64 `shouldParseFail` "\xff\xff\xff\xff\xff\xff\xff"
+
     describe "anyWord" $ do
       -- Byte order is unspecified, so just assert that it succeeds.
       it "succeeds" $ FB.anyWord `shouldParse` B.replicate SIZEOF_HSWORD 0xef
 
       it "fails on FB.empty input" $ FB.anyWord `shouldParseFail` ""
+
+    describe "anyInt8" $ do
+      it "reads a byte" $ FB.anyInt8 `shouldParseWith` ("\x2f", 0x2f)
+      it "fails on FB.empty input" $ FB.anyInt8 `shouldParseFail` ""
+
+    describe "anyInt16" $ do
+      -- Byte order is unspecified, so just assert that it succeeds.
+      it "succeeds" $ FB.anyInt16 `shouldParse` "\xef\xbe"
+
+      it "fails on FB.empty input" $ FB.anyInt16 `shouldParseFail` ""
+      it "fails on insufficient input" $ FB.anyInt16 `shouldParseFail` "\xff"
+
+    describe "anyInt32" $ do
+      -- Byte order is unspecified, so just assert that it succeeds.
+      it "succeeds" $ FB.anyInt32 `shouldParse` "\xef\xbe\xae\x7e"
+
+      it "fails on empty input" $ FB.anyInt32 `shouldParseFail` ""
+      it "fails on insufficient input" $
+        FB.anyInt32 `shouldParseFail` "\xff\xff\xff"
+
+    describe "anyInt64" $ do
+      -- Byte order is unspecified, so just assert that it succeeds.
+      it "succeeds" $ FB.anyInt64 `shouldParse` "\xef\xbe\xae\x7e\xff\xb1\xc2\xd3"
+
+      it "fails on empty input" $ FB.anyInt64 `shouldParseFail` ""
+      it "fails on insufficient input" $
+        FB.anyInt64 `shouldParseFail` "\xff\xff\xff\xff\xff\xff\xff"
+
+    describe "anyInt" $ do
+      -- Byte order is unspecified, so just assert that it succeeds.
+      it "succeeds" $ FB.anyInt `shouldParse` B.replicate SIZEOF_HSWORD 0xef
+
+      it "fails on FB.empty input" $ FB.anyInt `shouldParseFail` ""
 
     describe "anyChar" $ do
       it "reads 1-byte char" $ FB.anyChar `shouldParseWith` (UTF8.fromString "$", '$')
