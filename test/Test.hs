@@ -369,8 +369,9 @@ basicSpec = describe "FlatParse.Basic" $ do
         FB.anyWord32 `shouldParseFail` "\xff\xff\xff"
 
     describe "anyWord" $ do
-      -- This combinator is inherently non-portable, but we know a Word is at
-      -- least some bytes.
+      -- Byte order is unspecified, so just assert that it succeeds.
+      it "succeeds" $ FB.anyWord `shouldParse` B.replicate SIZEOF_HSWORD 0xef
+
       it "fails on FB.empty input" $ FB.anyWord `shouldParseFail` ""
 
     describe "anyChar" $ do
