@@ -127,7 +127,7 @@ withAnyInt64 = withAnySized# 8# (\a i -> I64# (indexInt64OffAddr# a i))
 
 -- | Parse any 'Word' (native size) (CPS).
 withAnyWord :: (Word -> ParserT st e r) -> ParserT st e r
-withAnyWord p = ParserT \fp eob buf st -> case 8# <=# minusAddr# eob buf of
+withAnyWord p = ParserT \fp eob buf st -> case SIZEOF_HSWORD# <=# minusAddr# eob buf of
   0# -> Fail# st
   _  -> let w# = indexWordOffAddr# buf 0#
         in  runParserT# (p (W# w#)) fp eob (plusAddr# buf SIZEOF_HSWORD#) st
@@ -135,7 +135,7 @@ withAnyWord p = ParserT \fp eob buf st -> case 8# <=# minusAddr# eob buf of
 
 -- | Parse any 'Int' (native size) (CPS).
 withAnyInt :: (Int -> ParserT st e r) -> ParserT st e r
-withAnyInt p = ParserT \fp eob buf st -> case 8# <=# minusAddr# eob buf of
+withAnyInt p = ParserT \fp eob buf st -> case SIZEOF_HSWORD# <=# minusAddr# eob buf of
   0# -> Fail# st
   _  -> let i# = indexIntOffAddr# buf 0#
         in  runParserT# (p (I# i#)) fp eob (plusAddr# buf SIZEOF_HSWORD#) st
