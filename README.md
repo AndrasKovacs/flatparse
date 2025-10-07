@@ -17,7 +17,7 @@ outside `flatparse`, and compiled there.
 
 ## Features and non-features
 
-* __Excellent performance__. On microbenchmarks, `flatparse` is around 5-10 times faster than `attoparsec` or `megaparsec`. On larger examples with heavier use of source positions and spans and/or indentation parsing, the performance difference is greater. Compile times and executable sizes are also significantly better with `flatparse` than with `megaparsec` or `attoparsec`. `flatparse` internals make liberal use of unboxed tuples and GHC primops. As a result, pure validators (parsers returning `()`) in `flatparse` are not difficult to implement with zero heap allocation.
+* __Excellent performance__. On microbenchmarks, `flatparse` is 2-10 times faster than `attoparsec` or `megaparsec`. On larger examples with heavier use of source positions and spans and/or indentation parsing, the performance difference may be greater, because `flatparse`-s handling of source positions is heavily optimized. Compile times and executable sizes are also significantly better with `flatparse` than with `megaparsec` or `attoparsec`. `flatparse` internals make liberal use of unboxed tuples and GHC primops. As a result, pure validators (parsers returning `()`) in `flatparse` are not difficult to implement with zero heap allocation.
 * __No incremental parsing__, and __only strict `ByteString`__ is supported as input. However, it can be still useful to convert from `Text`, `String` or other types to `ByteString`, and then use `flatparse` for parsing, since `flatparse` performance usually more than makes up for the conversion costs.
 * __Only little-endian systems are currently supported as the host machine__. This may change in the future. However, `flatparse` does include primitive integer parsers with specific endianness.
 * __Support for fast source location handling, indentation parsing and informative error messages__. `flatparse` provides a low-level interface to these. Batteries are _not included_, but it should be possible for users to build custom solutions, which are more sophisticated, but still as fast as possible. In my experience, the included batteries in other libraries often come with major unavoidable overheads, and often we still have to extend existing machinery in order to scale to production features.
@@ -60,22 +60,27 @@ packages.
 |long keyword/fpstateful | 0.062 ms |
 |long keyword/attoparsec | 0.308 ms |
 |long keyword/megaparsec | 0.687 ms |
-|long keyword/parsec | 7.16 ms |
+|long keyword/parsec | 3.50 ms |
 |numeral csv/fpbasic | 0.540 ms |
 |numeral csv/fpstateful | 0.504 ms |
 |numeral csv/attoparsec | 3.17 ms |
 |numeral csv/megaparsec | 1.09 ms |
 |numeral csv/parsec | 13.8 ms |
+|lambda term/fpbasic | 1.52 ms|
+|lambda term/fpstateful | 1.56 ms|
+|lambda term/attoparsec | 4.94 ms|
+|lambda term/megaparsec | 5.35 ms|
+|lambda term/parsec | 17.7 ms|
 
 Object file sizes for each module containing the `s-exp`, `long keyword` and `numeral csv` benchmarks.
 
 | library    | object file size (bytes) |
 | -------    | ------------------------ |
-| fpbasic    |  19896                   |
-| fpstateful |  22808                   |
-| attoparsec |  75592                   |
-| megaparsec |  98120                  |
-| parsec     |  83576                  |
+| fpbasic    |  71088                   |
+| fpstateful |  73576                   |
+| attoparsec |  242816                  |
+| megaparsec |  402984                  |
+| parsec     |  329008                  |
 
 [basic]: https://hackage.haskell.org/package/flatparse/docs/FlatParse-Basic.html
 [stateful]: https://hackage.haskell.org/package/flatparse/docs/FlatParse-Stateful.html

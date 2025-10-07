@@ -15,8 +15,10 @@ import qualified FPBasic
 import qualified ReadInteger
 
 import qualified Data.ByteString.UTF8
-import qualified FlatParse.Common.Assorted
+import FlatParse.Common.Assorted (strToUtf8)
 import qualified FlatParse.Basic
+
+import Common
 
 sexpInp :: B.ByteString
 sexpInp =
@@ -34,6 +36,13 @@ readIntInp = "12345678910"
 longString :: String
 longString =
   concat $ "(" : replicate 33333 "(foo (foo (foo ((bar baza)))))" ++ [")"]
+
+tmInp :: B.ByteString
+tmInp = B.pack (unlines (do
+  x <- [0..3000::Int]
+  pure ("let x" ++ show x ++ " = fun f. fun g. fun x. fun y. f (f (f ((g x y + g x y) * g x y * g x y * 13500)));")
+  ++ ["x1000"]))
+
 
 main :: IO ()
 main = defaultMain [
@@ -70,6 +79,14 @@ main = defaultMain [
     bench "attoparsec" $ whnf Attoparsec.runNumcsv numcsvInp,
     bench "megaparsec" $ whnf Megaparsec.runNumcsv numcsvInp,
     bench "parsec"     $ whnf Parsec.runNumcsv     numcsvInp
+  ],
+
+  bgroup "lambda term" [
+    bench "fpbasic"    $ whnf FPBasic.runTm    tmInp,
+    bench "fpstateful" $ whnf FPStateful.runTm tmInp,
+    bench "attoparsec" $ whnf Attoparsec.runTm tmInp,
+    bench "megaparsec" $ whnf Megaparsec.runTm tmInp,
+    bench "parsec"     $ whnf Parsec.runTm tmInp
   ],
 
   bgroup "readInt/readInteger" [

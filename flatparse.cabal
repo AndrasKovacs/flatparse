@@ -139,6 +139,7 @@ benchmark bench
   main-is: Bench.hs
   other-modules:
       Attoparsec
+      Common
       FPBasic
       FPStateful
       Megaparsec
