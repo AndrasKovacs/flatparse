@@ -45,37 +45,37 @@ Pull requests are welcome. I'm fairly quick to add PR authors as collaborators.
 
 ## Some benchmarks
 
-Execution times below. See source code in [bench](bench). Compiled with GHC
-9.8.3. `-O2 -fllvm` with `flatparse-0.5.2.1`. Executed on Intel 1345U CPU. Uses
-`nightly-2024-11-11` Stackage snapshot for the involved packages.
+Execution times below. See source code in [bench](bench). Compiled with GHC 9.10.2 `-O2 -fllvm` with
+`flatparse-0.5.3.1`. Executed on AMD 9800X3D CPU. Uses `lts-24.7` Stackage snapshot for the involved
+packages.
 
 |      benchmark              |  runtime   |
 |-----------------------------|-------------
-|sexp/fpbasic                 | 3.262 ms   |
-|sexp/fpstateful              | 2.523 ms   |
-|sexp/attoparsec              | 15.28 ms   |
-|sexp/megaparsec              | 36.03 ms   |
-|sexp/parsec                  | 67.16 ms   |
-|long keyword/fpbasic         | 0.079 ms   |
-|long keyword/fpstateful      | 0.078 ms   |
-|long keyword/attoparsec      | 0.705 ms   |
-|long keyword/megaparsec      | 2.014 ms   |
-|long keyword/parsec          | 8.813 ms   |
-|numeral csv/fpbasic          | 0.482 ms   |
-|numeral csv/fpstateful       | 0.580 ms   |
-|numeral csv/attoparsec       | 4.661 ms   |
-|numeral csv/megaparsec       | 7.415 ms   |
-|numeral csv/parsec           | 24.54 ms   |
+|sexp/fpbasic | 1.80 ms|
+|sexp/fpstateful | 1.25 ms|
+|sexp/attoparsec | 10.2 ms|
+|sexp/megaparsec | 6.92 ms|
+|sexp/parsec | 39.9 ms|
+|long keyword/fpbasic | 0.054 ms |
+|long keyword/fpstateful | 0.062 ms |
+|long keyword/attoparsec | 0.308 ms |
+|long keyword/megaparsec | 0.687 ms |
+|long keyword/parsec | 7.16 ms |
+|numeral csv/fpbasic | 0.540 ms |
+|numeral csv/fpstateful | 0.504 ms |
+|numeral csv/attoparsec | 3.17 ms |
+|numeral csv/megaparsec | 1.09 ms |
+|numeral csv/parsec | 13.8 ms |
 
 Object file sizes for each module containing the `s-exp`, `long keyword` and `numeral csv` benchmarks.
 
 | library    | object file size (bytes) |
 | -------    | ------------------------ |
-| fpbasic    |  26704                   |
-| fpstateful |  31064                   |
-| attoparsec |  91216                   |
-| megaparsec |  219712                  |
-| parsec     |  113152                  |
+| fpbasic    |  19896                   |
+| fpstateful |  22808                   |
+| attoparsec |  75592                   |
+| megaparsec |  98120                  |
+| parsec     |  83576                  |
 
 [basic]: https://hackage.haskell.org/package/flatparse/docs/FlatParse-Basic.html
 [stateful]: https://hackage.haskell.org/package/flatparse/docs/FlatParse-Stateful.html
