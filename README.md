@@ -72,7 +72,7 @@ packages.
 |lambda term/megaparsec | 5.35 ms|
 |lambda term/parsec | 17.7 ms|
 
-Object file sizes for each module containing the `s-exp`, `long keyword` and `numeral csv` benchmarks.
+Object file sizes for each module containing the `s-exp`, `long keyword`, `numeral csv` and `lambda term` benchmarks.
 
 | library    | object file size (bytes) |
 | -------    | ------------------------ |
