@@ -16,7 +16,7 @@ A stripped-down module that's mostly useful for __deserialization__.
 
 module FlatParse.Minimal (
     module FlatParse.Minimal
-  , module FlatParse.Minimal.Exception
+  , ParseException(..)
   , FlatParse.Common.Position.Pos(..)
   , FlatParse.Common.Position.endPos
   , FlatParse.Common.Position.addrToPos#
@@ -44,7 +44,7 @@ import qualified FlatParse.Common.Assorted as Common
 import qualified FlatParse.Common.Numbers as Common
 import qualified FlatParse.Common.Switch as Common
 import FlatParse.Common.Position
-import FlatParse.Minimal.Exception
+import FlatParse.Minimal.Internal
 
 {-# inline parseError #-}
 -- | Throw the designated parse error.
@@ -196,7 +196,7 @@ anyAsciiDecimalInteger = unsafeEmbedBasicIO $ FPB.anyAsciiDecimalInteger
 --   constructed from the input buffer!
 unsafeEmbedBasicIO :: FPB.ParserIO () a -> Parser a
 unsafeEmbedBasicIO = \(FPB.ParserT f) -> Parser \eob s st ->
-  case f (PlainForeignPtr (error "unsafeEmbedBasicIO: attempted to build ByteString from buffer")) eob s st of
+  case f undefinedFinalizer eob s st of
     (# st, (# (# !a, s #) | | #) #) -> (# a, s, st #)
     (# st, _                     #) -> parseError# st
 
