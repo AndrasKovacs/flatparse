@@ -18,7 +18,9 @@ module FlatParse.Basic.Text
 
   -- ** ASCII-encoded numbers
   , anyAsciiDecimalWord
+  , anyAsciiDecimalWordCPS
   , anyAsciiDecimalInt
+  , anyAsciiDecimalIntCPS
   , anyAsciiDecimalInteger
   , anyAsciiHexWord
   , anyAsciiHexInt
@@ -203,6 +205,15 @@ anyAsciiDecimalWord = ParserT \fp eob s st ->
       (# (##) | #)        -> Fail# st
 {-# inline anyAsciiDecimalWord #-}
 
+-- | Parse a non-empty ASCII decimal digit sequence as a 'Word'.
+--   Fails on overflow.
+anyAsciiDecimalWordCPS :: (Word# -> ParserT st e a) -> ParserT st e a
+anyAsciiDecimalWordCPS k = ParserT \fp eob s st ->
+    case Common.anyAsciiDecimalWord# eob s of
+      (# | (# w, s' #) #) -> runParserT# (k w) fp eob s' st
+      (# (##) | #)        -> Fail# st
+{-# inline anyAsciiDecimalWordCPS #-}
+
 -- | Parse a non-empty ASCII decimal digit sequence as a positive 'Int'.
 --   Fails on overflow.
 anyAsciiDecimalInt :: ParserT st e Int
@@ -211,6 +222,15 @@ anyAsciiDecimalInt = ParserT \fp eob s st ->
       (# | (# n, s' #) #) -> OK#   st (I# n) s'
       (# (##) | #)        -> Fail# st
 {-# inline anyAsciiDecimalInt #-}
+
+-- | Parse a non-empty ASCII decimal digit sequence as a positive 'Int'.
+--   Fails on overflow.
+anyAsciiDecimalIntCPS :: (Int -> ParserT st e a) -> ParserT st e a
+anyAsciiDecimalIntCPS k = ParserT \fp eob s st ->
+    case Common.anyAsciiDecimalInt# eob s of
+      (# | (# n, s' #) #) -> runParserT# (k (I# n)) fp eob s' st
+      (# (##) | #)        -> Fail# st
+{-# inline anyAsciiDecimalIntCPS #-}
 
 -- | Parse a non-empty ASCII decimal digit sequence as a positive 'Integer'.
 anyAsciiDecimalInteger :: ParserT st e Integer

@@ -1,7 +1,7 @@
 -- | Efficient literal branching using Template Haskell.
 
 module FlatParse.Basic.Switch
-  ( switch, switchWithPost, rawSwitchWithPost
+  ( switch, switchWithPost, rawSwitchWithPost, genTrie, genSwitchTrie'
   ) where
 
 import Control.Monad

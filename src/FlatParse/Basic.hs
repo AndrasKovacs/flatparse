@@ -135,7 +135,9 @@ module FlatParse.Basic (
 
   -- *** ASCII-encoded numbers
   , FP.Text.anyAsciiDecimalWord
+  , FP.Text.anyAsciiDecimalWordCPS
   , FP.Text.anyAsciiDecimalInt
+  , FP.Text.anyAsciiDecimalIntCPS
   , FP.Text.anyAsciiDecimalInteger
   , FP.Text.anyAsciiHexWord
   , FP.Text.anyAsciiHexInt
