@@ -1,3 +1,5 @@
+{-# language CPP #-}
+
 module FlatParse.Common.Assorted
   (
   -- * Compatibility
@@ -32,7 +34,9 @@ module FlatParse.Common.Assorted
 
 import Data.Bits
 import Data.Char ( ord )
+#if __GLASGOW_HASKELL__ <= 908
 import Data.Foldable (foldl')
+#endif
 import GHC.Exts
 
 import qualified Data.ByteString as B

@@ -1,4 +1,4 @@
-{-# language Strict, UnboxedTuples, ImportQualifiedPost, ScopedTypeVariables, TypeApplications #-}
+{-# language Strict, UnboxedTuples, ScopedTypeVariables, TypeApplications, CPP #-}
 -- {-# options_ghc -ddump-simpl -ddump-to-file -dsuppress-all -dno-suppress-type-signatures #-}
 
 {-|
@@ -34,16 +34,16 @@ import GHC.ForeignPtr
 import GHC.IO (IO(..))
 import Language.Haskell.TH
 
-import Data.ByteString qualified  as B
-import Data.ByteString.Internal qualified  as B
-import Data.ByteString.Unsafe qualified  as B
+import qualified Data.ByteString as B
+import qualified Data.ByteString.Internal as B
+import qualified Data.ByteString.Unsafe as B
 
-import FlatParse.Basic qualified as FPB
-import FlatParse.Basic.Switch qualified as FPB
-import FlatParse.Common.Assorted qualified as Common
-import FlatParse.Common.Numbers qualified as Common
+import qualified FlatParse.Basic as FPB
+import qualified FlatParse.Basic.Switch as FPB
+import qualified FlatParse.Common.Assorted as Common
+import qualified FlatParse.Common.Numbers as Common
+import qualified FlatParse.Common.Switch as Common
 import FlatParse.Common.Position
-import FlatParse.Common.Switch qualified as Common
 import FlatParse.Minimal.Exception
 
 {-# inline parseError #-}
@@ -57,7 +57,10 @@ pattern Parser :: (Addr# -> Addr# -> State# RealWorld -> (# a, Addr#, State# Rea
                   -> Parser a
 pattern Parser f <- Parser# f where
   Parser f = Parser# (oneShot \eob s st -> f eob s st)
+
+#if __GLASGOW_HASKELL__ > 900
 {-# inline Parser #-}
+#endif
 {-# complete Parser #-}
 
 -- Catching parsing exception
@@ -193,7 +196,7 @@ anyAsciiDecimalInteger = unsafeEmbedBasicIO $ FPB.anyAsciiDecimalInteger
 --   constructed from the input buffer!
 unsafeEmbedBasicIO :: FPB.ParserIO () a -> Parser a
 unsafeEmbedBasicIO = \(FPB.ParserT f) -> Parser \eob s st ->
-  case f FinalPtr eob s st of
+  case f (PlainForeignPtr (error "unsafeEmbedBasicIO: attempted to build ByteString from buffer")) eob s st of
     (# st, (# (# !a, s #) | | #) #) -> (# a, s, st #)
     (# st, _                     #) -> parseError# st
 

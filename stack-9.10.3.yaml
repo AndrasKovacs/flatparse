@@ -1,7 +1,7 @@
 
-# ghc 9.12.4
+# ghc 9.10.3
 
-resolver: nightly-2026-08-16
+resolver: lts-24.55
 
 packages:
 - .

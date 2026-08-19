@@ -1,7 +1,9 @@
 module FlatParse.Common.Switch where
 
 import Control.Monad (forM)
+#if __GLASGOW_HASKELL__ <= 908
 import Data.Foldable (foldl')
+#endif
 import Data.Map (Map)
 import Language.Haskell.TH
 

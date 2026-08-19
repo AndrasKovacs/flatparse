@@ -1,6 +1,6 @@
 
 name:        flatparse
-version:     0.5.4.1
+version:     0.5.4.2
 license:     MIT
 category:    Parsing
 synopsis:    High-performance parsing from strict bytestrings
@@ -36,7 +36,7 @@ flags:
 
 dependencies:
   - base >= 4.7 && < 5
-  - utf8-string ^>= 1.0.2
+  - utf8-string >= 1
 
 extra-source-files:
   - README.md

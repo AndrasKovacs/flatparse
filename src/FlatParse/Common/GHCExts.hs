@@ -9,7 +9,11 @@ module FlatParse.Common.GHCExts
   , module GHC.Exts
   ) where
 
+#if __GLASGOW_HASKELL__ == 912
+import GHC.Exts hiding (BCO, mkApUpd0#, newBCO#)
+#else
 import GHC.Exts
+#endif
 
 #if !MIN_VERSION_base(4,17,0)
 {-
