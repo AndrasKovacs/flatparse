@@ -33,6 +33,9 @@ outside `flatparse`, and compiled there.
   overhead in performance and code size compared to `Basic`. In microbenchmarks
   and small parsers, the performance difference between `Basic` and `Stateful`
   is more up to the whims of GHC and LLVM, and is a bit more "random".
+* [`FlatParse.Minimal`][minimal] is a stripped-down version that has no error reporting features and
+  no support for efficient backtracking. It is intended for deserialization workloads. Currently the
+  API is also rather small. More functions might be added in the future.
 
 ## Tutorial
 
