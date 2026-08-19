@@ -196,10 +196,13 @@ anyAsciiDecimalInteger = unsafeEmbedBasicIO $ FPB.anyAsciiDecimalInteger
 --   constructed from the input buffer!
 unsafeEmbedBasicIO :: FPB.ParserIO () a -> Parser a
 unsafeEmbedBasicIO = \(FPB.ParserT f) -> Parser \eob s st ->
+#if MIN_VERSION_base(4,15,0)
+  case f FinalPtr eob s st of
+#else
   case f undefinedFinalizer eob s st of
+#endif
     (# st, (# (# !a, s #) | | #) #) -> (# a, s, st #)
     (# st, _                     #) -> parseError# st
-
 
 -- | Run a @FlatParse.Minimal@ parser inside a @FlatParse.Basic@ parser.
 {-# inline embedMinimal #-}
