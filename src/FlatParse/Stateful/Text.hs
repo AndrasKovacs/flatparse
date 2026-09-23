@@ -6,7 +6,7 @@ module FlatParse.Stateful.Text
   (
   -- * UTF-8
     char, string
-  , anyChar, skipAnyChar
+  , anyChar, skipAnyChar, withAnyChar#
   , satisfy, skipSatisfy
   , fusedSatisfy, skipFusedSatisfy
   , takeLine
@@ -72,6 +72,41 @@ anyChar = ParserT \fp !r eob buf n st -> case eqAddr# eob buf of
                                     (ord# c4 -# 0x80#)
                         in OK# st (C# (chr# resc)) (plusAddr# buf 4#) n
 {-# inline anyChar #-}
+
+-- | Parser a single unboxed UTF-8 character and pass it to the continuation.
+withAnyChar# :: (Char# -> ParserT st r e a) -> ParserT st r e a
+withAnyChar# cont = ParserT \fp !r eob buf n st -> case eqAddr# eob buf of
+  1# -> Fail# st
+  _  -> case Common.derefChar8# buf of
+    c1 -> case c1 `leChar#` '\x7F'# of
+      1# -> runParserT# (cont c1) fp r eob (plusAddr# buf 1#) n st
+      _  -> case eqAddr# eob (plusAddr# buf 1#) of
+        1# -> Fail# st
+        _ -> case indexCharOffAddr# buf 1# of
+          c2 -> case c1 `leChar#` '\xDF'# of
+            1# ->
+              let resc = ((ord# c1 -# 0xC0#) `uncheckedIShiftL#` 6#) `orI#`
+                          (ord# c2 -# 0x80#)
+              in runParserT# (cont (chr# resc)) fp r eob (plusAddr# buf 2#) n st
+            _ -> case eqAddr# eob (plusAddr# buf 2#) of
+              1# -> Fail# st
+              _  -> case indexCharOffAddr# buf 2# of
+                c3 -> case c1 `leChar#` '\xEF'# of
+                  1# ->
+                    let resc = ((ord# c1 -# 0xE0#) `uncheckedIShiftL#` 12#) `orI#`
+                               ((ord# c2 -# 0x80#) `uncheckedIShiftL#`  6#) `orI#`
+                                (ord# c3 -# 0x80#)
+                    in runParserT# (cont (chr# resc)) fp r eob (plusAddr# buf 3#) n st
+                  _ -> case eqAddr# eob (plusAddr# buf 3#) of
+                    1# -> Fail# st
+                    _  -> case indexCharOffAddr# buf 3# of
+                      c4 ->
+                        let resc = ((ord# c1 -# 0xF0#) `uncheckedIShiftL#` 18#) `orI#`
+                                   ((ord# c2 -# 0x80#) `uncheckedIShiftL#` 12#) `orI#`
+                                   ((ord# c3 -# 0x80#) `uncheckedIShiftL#`  6#) `orI#`
+                                    (ord# c4 -# 0x80#)
+                        in runParserT# (cont (chr# resc)) fp r eob (plusAddr# buf 4#) n st
+{-# inline withAnyChar# #-}
 
 -- | Skip any single Unicode character encoded using UTF-8.
 skipAnyChar :: ParserT st r e ()
