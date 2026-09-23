@@ -210,6 +210,12 @@ embedMinimal :: Parser a -> FPB.ParserIO () a
 embedMinimal = \(Parser f) -> FPB.ParserT \_ eob s st ->
   case f eob s st of (# !a, s, st #) -> FPB.OK# st a s
 
+-- | Get the current position.
+getPos :: Parser Pos
+getPos = Parser \eob s st ->
+  let pos = Pos (I# (minusAddr# eob s))
+  in (# pos, s, st #)
+
 {-# inline spanOf #-}
 -- | Return the consumed span of a parser.
 spanOf :: Parser a -> Parser Span
